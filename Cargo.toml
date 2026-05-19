@@ -1,6 +1,6 @@
 [package]
 name = "aiprog"
-version = "0.0.1"
+version = "0.0.2-WIP"
 edition = "2024"
 description = "Rust engine for moving AI from tool calls to program execution"
 license = "MIT OR Apache-2.0"
