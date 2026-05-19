@@ -1,0 +1,39 @@
+[package]
+name = "aiprog"
+version = "0.0.1"
+edition = "2024"
+description = "Rust engine for moving AI from tool calls to program execution"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/zcoder-run/aiprog"
+repository = "https://github.com/zcoder-run/aiprog"
+categories = [
+  "development-tools",
+  "api-bindings"
+]
+keywords = [
+  "ai",
+  "lua",
+  "mcp",
+  "llm",
+  "agent"
+]
+
+
+[lib]
+doctest = false
+
+[lints.rust]
+unsafe_code = "forbid"
+# unused = { level = "allow", priority = -1 } # For exploratory dev.
+
+[dependencies]
+# -- Async
+tokio = { version = "1", features = ["full"] }
+# -- Json
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = { version = "3", features = ["macros"] }
+# -- Lua
+mlua = { version = "0.10", features = ["lua54", "vendored", "serialize"] }
+# -- Error
+derive_more = { version = "2", features = ["display", "from"] }
