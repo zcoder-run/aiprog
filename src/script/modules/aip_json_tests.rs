@@ -1,0 +1,281 @@
+type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
+
+use crate::_test_support::{eval_lua, setup_lua};
+use crate::script::modules;
+use assertables::{assert_contains, assert_not_contains};
+use serde_json::json;
+use value_ext::JsonValueExt as _;
+
+#[tokio::test]
+async fn test_script_lua_json_parse_simple() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local content = '{"name": "John", "age": 30}'
+            return aip.json.parse(content)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	assert_eq!(res.x_get_str("name")?, "John");
+	assert_eq!(res.x_get_i64("age")?, 30);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_with_comment() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local content = [[
+						// Some comment
+						{"name": "John", "age": 30}
+					]]
+            return aip.json.parse(content)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	assert_eq!(res.x_get_str("name")?, "John");
+	assert_eq!(res.x_get_i64("age")?, 30);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_nil() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            return aip.json.parse(nil)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	assert!(res.is_null());
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_invalid() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local ok, err = pcall(function()
+                local content = "{invalid_json}"
+                return aip.json.parse(content)
+            end)
+            if ok then
+                return "should not reach here"
+            else
+                return err
+            end
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script);
+
+	// -- Check
+	let Err(err) = res else {
+		panic!("Expected error, got {res:?}");
+	};
+
+	// -- Check
+	let err_str = err.to_string();
+
+	assert_contains!(&err_str, "json.parse failed");
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_ndjson_simple() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local content = '{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}'
+            return aip.json.parse_ndjson(content)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let expected = json!([
+		{"name": "John", "age": 30},
+		{"name": "Jane", "age": 25}
+	]);
+	assert_eq!(res, expected);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_ndjson_empty_lines() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local content = '{"id": 1}\n\n{"id": 2}\n   \n{"id": 3}'
+            return aip.json.parse_ndjson(content)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let expected = json!([
+		{"id": 1},
+		{"id": 2},
+		{"id": 3}
+	]);
+	assert_eq!(res, expected);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_ndjson_nil() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            return aip.json.parse_ndjson(nil)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	assert!(res.is_null());
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_ndjson_invalid_json() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local ok, err = pcall(function()
+                local content = '{"id": 1}\n{invalid_json}\n{"id": 3}'
+                return aip.json.parse_ndjson(content)
+            end)
+            if ok then
+                return "should not reach here"
+            else
+                return err
+            end
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script);
+
+	// -- Check
+	let Err(err) = res else {
+		panic!("Expected error, got {res:?}");
+	};
+	let err_str = err.to_string();
+	assert_contains!(&err_str, "aip.json.parse_ndjson failed");
+	assert_contains!(&err_str, "line 2");
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local obj = {
+                name = "John",
+                age = 30
+            }
+            return aip.json.stringify_pretty(obj)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+	// -- Check
+	let result = res.as_str().ok_or("Expected string result")?;
+	let parsed: serde_json::Value = serde_json::from_str(result)?;
+	assert_eq!(parsed["name"], "John");
+	assert_eq!(parsed["age"], 30);
+	assert!(result.contains('\n'), "Expected pretty formatting with newlines");
+	assert!(result.contains("  "), "Expected pretty formatting with indentation");
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_pretty_complex() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local obj = {
+                name = "John",
+                age = 30,
+                address = {
+                    street = "123 Main St",
+                    city = "New York"
+                },
+                hobbies = {"reading", "gaming"}
+            }
+            return aip.json.stringify_pretty(obj)
+        "#;
+
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let result = res.as_str().ok_or("Expected string result")?;
+	let parsed: serde_json::Value = serde_json::from_str(result)?;
+	assert_eq!(parsed["name"], "John");
+	assert_eq!(parsed["age"], 30);
+	assert_eq!(parsed["address"]["street"], "123 Main St");
+	assert_eq!(parsed["hobbies"][0], "reading");
+	assert!(result.contains('\n'), "Expected pretty formatting with newlines");
+	assert!(result.contains("  "), "Expected pretty formatting with indentation");
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_simple() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local obj = {
+                name = "John",
+                age = 30,
+                address = {
+                    street = "123 Main St",
+                    city = "New York"
+                },
+                hobbies = {"reading", "gaming"}
+            }
+            return aip.json.stringify(obj)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+	// -- Check
+	let result = res.as_str().ok_or("Expected string result")?;
+	assert_contains!(result, r#""name":"John""#);
+	assert_not_contains!(result, "\n");
+	assert_not_contains!(result, "  ");
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_to_line_alias() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local obj = {
+                name = "John",
+                age = 30,
+                address = {
+                    street = "123 Main St",
+                    city = "New York"
+                },
+                hobbies = {"reading", "gaming"}
+            }
+            return aip.json.stringify_to_line(obj)
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+	// -- Check
+	let result = res.as_str().ok_or("Expected string result")?;
+	assert_contains!(result, r#""name":"John""#);
+	assert_not_contains!(result, "\n");
+	assert_not_contains!(result, "  ");
+	Ok(())
+}

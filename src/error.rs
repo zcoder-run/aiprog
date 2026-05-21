@@ -8,6 +8,9 @@ pub enum Error {
 	#[from(String, &String, &str)]
 	Custom(String),
 
+	#[display("Error: {_0}\n\tCause: {_1}")]
+	CustomAndCause(String, String),
+
 	// -- Externals
 	#[from]
 	Io(std::io::Error),
@@ -17,6 +20,9 @@ pub enum Error {
 
 	#[from]
 	Lua(mlua::Error),
+
+	#[from]
+	SimpleFs(simple_fs::Error),
 }
 
 // region:    --- Custom
@@ -28,6 +34,11 @@ impl Error {
 
 	pub fn custom_from_err(err: impl std::error::Error) -> Self {
 		Self::Custom(err.to_string())
+	}
+
+	/// Same as custom_and_cause (just a "cute" shorcut)
+	pub fn cc(context: impl Into<String>, cause: impl std::fmt::Display) -> Self {
+		Self::CustomAndCause(context.into(), cause.to_string())
 	}
 }
 
