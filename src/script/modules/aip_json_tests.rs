@@ -255,6 +255,93 @@ async fn test_script_lua_json_stringify_simple() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_script_lua_json_parse_new_api() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local res = aip.json.parse({ content = '{"name": "John", "age": 30}' })
+            return res
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check standard API envelope
+	assert_eq!(res["result"]["data"]["name"], "John");
+	assert_eq!(res["result"]["data"]["age"], 30);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local res = aip.json.parse({ content = '{"invalid' })
+            return res
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check standard API envelope error
+	assert_eq!(res["error"]["message"], "PARSE_FAILED");
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_ndjson_new_api() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local res = aip.json.parse_ndjson({ content = '{"name": "John"}\n{"name": "Jane"}' })
+            return res
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let expected = json!([
+		{"name": "John"},
+		{"name": "Jane"}
+	]);
+	assert_eq!(res["result"]["data"], expected);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_new_api() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local res = aip.json.stringify({ value = { name = "John", age = 30 } })
+            return res
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let result_str = res["result"]["data"].as_str().ok_or("Expected string")?;
+	assert_contains!(result_str, r#""name":"John""#);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local res = aip.json.stringify_pretty({ value = { name = "John", age = 30 } })
+            return res
+        "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check
+	let result_str = res["result"]["data"].as_str().ok_or("Expected string")?;
+	assert!(result_str.contains('\n'));
+	assert!(result_str.contains("  "));
+	Ok(())
+}
+#[tokio::test]
 async fn test_script_lua_json_stringify_to_line_alias() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;

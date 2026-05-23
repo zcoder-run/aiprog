@@ -74,6 +74,7 @@ quick-xml = "0.40"
 derive_more = { version = "2", features = ["display", "from"] }
 time = { version = "0.3.44", features = ["formatting", "local-offset"]}
 time-tz = {version = "2.0.0", features = ["system"]}
+schemars = "1.2.1"
 
 
 [dev-dependencies]
