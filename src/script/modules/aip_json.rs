@@ -31,46 +31,6 @@ use std::io::BufReader;
 
 // region:    --- Types
 
-/// Parameters for the `parse_ndjson` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct AipJsonParseNdjsonParams {
-	/// The NDJSON string to parse.
-	#[serde(alias = "data")]
-	pub content: Option<String>,
-}
-
-/// Result of the `parse_ndjson` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
-pub struct AipJsonParseNdjsonResult {
-	/// The parsed list of JSON values.
-	pub values: Vec<serde_json::Value>,
-}
-
-/// Parameters for the `stringify` and `stringify_pretty` functions.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyParams {
-	/// The value to serialize to JSON.
-	#[serde(alias = "data")]
-	pub value: serde_json::Value,
-}
-
-/// Result of the `stringify` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
-pub struct AipJsonStringifyResult {
-	/// The stringified JSON string.
-	pub content: String,
-}
-
-/// Result of the `stringify_pretty` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
-pub struct AipJsonStringifyPrettyResult {
-	/// The pretty-stringified JSON string.
-	pub content: String,
-}
-
 // -- Internal API Envelope
 
 #[derive(serde::Serialize)]
@@ -229,6 +189,24 @@ fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 
 // endregion: --- aip.json.parse
 
+// region:    --- aip.json.parse_ndjson
+
+/// Parameters for the `parse_ndjson` function.
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct AipJsonParseNdjsonParams {
+	/// The NDJSON string to parse.
+	#[serde(alias = "data")]
+	pub content: Option<String>,
+}
+
+/// Result of the `parse_ndjson` function.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(transparent)]
+pub struct AipJsonParseNdjsonResult {
+	/// The parsed list of JSON values.
+	pub values: Vec<serde_json::Value>,
+}
+
 fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	let Some(arg) = arg else {
 		return Ok(Value::Nil);
@@ -284,6 +262,26 @@ fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 			Err(err) => Err(Error::custom(format!("aip.json.parse_ndjson failed. {err}")).into()),
 		}
 	}
+}
+
+// endregion: --- aip.json.parse_ndjson
+
+// region:    --- aip.json.stringify
+
+/// Parameters for the `stringify` and `stringify_pretty` functions.
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct AipJsonStringifyParams {
+	/// The value to serialize to JSON.
+	#[serde(alias = "data")]
+	pub value: serde_json::Value,
+}
+
+/// Result of the `stringify` function.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(transparent)]
+pub struct AipJsonStringifyResult {
+	/// The stringified JSON string.
+	pub content: String,
 }
 
 /// ## Lua Documentation
@@ -381,6 +379,18 @@ fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	}
 }
 
+// endregion: --- aip.json.stringify
+
+// region:    --- aip.json.stringify_pretty
+
+/// Result of the `stringify_pretty` function.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(transparent)]
+pub struct AipJsonStringifyPrettyResult {
+	/// The pretty-stringified JSON string.
+	pub content: String,
+}
+
 /// ## Lua Documentation
 /// ---
 /// Stringify a table into a JSON string with pretty formatting.
@@ -476,6 +486,8 @@ fn stringify_pretty(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 		}
 	}
 }
+
+// endregion: --- aip.json.stringify_pretty
 
 // region:    --- Tests
 
