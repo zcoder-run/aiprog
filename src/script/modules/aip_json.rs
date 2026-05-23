@@ -31,58 +31,8 @@ use std::io::BufReader;
 
 // region:    --- Types
 
-// -- Internal API Envelope
-
-#[derive(serde::Serialize)]
-struct ApiResponse<T> {
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub result: Option<ApiSuccess<T>>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub error: Option<ApiError>,
-}
-
-#[derive(serde::Serialize)]
-struct ApiSuccess<T> {
-	pub data: T,
-}
-
-#[derive(serde::Serialize)]
-struct ApiError {
-	pub message: String,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub data: Option<ApiErrorData>,
-}
-
-#[derive(serde::Serialize)]
-struct ApiErrorData {
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub full_message: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub cause: Option<String>,
-}
-
-impl<T> ApiResponse<T> {
-	pub fn success(data: T) -> Self {
-		Self {
-			result: Some(ApiSuccess { data }),
-			error: None,
-		}
-	}
-
-	pub fn error(message: impl Into<String>, full_message: Option<String>, cause: Option<String>) -> Self {
-		Self {
-			result: None,
-			error: Some(ApiError {
-				message: message.into(),
-				data: Some(ApiErrorData { full_message, cause }),
-			}),
-		}
-	}
-}
-
 fn return_success_envelope<T: serde::Serialize>(lua: &Lua, data: T) -> mlua::Result<Value> {
-	let response = ApiResponse::success(data);
-	let serde_val = serde_json::to_value(&response)
+	let serde_val = serde_json::to_value(&data)
 		.map_err(|err| mlua::Error::RuntimeError(format!("Failed to serialize API success response: {err}")))?;
 	serde_value_to_lua_value(lua, serde_val).map_err(Into::into)
 }
@@ -93,10 +43,14 @@ fn return_error_envelope(
 	full_message: Option<String>,
 	cause: Option<String>,
 ) -> mlua::Result<Value> {
-	let response: ApiResponse<serde_json::Value> = ApiResponse::error(message, full_message, cause);
-	let serde_val = serde_json::to_value(&response)
-		.map_err(|err| mlua::Error::RuntimeError(format!("Failed to serialize API error response: {err}")))?;
-	serde_value_to_lua_value(lua, serde_val).map_err(Into::into)
+	let mut err_msg = format!("API Error: {message}");
+	if let Some(fm) = full_message {
+		err_msg.push_str(&format!("\nDetails: {fm}"));
+	}
+	if let Some(c) = cause {
+		err_msg.push_str(&format!("\nCause: {c}"));
+	}
+	Err(mlua::Error::RuntimeError(err_msg))
 }
 
 // endregion: --- Types
@@ -128,16 +82,14 @@ pub fn init_module(lua: &Lua) -> Result<Table> {
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseParams {
 	/// The JSON string to parse.
-	#[serde(alias = "data")]
-	pub content: Option<String>,
+	pub data: Option<String>,
 }
 
 /// Result of the `parse` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
 pub struct AipJsonParseResult {
 	/// The parsed JSON value.
-	pub value: serde_json::Value,
+	pub data: serde_json::Value,
 }
 
 fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
@@ -146,7 +98,7 @@ fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	let is_new_api = if let Value::Table(ref t) = arg {
-		t.x_get_value("content").is_some() || t.x_get_value("data").is_some()
+		t.x_get_value("data").is_some()
 	} else {
 		false
 	};
@@ -160,12 +112,22 @@ fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 			Ok(p) => p,
 			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
 		};
-		let Some(content) = params.content else {
-			return return_success_envelope(lua, serde_json::Value::Null);
+		let Some(content) = params.data else {
+			return return_success_envelope(
+				lua,
+				AipJsonParseResult {
+					data: serde_json::Value::Null,
+				},
+			);
 		};
 		match jsons::parse_jsonc_to_serde_value(&content) {
-			Ok(Some(json_val)) => return_success_envelope(lua, json_val),
-			Ok(None) => return_success_envelope(lua, serde_json::Value::Null),
+			Ok(Some(json_val)) => return_success_envelope(lua, AipJsonParseResult { data: json_val }),
+			Ok(None) => return_success_envelope(
+				lua,
+				AipJsonParseResult {
+					data: serde_json::Value::Null,
+				},
+			),
 			Err(err) => return_error_envelope(lua, "PARSE_FAILED", Some(format!("aip.json.parse failed. {err}")), None),
 		}
 	} else {
@@ -195,16 +157,14 @@ fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseNdjsonParams {
 	/// The NDJSON string to parse.
-	#[serde(alias = "data")]
-	pub content: Option<String>,
+	pub data: Option<String>,
 }
 
 /// Result of the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
 pub struct AipJsonParseNdjsonResult {
 	/// The parsed list of JSON values.
-	pub values: Vec<serde_json::Value>,
+	pub data: Vec<serde_json::Value>,
 }
 
 fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
@@ -213,7 +173,7 @@ fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	let is_new_api = if let Value::Table(ref t) = arg {
-		t.x_get_value("content").is_some() || t.x_get_value("data").is_some()
+		t.x_get_value("data").is_some()
 	} else {
 		false
 	};
@@ -227,13 +187,13 @@ fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 			Ok(p) => p,
 			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
 		};
-		let Some(content) = params.content else {
-			return return_success_envelope(lua, serde_json::Value::Array(vec![]));
+		let Some(content) = params.data else {
+			return return_success_envelope(lua, AipJsonParseNdjsonResult { data: vec![] });
 		};
 		let reader = BufReader::new(content.as_bytes());
 		match parse_ndjson_from_reader(reader) {
 			Ok(values) => {
-				let result = AipJsonParseNdjsonResult { values };
+				let result = AipJsonParseNdjsonResult { data: values };
 				return_success_envelope(lua, result)
 			}
 			Err(err) => return_error_envelope(
@@ -272,16 +232,14 @@ fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyParams {
 	/// The value to serialize to JSON.
-	#[serde(alias = "data")]
-	pub value: serde_json::Value,
+	pub data: serde_json::Value,
 }
 
 /// Result of the `stringify` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
 pub struct AipJsonStringifyResult {
 	/// The stringified JSON string.
-	pub content: String,
+	pub data: String,
 }
 
 /// ## Lua Documentation
@@ -336,18 +294,18 @@ fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	let is_new_api = if let Value::Table(ref t) = arg {
-		let mut has_value_or_data = false;
+		let mut has_data = false;
 		let mut key_count = 0;
 		for pair in t.clone().pairs::<Value, Value>() {
 			let (k, _) = pair?;
 			key_count += 1;
 			if let Some(k_str) = k.x_to_string()
-				&& (k_str == "value" || k_str == "data")
+				&& k_str == "data"
 			{
-				has_value_or_data = true;
+				has_data = true;
 			}
 		}
-		key_count == 1 && has_value_or_data
+		key_count == 1 && has_data
 	} else {
 		false
 	};
@@ -361,8 +319,8 @@ fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 			Ok(p) => p,
 			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
 		};
-		match serde_json::to_string(&params.value) {
-			Ok(str) => return_success_envelope(lua, AipJsonStringifyResult { content: str }),
+		match serde_json::to_string(&params.data) {
+			Ok(str) => return_success_envelope(lua, AipJsonStringifyResult { data: str }),
 			Err(err) => return_error_envelope(
 				lua,
 				"STRINGIFY_FAILED",
@@ -385,10 +343,9 @@ fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 
 /// Result of the `stringify_pretty` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(transparent)]
 pub struct AipJsonStringifyPrettyResult {
 	/// The pretty-stringified JSON string.
-	pub content: String,
+	pub data: String,
 }
 
 /// ## Lua Documentation
@@ -444,18 +401,18 @@ fn stringify_pretty(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	let is_new_api = if let Value::Table(ref t) = arg {
-		let mut has_value_or_data = false;
+		let mut has_data = false;
 		let mut key_count = 0;
 		for pair in t.clone().pairs::<Value, Value>() {
 			let (k, _) = pair?;
 			key_count += 1;
 			if let Some(k_str) = k.x_to_string()
-				&& (k_str == "value" || k_str == "data")
+				&& k_str == "data"
 			{
-				has_value_or_data = true;
+				has_data = true;
 			}
 		}
-		key_count == 1 && has_value_or_data
+		key_count == 1 && has_data
 	} else {
 		false
 	};
@@ -469,8 +426,8 @@ fn stringify_pretty(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 			Ok(p) => p,
 			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
 		};
-		match serde_json::to_string_pretty(&params.value) {
-			Ok(str) => return_success_envelope(lua, AipJsonStringifyPrettyResult { content: str }),
+		match serde_json::to_string_pretty(&params.data) {
+			Ok(str) => return_success_envelope(lua, AipJsonStringifyPrettyResult { data: str }),
 			Err(err) => return_error_envelope(
 				lua,
 				"STRINGIFY_FAILED",

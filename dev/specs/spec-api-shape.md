@@ -6,8 +6,8 @@ Following a single, consistent API pattern reduces prompt size, simplifies valid
 ## Core Design Philosophy
 
 - **Single Parameter:** Every API function accepts exactly one optional or required argument: a Lua table named `params`.
-- **Consistent Response Structure:** Every API function returns a Lua table adhering to a standard response envelope, distinguishing between success (`result`) and error (`error`).
-- **No Direct Nil Returns for Errors:** Errors do not return `nil, err_msg` (traditional Lua style). Instead, they return a standard error object in the envelope to allow unified handling.
+ - **Consistent Response Structure:** Successful API functions return the result object directly at the root. Do not wrap success results in a `.result` field.
+ - **No Direct Nil Returns for Errors:** Failures throw an error instead of returning `nil, err_msg`.
 
 ## Request Shape
 
@@ -25,88 +25,61 @@ local response = aip.json.parse({
 
 ## Response Shape
 
-All responses returned to the Lua script are structured Lua tables that follow a JSON-RPC-like success/error schema.
+ All responses returned to the Lua script are structured Lua tables that follow the success result schema. If the operation fails, a Lua error is thrown.
+
+### Success Response Structure
+
+Successful operations must return the result object (containing the `data` field) directly.
+
+**CRITICAL:** Do NOT wrap the success result in a `.result` envelope.
+
+## Params and Result Data Field Convention
+
+All AI-facing API parameter and result types must use `data` for the primary payload field.
+
+- `...Params` types should accept the main input payload as `.data`.
+- `...Result` types should return the main output payload as `.data`.
+- Do not use payload field names like `.content`, `.value`, or `.values` in the documented AI-facing API shape.
+- Additional fields are allowed only for metadata, options, pagination, or other non-primary payload values.
 
 ### TypeScript Definition
 
 ```ts
-type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
-
 type ApiSuccessResponse<T> = {
-  result: {
-    data: T;
-    [meta_key: string]: any; // Additional metadata like pagination limit, offset, etc.
-  };
-};
-
-type ApiErrorResponse = {
-  error: {
-    message?: string; // Enum-style error code, UPPER_SNAKE_CASE
-    data?: {
-      full_message?: string; // Human-readable details
-      cause?: string; // Underlying root cause if available
-    };
-  };
+   data: T;
+   [meta_key: string]: any; // Additional root-level metadata
 };
 ```
 
-### Success Response Example
-
-A successful execution returns a `result` property containing the actual returned `data` and any other optional metadata.
-
-```lua
--- Lua table structure
-{
-  result = {
-    data = {
-      name = "AIProg"
-    },
-    mode = "flex" -- Example metadata
-  }
-}
-```
-
-```lua
--- Usage in Lua script
-local response = aip.json.parse({ data = '{"name": "AIProg"}' })
-
-if response.result then
-  local data = response.result.data
-  print(data.name)
-end
-```
-
-### Error Response Example
-
-An execution failure returns an `error` property containing structured error information.
-
-```lua
--- Lua table structure
-{
-  error = {
-    message = "INVALID_JSON",
-    data = {
-      full_message = "aip.json.parse failed. Expected double quote at line 1 column 2",
-      cause = "EOF while parsing a string"
-    }
-  }
-}
-```
-
-```lua
--- Usage in Lua script
-local response = aip.json.parse({ data = '{"invalid' })
-
-if response.error then
-  print("Error message: " .. tostring(response.error.message))
-  if response.error.data then
-    print("Details: " .. tostring(response.error.data.full_message))
-  end
-end
-```
+ ### Success Response Example
+ 
+ A successful execution returns the result object directly at the root.
+ 
+ ```lua
+ -- Usage in Lua script
+ local result = aip.json.parse({ data = '{"name": "AIProg"}' })
+ 
+ -- Access data directly from the returned object
+ print(result.data.name)
+ ```
+ 
+ ### Error Handling
+ 
+ An execution failure throws a Lua error. Scripts can use `pcall` if they need to catch and handle errors programmatically.
+ 
+ ```lua
+ -- Usage in Lua script
+ local ok, res = pcall(aip.json.parse, { data = '{"invalid' })
+ 
+ if not ok then
+   -- res contains the error message
+   print("Error: " .. tostring(res))
+ end
+ ```
 
 ## Guidelines for Developers
 
 - **API Modules:** Ensure all functions check for a single input argument (a table).
 - **TypeScript Docs:** When documenting functions for AI or human consumers, always provide the TypeScript type definitions for the input `Params` and the success `Result` data.
+- **Params and Results:** Ensure the primary payload field is named `data` in both `...Params` and `...Result` types, rather than `content`, `value`, or `values`.
 - **Backward Compatibility:** When migrating existing APIs, keep support for positional arguments internally but document only the single-params-table API in AI-facing docs.

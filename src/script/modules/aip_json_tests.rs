@@ -259,15 +259,15 @@ async fn test_script_lua_json_parse_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.parse({ content = '{"name": "John", "age": 30}' })
+            local res = aip.json.parse({ data = '{"name": "John", "age": 30}' })
             return res
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
-	// -- Check standard API envelope
-	assert_eq!(res["result"]["data"]["name"], "John");
-	assert_eq!(res["result"]["data"]["age"], 30);
+	// -- Check standard API
+	assert_eq!(res["data"]["name"], "John");
+	assert_eq!(res["data"]["age"], 30);
 	Ok(())
 }
 
@@ -276,14 +276,18 @@ async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.parse({ content = '{"invalid' })
-            return res
+            local ok, res = pcall(aip.json.parse, { data = '{"invalid' })
+            if not ok then
+                return tostring(res)
+            else
+                return "should have failed"
+            end
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
-	// -- Check standard API envelope error
-	assert_eq!(res["error"]["message"], "PARSE_FAILED");
+	// -- Check error message
+	assert_contains!(res.as_str().ok_or("Expected error string")?, "PARSE_FAILED");
 	Ok(())
 }
 
@@ -292,7 +296,7 @@ async fn test_script_lua_json_parse_ndjson_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.parse_ndjson({ content = '{"name": "John"}\n{"name": "Jane"}' })
+            local res = aip.json.parse_ndjson({ data = '{"name": "John"}\n{"name": "Jane"}' })
             return res
         "#;
 	// -- Exec
@@ -303,7 +307,7 @@ async fn test_script_lua_json_parse_ndjson_new_api() -> Result<()> {
 		{"name": "John"},
 		{"name": "Jane"}
 	]);
-	assert_eq!(res["result"]["data"], expected);
+	assert_eq!(res["data"], expected);
 	Ok(())
 }
 
@@ -312,14 +316,14 @@ async fn test_script_lua_json_stringify_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.stringify({ value = { name = "John", age = 30 } })
+            local res = aip.json.stringify({ data = { name = "John", age = 30 } })
             return res
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
 	// -- Check
-	let result_str = res["result"]["data"].as_str().ok_or("Expected string")?;
+	let result_str = res["data"].as_str().ok_or("Expected string")?;
 	assert_contains!(result_str, r#""name":"John""#);
 	Ok(())
 }
@@ -329,14 +333,14 @@ async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.stringify_pretty({ value = { name = "John", age = 30 } })
+            local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
             return res
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
 	// -- Check
-	let result_str = res["result"]["data"].as_str().ok_or("Expected string")?;
+	let result_str = res["data"].as_str().ok_or("Expected string")?;
 	assert!(result_str.contains('\n'));
 	assert!(result_str.contains("  "));
 	Ok(())
