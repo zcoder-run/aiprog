@@ -1,6 +1,7 @@
 use crate::script::helpers::{lua_value_to_serde_value, serde_value_to_lua_value};
-use mlua::{FromLua, IntoLua, Lua, Value};
+use mlua::{Lua, Value};
 use schemars::JsonSchema;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 // region:    --- AipFn Error
@@ -34,13 +35,39 @@ impl IntoAipLuaError for AipApiError {
 
 // endregion: --- AipFn Error
 
+// region:    --- AipFn Lua Conversion
+
+pub trait AipFromLua: DeserializeOwned {
+	fn aip_from_lua(value: Value, _lua: &Lua) -> mlua::Result<Self>
+	where
+		Self: Sized,
+	{
+		lua_params_from_value(value)
+	}
+}
+
+impl<T> AipFromLua for T where T: DeserializeOwned {}
+
+pub trait AipToLua: Serialize {
+	fn aip_to_lua(self, lua: &Lua) -> mlua::Result<Value>
+	where
+		Self: Sized,
+	{
+		return_success_envelope(lua, self)
+	}
+}
+
+impl<T> AipToLua for T where T: Serialize {}
+
+// endregion: --- AipFn Lua Conversion
+
 // region:    --- Function
 
 pub trait AipFn {
 	const NAME: &'static str;
 
-	type Params: FromLua + JsonSchema;
-	type Response: IntoLua + JsonSchema;
+	type Params: AipFromLua + JsonSchema;
+	type Response: AipToLua + JsonSchema;
 	type Error: JsonSchema + IntoAipLuaError;
 
 	/// Convenience method to register a typed handler for this AipFn on a Lua table.
@@ -68,9 +95,9 @@ where
 			));
 		};
 
-		let params = F::Params::from_lua(arg, lua)?;
+		let params = F::Params::aip_from_lua(arg, lua)?;
 		match handler(params) {
-			Ok(response) => response.into_lua(lua),
+			Ok(response) => response.aip_to_lua(lua),
 			Err(err) => Err(err.into_aip_lua_error()),
 		}
 	})?;
@@ -104,7 +131,9 @@ where
 					.map_err(|err| aip_error("INVALID_PARAMS", Some(err.to_string()), None))?
 			}
 		}
-		other => lua_value_to_serde_value(other).map_err(|err| aip_error("INVALID_PARAMS", Some(err.to_string()), None))?,
+		other => {
+			lua_value_to_serde_value(other).map_err(|err| aip_error("INVALID_PARAMS", Some(err.to_string()), None))?
+		}
 	};
 	serde_json::from_value(json_value).map_err(|err| aip_error("INVALID_PARAMS", Some(err.to_string()), None))
 }

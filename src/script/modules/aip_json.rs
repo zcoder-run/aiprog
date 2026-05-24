@@ -23,10 +23,9 @@
 //!
 
 use crate::Result;
-use crate::script::helpers::serde_value_to_lua_value;
-use crate::script::support::aip_fn_base::{AipApiError, AipFn, lua_params_from_value};
+use crate::script::support::aip_fn_base::{AipApiError, AipFn};
 use crate::support::jsons;
-use mlua::{FromLua, IntoLua, Lua, Table, Value};
+use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
@@ -63,26 +62,11 @@ pub struct AipJsonParseParams {
 	pub data: Option<String>,
 }
 
-impl FromLua for AipJsonParseParams {
-	fn from_lua(value: Value, _lua: &Lua) -> mlua::Result<Self> {
-		lua_params_from_value(value)
-	}
-}
-
 /// Result of the `parse` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseResult {
 	/// The parsed JSON value.
 	pub data: serde_json::Value,
-}
-
-impl IntoLua for AipJsonParseResult {
-	fn into_lua(self, lua: &Lua) -> mlua::Result<Value> {
-		let table = lua.create_table()?;
-		let data = serde_value_to_lua_value(lua, self.data)?;
-		table.set("data", data)?;
-		Ok(Value::Table(table))
-	}
 }
 
 fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<AipJsonParseResult, AipApiError> {
@@ -125,26 +109,11 @@ pub struct AipJsonParseNdjsonParams {
 	pub data: Option<String>,
 }
 
-impl FromLua for AipJsonParseNdjsonParams {
-	fn from_lua(value: Value, _lua: &Lua) -> mlua::Result<Self> {
-		lua_params_from_value(value)
-	}
-}
-
 /// Result of the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseNdjsonResult {
 	/// The parsed list of JSON values.
 	pub data: Vec<serde_json::Value>,
-}
-
-impl IntoLua for AipJsonParseNdjsonResult {
-	fn into_lua(self, lua: &Lua) -> mlua::Result<Value> {
-		let table = lua.create_table()?;
-		let data = serde_value_to_lua_value(lua, serde_json::Value::Array(self.data))?;
-		table.set("data", data)?;
-		Ok(Value::Table(table))
-	}
 }
 
 fn aip_json_parse_ndjson_handler(
@@ -185,25 +154,11 @@ pub struct AipJsonStringifyParams {
 	pub data: serde_json::Value,
 }
 
-impl FromLua for AipJsonStringifyParams {
-	fn from_lua(value: Value, _lua: &Lua) -> mlua::Result<Self> {
-		lua_params_from_value(value)
-	}
-}
-
 /// Result of the `stringify` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyResult {
 	/// The stringified JSON string.
 	pub data: String,
-}
-
-impl IntoLua for AipJsonStringifyResult {
-	fn into_lua(self, lua: &Lua) -> mlua::Result<Value> {
-		let table = lua.create_table()?;
-		table.set("data", self.data)?;
-		Ok(Value::Table(table))
-	}
 }
 
 fn aip_json_stringify_handler(
@@ -238,14 +193,6 @@ impl AipFn for AipJsonStringifyPrettyFn {
 pub struct AipJsonStringifyPrettyResult {
 	/// The pretty-stringified JSON string.
 	pub data: String,
-}
-
-impl IntoLua for AipJsonStringifyPrettyResult {
-	fn into_lua(self, lua: &Lua) -> mlua::Result<Value> {
-		let table = lua.create_table()?;
-		table.set("data", self.data)?;
-		Ok(Value::Table(table))
-	}
 }
 
 fn aip_json_stringify_pretty_handler(
