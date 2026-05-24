@@ -81,12 +81,12 @@ async fn test_script_lua_json_parse_invalid() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_ndjson_simple() -> Result<()> {
+async fn test_script_lua_json_parse_jsonl_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}'
-            return aip.json.parse_ndjson({ data = content })
+            return aip.json.parse_jsonl({ data = content })
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
@@ -101,12 +101,12 @@ async fn test_script_lua_json_parse_ndjson_simple() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_ndjson_empty_lines() -> Result<()> {
+async fn test_script_lua_json_parse_jsonl_empty_lines() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
             local content = '{"id": 1}\n\n{"id": 2}\n   \n{"id": 3}'
-            return aip.json.parse_ndjson({ data = content })
+            return aip.json.parse_jsonl({ data = content })
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
@@ -122,11 +122,11 @@ async fn test_script_lua_json_parse_ndjson_empty_lines() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_ndjson_nil() -> Result<()> {
+async fn test_script_lua_json_parse_jsonl_nil() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            return aip.json.parse_ndjson({})
+            return aip.json.parse_jsonl({})
         "#;
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
@@ -137,11 +137,11 @@ async fn test_script_lua_json_parse_ndjson_nil() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_ndjson_invalid_json() -> Result<()> {
+async fn test_script_lua_json_parse_jsonl_invalid_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local ok, err = pcall(aip.json.parse_ndjson, { data = '{"id": 1}\n{invalid_json}\n{"id": 3}' })
+            local ok, err = pcall(aip.json.parse_jsonl, { data = '{"id": 1}\n{invalid_json}\n{"id": 3}' })
             if ok then
                 return "should not reach here"
             else
@@ -153,7 +153,7 @@ async fn test_script_lua_json_parse_ndjson_invalid_json() -> Result<()> {
 
 	// -- Check
 	let err_str = res.as_str().ok_or("Expected error string")?;
-	assert_contains!(err_str, "aip.json.parse_ndjson failed");
+	assert_contains!(err_str, "aip.json.parse_jsonl failed");
 	assert_contains!(err_str, "line 2");
 	Ok(())
 }
@@ -278,11 +278,11 @@ async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_ndjson_new_api() -> Result<()> {
+async fn test_script_lua_json_parse_jsonl_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
 	let script = r#"
-            local res = aip.json.parse_ndjson({ data = '{"name": "John"}\n{"name": "Jane"}' })
+            local res = aip.json.parse_jsonl({ data = '{"name": "John"}\n{"name": "Jane"}' })
             return res
         "#;
 	// -- Exec
