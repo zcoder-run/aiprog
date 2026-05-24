@@ -37,7 +37,7 @@ pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
 	AipJsonParseFn::register_typed(lua, &table, aip_json_parse_handler)?;
-	AipJsonParseNdjsonFn::register_typed(lua, &table, aip_json_parse_ndjson_handler)?;
+	AipJsonParseJsonlFn::register_typed(lua, &table, aip_json_parse_jsonl_handler)?;
 	AipJsonStringifyFn::register_typed(lua, &table, aip_json_stringify_handler)?;
 	AipJsonStringifyPrettyFn::register_typed(lua, &table, aip_json_stringify_pretty_handler)?;
 
@@ -93,41 +93,41 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<Ai
 
 // region:    --- aip.json.parse_ndjson
 
-pub struct AipJsonParseNdjsonFn;
+pub struct AipJsonParseJsonlFn;
 
-impl AipFn for AipJsonParseNdjsonFn {
-	const NAME: &'static str = "parse_ndjson";
-	type Params = AipJsonParseNdjsonParams;
-	type Response = AipJsonParseNdjsonResult;
+impl AipFn for AipJsonParseJsonlFn {
+	const NAME: &'static str = "parse_jsonl";
+	type Params = AipJsonParseJsonlParams;
+	type Response = AipJsonParseJsonlResult;
 	type Error = AipApiError;
 }
 
 /// Parameters for the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct AipJsonParseNdjsonParams {
+pub struct AipJsonParseJsonlParams {
 	/// The NDJSON string to parse.
 	pub data: Option<String>,
 }
 
 /// Result of the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseNdjsonResult {
+pub struct AipJsonParseJsonlResult {
 	/// The parsed list of JSON values.
 	pub data: Vec<serde_json::Value>,
 }
 
-fn aip_json_parse_ndjson_handler(
-	params: AipJsonParseNdjsonParams,
-) -> core::result::Result<AipJsonParseNdjsonResult, AipApiError> {
+fn aip_json_parse_jsonl_handler(
+	params: AipJsonParseJsonlParams,
+) -> core::result::Result<AipJsonParseJsonlResult, AipApiError> {
 	let Some(content) = params.data else {
-		return Ok(AipJsonParseNdjsonResult { data: vec![] });
+		return Ok(AipJsonParseJsonlResult { data: vec![] });
 	};
 	let reader = BufReader::new(content.as_bytes());
 	match parse_ndjson_from_reader(reader) {
-		Ok(values) => Ok(AipJsonParseNdjsonResult { data: values }),
+		Ok(values) => Ok(AipJsonParseJsonlResult { data: values }),
 		Err(err) => Err(AipApiError {
 			code: "PARSE_FAILED".to_string(),
-			message: format!("aip.json.parse_ndjson failed. {err}"),
+			message: format!("aip.json.parse_jsonl failed. {err}"),
 			details: None,
 			cause: None,
 		}),
