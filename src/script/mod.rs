@@ -2,6 +2,7 @@
 
 mod error_lua_support;
 mod modules;
+mod support;
 
 mod engine;
 mod helpers;

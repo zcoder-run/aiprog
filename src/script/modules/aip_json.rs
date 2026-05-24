@@ -23,6 +23,7 @@
 //!
 
 use crate::script::helpers::{LuaValueExt as _, lua_value_to_serde_value, serde_value_to_lua_value};
+use crate::script::support::aip_fn_base::{lua_params_from_value, return_error_envelope, return_success_envelope};
 use crate::support::jsons;
 use crate::{Error, Result};
 use mlua::{Lua, Table, Value};
@@ -30,28 +31,6 @@ use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
 // region:    --- Types
-
-fn return_success_envelope<T: serde::Serialize>(lua: &Lua, data: T) -> mlua::Result<Value> {
-	let serde_val = serde_json::to_value(&data)
-		.map_err(|err| mlua::Error::RuntimeError(format!("Failed to serialize API success response: {err}")))?;
-	serde_value_to_lua_value(lua, serde_val).map_err(Into::into)
-}
-
-fn return_error_envelope(
-	lua: &Lua,
-	message: &str,
-	full_message: Option<String>,
-	cause: Option<String>,
-) -> mlua::Result<Value> {
-	let mut err_msg = format!("API Error: {message}");
-	if let Some(fm) = full_message {
-		err_msg.push_str(&format!("\nDetails: {fm}"));
-	}
-	if let Some(c) = cause {
-		err_msg.push_str(&format!("\nCause: {c}"));
-	}
-	Err(mlua::Error::RuntimeError(err_msg))
-}
 
 // endregion: --- Types
 
@@ -104,14 +83,7 @@ fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	if is_new_api {
-		let json_value = match lua_value_to_serde_value(arg) {
-			Ok(v) => v,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
-		let params: AipJsonParseParams = match serde_json::from_value(json_value) {
-			Ok(p) => p,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
+		let params: AipJsonParseParams = lua_params_from_value(arg)?;
 		let Some(content) = params.data else {
 			return return_success_envelope(
 				lua,
@@ -179,14 +151,7 @@ fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	if is_new_api {
-		let json_value = match lua_value_to_serde_value(arg) {
-			Ok(v) => v,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
-		let params: AipJsonParseNdjsonParams = match serde_json::from_value(json_value) {
-			Ok(p) => p,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
+		let params: AipJsonParseNdjsonParams = lua_params_from_value(arg)?;
 		let Some(content) = params.data else {
 			return return_success_envelope(lua, AipJsonParseNdjsonResult { data: vec![] });
 		};
@@ -311,14 +276,7 @@ fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	if is_new_api {
-		let json_value = match lua_value_to_serde_value(arg) {
-			Ok(v) => v,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
-		let params: AipJsonStringifyParams = match serde_json::from_value(json_value) {
-			Ok(p) => p,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
+		let params: AipJsonStringifyParams = lua_params_from_value(arg)?;
 		match serde_json::to_string(&params.data) {
 			Ok(str) => return_success_envelope(lua, AipJsonStringifyResult { data: str }),
 			Err(err) => return_error_envelope(
@@ -418,14 +376,7 @@ fn stringify_pretty(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
 	};
 
 	if is_new_api {
-		let json_value = match lua_value_to_serde_value(arg) {
-			Ok(v) => v,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
-		let params: AipJsonStringifyParams = match serde_json::from_value(json_value) {
-			Ok(p) => p,
-			Err(err) => return return_error_envelope(lua, "INVALID_PARAMS", Some(err.to_string()), None),
-		};
+		let params: AipJsonStringifyParams = lua_params_from_value(arg)?;
 		match serde_json::to_string_pretty(&params.data) {
 			Ok(str) => return_success_envelope(lua, AipJsonStringifyPrettyResult { data: str }),
 			Err(err) => return_error_envelope(
