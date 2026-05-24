@@ -1,5 +1,5 @@
 use crate::script::helpers::{lua_value_to_serde_value, serde_value_to_lua_value};
-use mlua::{Lua, Value};
+use mlua::{FromLua, IntoLua, Lua, Value};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
@@ -39,9 +39,9 @@ impl IntoAipLuaError for AipApiError {
 pub trait AipFn {
 	const NAME: &'static str;
 
-	type Params: serde::de::DeserializeOwned + schemars::JsonSchema;
-	type Response: serde::Serialize + schemars::JsonSchema;
-	type Error: serde::Serialize + schemars::JsonSchema + IntoAipLuaError;
+	type Params: FromLua + JsonSchema;
+	type Response: IntoLua + JsonSchema;
+	type Error: JsonSchema + IntoAipLuaError;
 
 	/// Convenience method to register a typed handler for this AipFn on a Lua table.
 	fn register_typed<H>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
@@ -68,9 +68,9 @@ where
 			));
 		};
 
-		let params = lua_params_from_value::<F::Params>(arg)?;
+		let params = F::Params::from_lua(arg, lua)?;
 		match handler(params) {
-			Ok(response) => return_success_envelope(lua, response),
+			Ok(response) => response.into_lua(lua),
 			Err(err) => Err(err.into_aip_lua_error()),
 		}
 	})?;
