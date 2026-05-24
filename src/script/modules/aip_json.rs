@@ -14,19 +14,18 @@
 //!
 //! ### Functions
 //!
-//! - `aip.json.parse(content: string | nil) -> table | nil`
-//! - `aip.json.parse_ndjson(content: string | nil) -> table[] | nil`
-//! - `aip.json.stringify(content: table) -> string`
-//! - `aip.json.stringify_pretty(content: table) -> string`
+//! - `aip.json.parse(params: { data?: string }) -> { data: any }`
+//! - `aip.json.parse_ndjson(params: { data?: string }) -> { data: any[] }`
+//! - `aip.json.stringify(params: { data: any }) -> { data: string }`
+//! - `aip.json.stringify_pretty(params: { data: any }) -> { data: string }`
 //!
 //! ---
 //!
 
-use crate::script::helpers::{LuaValueExt as _, lua_value_to_serde_value, serde_value_to_lua_value};
-use crate::script::support::aip_fn_base::{lua_params_from_value, return_error_envelope, return_success_envelope};
+use crate::Result;
+use crate::script::support::aip_fn_base::{AipApiError, AipFn};
 use crate::support::jsons;
-use crate::{Error, Result};
-use mlua::{Lua, Table, Value};
+use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
@@ -37,25 +36,24 @@ use std::io::BufReader;
 pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
-	let parse_fn = lua.create_function(move |lua, arg: Option<Value>| aip_json_parse(lua, arg))?;
-	let parse_ndjson_fn = lua.create_function(move |lua, arg: Option<Value>| parse_ndjson(lua, arg))?;
-	let stringify_fn = lua.create_function(move |lua, arg: Option<Value>| stringify(lua, arg))?;
-	let stringify_pretty_fn = lua.create_function(move |lua, arg: Option<Value>| stringify_pretty(lua, arg))?;
-	// stringify_to_line is now an alias for stringify
-	let stringify_to_line_fn = stringify_fn.clone();
-
-	table.set("parse", parse_fn)?;
-	table.set("parse_ndjson", parse_ndjson_fn)?;
-	table.set("stringify", stringify_fn)?;
-	table.set("stringify_pretty", stringify_pretty_fn)?;
-
-	// deprecated, should use stringify
-	table.set("stringify_to_line", stringify_to_line_fn)?;
+	AipJsonParseFn::register_typed(lua, &table, aip_json_parse_handler)?;
+	AipJsonParseNdjsonFn::register_typed(lua, &table, aip_json_parse_ndjson_handler)?;
+	AipJsonStringifyFn::register_typed(lua, &table, aip_json_stringify_handler)?;
+	AipJsonStringifyPrettyFn::register_typed(lua, &table, aip_json_stringify_pretty_handler)?;
 
 	Ok(table)
 }
 
 // region:    --- aip.json.parse
+
+pub struct AipJsonParseFn;
+
+impl AipFn for AipJsonParseFn {
+	const NAME: &'static str = "parse";
+	type Params = AipJsonParseParams;
+	type Response = AipJsonParseResult;
+	type Error = AipApiError;
+}
 
 /// Parameters for the `parse` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -71,59 +69,38 @@ pub struct AipJsonParseResult {
 	pub data: serde_json::Value,
 }
 
-fn aip_json_parse(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
-	let Some(arg) = arg else {
-		return Ok(Value::Nil);
+fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<AipJsonParseResult, AipApiError> {
+	let Some(content) = params.data else {
+		return Ok(AipJsonParseResult {
+			data: serde_json::Value::Null,
+		});
 	};
-
-	let is_new_api = if let Value::Table(ref t) = arg {
-		t.x_get_value("data").is_some()
-	} else {
-		false
-	};
-
-	if is_new_api {
-		let params: AipJsonParseParams = lua_params_from_value(arg)?;
-		let Some(content) = params.data else {
-			return return_success_envelope(
-				lua,
-				AipJsonParseResult {
-					data: serde_json::Value::Null,
-				},
-			);
-		};
-		match jsons::parse_jsonc_to_serde_value(&content) {
-			Ok(Some(json_val)) => return_success_envelope(lua, AipJsonParseResult { data: json_val }),
-			Ok(None) => return_success_envelope(
-				lua,
-				AipJsonParseResult {
-					data: serde_json::Value::Null,
-				},
-			),
-			Err(err) => return_error_envelope(lua, "PARSE_FAILED", Some(format!("aip.json.parse failed. {err}")), None),
-		}
-	} else {
-		let content = match arg {
-			Value::String(s) => Some(s.to_str()?.to_string()),
-			Value::Nil => None,
-			_ => arg.x_to_string(),
-		};
-		let Some(content) = content else {
-			return Ok(Value::Nil);
-		};
-		let json_value = match jsons::parse_jsonc_to_serde_value(&content) {
-			Ok(val) => val,
-			Err(err) => return Err(Error::custom(format!("aip.json.parse failed. {err}")).into()),
-		};
-		let json_value = json_value.unwrap_or_default();
-		let lua_value = serde_value_to_lua_value(lua, json_value)?;
-		Ok(lua_value)
+	match jsons::parse_jsonc_to_serde_value(&content) {
+		Ok(Some(json_val)) => Ok(AipJsonParseResult { data: json_val }),
+		Ok(None) => Ok(AipJsonParseResult {
+			data: serde_json::Value::Null,
+		}),
+		Err(err) => Err(AipApiError {
+			code: "PARSE_FAILED".to_string(),
+			message: format!("aip.json.parse failed. {err}"),
+			details: None,
+			cause: None,
+		}),
 	}
 }
 
 // endregion: --- aip.json.parse
 
 // region:    --- aip.json.parse_ndjson
+
+pub struct AipJsonParseNdjsonFn;
+
+impl AipFn for AipJsonParseNdjsonFn {
+	const NAME: &'static str = "parse_ndjson";
+	type Params = AipJsonParseNdjsonParams;
+	type Response = AipJsonParseNdjsonResult;
+	type Error = AipApiError;
+}
 
 /// Parameters for the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -139,59 +116,36 @@ pub struct AipJsonParseNdjsonResult {
 	pub data: Vec<serde_json::Value>,
 }
 
-fn parse_ndjson(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
-	let Some(arg) = arg else {
-		return Ok(Value::Nil);
+fn aip_json_parse_ndjson_handler(
+	params: AipJsonParseNdjsonParams,
+) -> core::result::Result<AipJsonParseNdjsonResult, AipApiError> {
+	let Some(content) = params.data else {
+		return Ok(AipJsonParseNdjsonResult { data: vec![] });
 	};
-
-	let is_new_api = if let Value::Table(ref t) = arg {
-		t.x_get_value("data").is_some()
-	} else {
-		false
-	};
-
-	if is_new_api {
-		let params: AipJsonParseNdjsonParams = lua_params_from_value(arg)?;
-		let Some(content) = params.data else {
-			return return_success_envelope(lua, AipJsonParseNdjsonResult { data: vec![] });
-		};
-		let reader = BufReader::new(content.as_bytes());
-		match parse_ndjson_from_reader(reader) {
-			Ok(values) => {
-				let result = AipJsonParseNdjsonResult { data: values };
-				return_success_envelope(lua, result)
-			}
-			Err(err) => return_error_envelope(
-				lua,
-				"PARSE_FAILED",
-				Some(format!("aip.json.parse_ndjson failed. {err}")),
-				None,
-			),
-		}
-	} else {
-		let content = match arg {
-			Value::String(s) => Some(s.to_str()?.to_string()),
-			Value::Nil => None,
-			_ => arg.x_to_string(),
-		};
-		let Some(content) = content else {
-			return Ok(Value::Nil);
-		};
-		let reader = BufReader::new(content.as_bytes());
-		match parse_ndjson_from_reader(reader) {
-			Ok(values) => {
-				let values = serde_json::Value::Array(values);
-				let lua_value = serde_value_to_lua_value(lua, values)?;
-				Ok(lua_value)
-			}
-			Err(err) => Err(Error::custom(format!("aip.json.parse_ndjson failed. {err}")).into()),
-		}
+	let reader = BufReader::new(content.as_bytes());
+	match parse_ndjson_from_reader(reader) {
+		Ok(values) => Ok(AipJsonParseNdjsonResult { data: values }),
+		Err(err) => Err(AipApiError {
+			code: "PARSE_FAILED".to_string(),
+			message: format!("aip.json.parse_ndjson failed. {err}"),
+			details: None,
+			cause: None,
+		}),
 	}
 }
 
 // endregion: --- aip.json.parse_ndjson
 
 // region:    --- aip.json.stringify
+
+pub struct AipJsonStringifyFn;
+
+impl AipFn for AipJsonStringifyFn {
+	const NAME: &'static str = "stringify";
+	type Params = AipJsonStringifyParams;
+	type Response = AipJsonStringifyResult;
+	type Error = AipApiError;
+}
 
 /// Parameters for the `stringify` and `stringify_pretty` functions.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -207,97 +161,32 @@ pub struct AipJsonStringifyResult {
 	pub data: String,
 }
 
-/// ## Lua Documentation
-/// ---
-/// Stringify a table into a single line JSON string.
-///
-/// Good for newline json or compact representation.
-///
-/// ```lua
-/// -- API Signature
-/// aip.json.stringify(content: table): string
-/// ```
-///
-/// Convert a table into a single line JSON string.
-///
-/// ### Arguments
-///
-/// - `content: table` - The Lua table to stringify.
-///
-/// ### Returns
-///
-/// - `string` - A string containing the JSON representation of the input table,
-///   without any indentation or extra whitespace (except within string values).
-///
-/// ### Example
-///
-/// ```lua
-/// local obj = {
-///     name = "John",
-///     age = 30
-/// }
-/// local json_str = aip.json.stringify(obj)
-/// -- Result will be:
-/// -- {"name":"John","age":30}
-/// ```
-///
-/// ### Error
-///
-/// Returns an error if the input Lua value cannot be serialized into JSON.
-///
-/// ```ts
-/// {
-///   error: string  // Error message from JSON stringification, e.g., "aip.json.stringify fail to stringify. ..."
-/// }
-/// ```
-fn stringify(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
-	let Some(arg) = arg else {
-		let json_value = serde_json::Value::Null;
-		let str = serde_json::to_string(&json_value)
-			.map_err(|err| Error::custom(format!("aip.json.stringify fail to stringify. {err}")))?;
-		return Ok(Value::String(lua.create_string(&str)?));
-	};
-
-	let is_new_api = if let Value::Table(ref t) = arg {
-		let mut has_data = false;
-		let mut key_count = 0;
-		for pair in t.clone().pairs::<Value, Value>() {
-			let (k, _) = pair?;
-			key_count += 1;
-			if let Some(k_str) = k.x_to_string()
-				&& k_str == "data"
-			{
-				has_data = true;
-			}
-		}
-		key_count == 1 && has_data
-	} else {
-		false
-	};
-
-	if is_new_api {
-		let params: AipJsonStringifyParams = lua_params_from_value(arg)?;
-		match serde_json::to_string(&params.data) {
-			Ok(str) => return_success_envelope(lua, AipJsonStringifyResult { data: str }),
-			Err(err) => return_error_envelope(
-				lua,
-				"STRINGIFY_FAILED",
-				Some(format!("aip.json.stringify fail to stringify. {err}")),
-				None,
-			),
-		}
-	} else {
-		let json_value = lua_value_to_serde_value(arg)?;
-		match serde_json::to_string(&json_value) {
-			Ok(str) => Ok(Value::String(lua.create_string(&str)?)),
-			Err(err) => Err(Error::custom(format!("aip.json.stringify fail to stringify. {err}")).into()),
-		}
+fn aip_json_stringify_handler(
+	params: AipJsonStringifyParams,
+) -> core::result::Result<AipJsonStringifyResult, AipApiError> {
+	match serde_json::to_string(&params.data) {
+		Ok(str) => Ok(AipJsonStringifyResult { data: str }),
+		Err(err) => Err(AipApiError {
+			code: "STRINGIFY_FAILED".to_string(),
+			message: format!("aip.json.stringify fail to stringify. {err}"),
+			details: None,
+			cause: None,
+		}),
 	}
 }
 
 // endregion: --- aip.json.stringify
 
 // region:    --- aip.json.stringify_pretty
+
+pub struct AipJsonStringifyPrettyFn;
+
+impl AipFn for AipJsonStringifyPrettyFn {
+	const NAME: &'static str = "stringify_pretty";
+	type Params = AipJsonStringifyParams;
+	type Response = AipJsonStringifyPrettyResult;
+	type Error = AipApiError;
+}
 
 /// Result of the `stringify_pretty` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
@@ -306,96 +195,25 @@ pub struct AipJsonStringifyPrettyResult {
 	pub data: String,
 }
 
-/// ## Lua Documentation
-/// ---
-/// Stringify a table into a JSON string with pretty formatting.
-///
-/// ```lua
-/// -- API Signature
-/// aip.json.stringify_pretty(content: table): string
-/// ```
-///
-/// Convert a table into a JSON string with pretty formatting using 2 spaces indentation.
-///
-/// ### Arguments
-///
-/// - `content: table` - The Lua table to stringify.
-///
-/// ### Returns
-///
-/// - `string` - A string containing the pretty-formatted JSON representation
-///   of the input table, using newlines and 2-space indentation.
-///
-/// ### Example
-///
-/// ```lua
-/// local obj = {
-///     name = "John",
-///     age = 30
-/// }
-/// local json_str = aip.json.stringify_pretty(obj)
-/// -- Result will be similar to:
-/// -- {
-/// --   "name": "John",
-/// --   "age": 30
-/// -- }
-/// ```
-///
-/// ### Error
-///
-/// Returns an error if the input Lua value cannot be serialized into JSON.
-///
-/// ```ts
-/// {
-///   error: string  // Error message from JSON stringification, e.g., "aip.json.stringify_pretty fail to stringify. ..."
-/// }
-/// ```
-fn stringify_pretty(lua: &Lua, arg: Option<Value>) -> mlua::Result<Value> {
-	let Some(arg) = arg else {
-		let json_value = serde_json::Value::Null;
-		let str = serde_json::to_string_pretty(&json_value)
-			.map_err(|err| Error::custom(format!("aip.json.stringify_pretty fail to stringify. {err}")))?;
-		return Ok(Value::String(lua.create_string(&str)?));
-	};
-
-	let is_new_api = if let Value::Table(ref t) = arg {
-		let mut has_data = false;
-		let mut key_count = 0;
-		for pair in t.clone().pairs::<Value, Value>() {
-			let (k, _) = pair?;
-			key_count += 1;
-			if let Some(k_str) = k.x_to_string()
-				&& k_str == "data"
-			{
-				has_data = true;
-			}
-		}
-		key_count == 1 && has_data
-	} else {
-		false
-	};
-
-	if is_new_api {
-		let params: AipJsonStringifyParams = lua_params_from_value(arg)?;
-		match serde_json::to_string_pretty(&params.data) {
-			Ok(str) => return_success_envelope(lua, AipJsonStringifyPrettyResult { data: str }),
-			Err(err) => return_error_envelope(
-				lua,
-				"STRINGIFY_FAILED",
-				Some(format!("aip.json.stringify_pretty fail to stringify. {err}")),
-				None,
-			),
-		}
-	} else {
-		let json_value = lua_value_to_serde_value(arg)?;
-		match serde_json::to_string_pretty(&json_value) {
-			Ok(str) => Ok(Value::String(lua.create_string(&str)?)),
-			Err(err) => Err(Error::custom(format!("aip.json.stringify_pretty fail to stringify. {err}")).into()),
-		}
+fn aip_json_stringify_pretty_handler(
+	params: AipJsonStringifyParams,
+) -> core::result::Result<AipJsonStringifyPrettyResult, AipApiError> {
+	match serde_json::to_string_pretty(&params.data) {
+		Ok(str) => Ok(AipJsonStringifyPrettyResult { data: str }),
+		Err(err) => Err(AipApiError {
+			code: "STRINGIFY_FAILED".to_string(),
+			message: format!("aip.json.stringify_pretty fail to stringify. {err}"),
+			details: None,
+			cause: None,
+		}),
 	}
 }
 
 // endregion: --- aip.json.stringify_pretty
+
+// region:    --- AipFn marker structs
+
+// endregion: --- AipFn marker structs
 
 // region:    --- Tests
 
