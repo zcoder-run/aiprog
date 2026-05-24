@@ -1,8 +1,9 @@
 use crate::script::helpers::{lua_value_to_serde_value, serde_value_to_lua_value};
-use mlua::{Lua, Value};
+use mlua::{Lua, MaybeSend, Value};
 use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::future::Future;
 
 // region:    --- AipFn Error
 
@@ -78,6 +79,15 @@ pub trait AipFn {
 	{
 		register_aip_fn::<Self, H>(lua, table, handler)
 	}
+
+	fn register_async_typed<H, Fut>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
+	where
+		H: Fn(Self::Params) -> Fut + Clone + MaybeSend + 'static,
+		Fut: Future<Output = Result<Self::Response, Self::Error>> + MaybeSend + 'static,
+		Self: Sized,
+	{
+		register_aip_fn_async::<Self, H, Fut>(lua, table, handler)
+	}
 }
 
 // endregion: --- Function
@@ -99,6 +109,33 @@ where
 		match handler(params) {
 			Ok(response) => response.aip_to_lua(lua),
 			Err(err) => Err(err.into_aip_lua_error()),
+		}
+	})?;
+
+	table.set(F::NAME, func)?;
+	Ok(())
+}
+
+pub fn register_aip_fn_async<F: AipFn, H, Fut>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
+where
+	H: Fn(F::Params) -> Fut + Clone + MaybeSend + 'static,
+	Fut: Future<Output = Result<F::Response, F::Error>> + MaybeSend + 'static,
+{
+	let func = lua.create_async_function(move |lua, arg: Option<Value>| {
+		let handler = handler.clone();
+
+		async move {
+			let Some(arg) = arg else {
+				return Err(mlua::Error::RuntimeError(
+					"Missing arguments; expected a single params table".to_string(),
+				));
+			};
+
+			let params = F::Params::aip_from_lua(arg, &lua)?;
+			match handler(params).await {
+				Ok(response) => response.aip_to_lua(&lua),
+				Err(err) => Err(err.into_aip_lua_error()),
+			}
 		}
 	})?;
 

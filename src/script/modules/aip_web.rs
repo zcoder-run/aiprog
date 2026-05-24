@@ -32,7 +32,7 @@ const DEFAULT_UA_BROWSER: &str =
 pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
-	AipWebGetFn::register_typed(lua, &table, aip_web_get_handler)?;
+	AipWebGetFn::register_async_typed(lua, &table, aip_web_get_handler)?;
 
 	table.set("UA_AIPACK", DEFAULT_UA_AIPACK)?;
 	table.set("UA_BROWSER", DEFAULT_UA_BROWSER)?;
@@ -113,81 +113,67 @@ pub struct AipWebGetResult {
 	pub error: Option<String>,
 }
 
-fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<AipWebGetResult, AipApiError> {
-	let rt = tokio::runtime::Handle::try_current().map_err(|err| {
+async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<AipWebGetResult, AipApiError> {
+	let client = build_client(&params)?;
+	let request = client.get(&params.data);
+	let request = apply_request_headers(request, params.headers.as_ref());
+
+	let response = request.send().await.map_err(|err| {
 		aip_web_error(
-			"RUNTIME_UNAVAILABLE",
-			"aip.web.get requires an active Tokio runtime",
+			"REQUEST_FAILED",
+			format!("aip.web.get failed for url: {}", params.data),
 			None,
 			Some(err.to_string()),
 		)
 	})?;
 
-	tokio::task::block_in_place(|| {
-		rt.block_on(async {
-			let client = build_client(&params)?;
-			let request = client.get(&params.data);
-			let request = apply_request_headers(request, params.headers.as_ref());
+	let status = response.status();
+	let url = response.url().as_str().to_string();
+	let headers = collect_response_headers(response.headers());
+	let content_type = response
+		.headers()
+		.get(CONTENT_TYPE)
+		.and_then(|value| value.to_str().ok())
+		.map(ToOwned::to_owned);
+	let should_parse = params.parse.unwrap_or(false) && content_type.as_deref().is_some_and(is_json_content_type);
 
-			let response = request.send().await.map_err(|err| {
-				aip_web_error(
-					"REQUEST_FAILED",
-					format!("aip.web.get failed for url: {}", params.data),
-					None,
-					Some(err.to_string()),
-				)
-			})?;
+	let body = response.text().await.map_err(|err| {
+		aip_web_error(
+			"READ_BODY_FAILED",
+			format!("aip.web.get failed to read response body for url: {}", params.data),
+			None,
+			Some(err.to_string()),
+		)
+	})?;
 
-			let status = response.status();
-			let url = response.url().as_str().to_string();
-			let headers = collect_response_headers(response.headers());
-			let content_type = response
-				.headers()
-				.get(CONTENT_TYPE)
-				.and_then(|value| value.to_str().ok())
-				.map(ToOwned::to_owned);
-			let should_parse =
-				params.parse.unwrap_or(false) && content_type.as_deref().is_some_and(is_json_content_type);
+	let data = if should_parse {
+		serde_json::from_str(&body).map_err(|err| {
+			aip_web_error(
+				"PARSE_FAILED",
+				format!("aip.web.get failed to parse JSON response for url: {}", params.data),
+				None,
+				Some(err.to_string()),
+			)
+		})?
+	} else {
+		serde_json::Value::String(body)
+	};
 
-			let body = response.text().await.map_err(|err| {
-				aip_web_error(
-					"READ_BODY_FAILED",
-					format!("aip.web.get failed to read response body for url: {}", params.data),
-					None,
-					Some(err.to_string()),
-				)
-			})?;
+	let success = status.is_success();
+	let error = if success {
+		None
+	} else {
+		Some(format!("HTTP request failed with status {}", status.as_u16()))
+	};
 
-			let data = if should_parse {
-				serde_json::from_str(&body).map_err(|err| {
-					aip_web_error(
-						"PARSE_FAILED",
-						format!("aip.web.get failed to parse JSON response for url: {}", params.data),
-						None,
-						Some(err.to_string()),
-					)
-				})?
-			} else {
-				serde_json::Value::String(body.to_string())
-			};
-
-			let success = status.is_success();
-			let error = if success {
-				None
-			} else {
-				Some(format!("HTTP request failed with status {}", status.as_u16()))
-			};
-
-			Ok(AipWebGetResult {
-				data,
-				success,
-				status: status.as_u16(),
-				url,
-				content_type,
-				headers,
-				error,
-			})
-		})
+	Ok(AipWebGetResult {
+		data,
+		success,
+		status: status.as_u16(),
+		url,
+		content_type,
+		headers,
+		error,
 	})
 }
 
