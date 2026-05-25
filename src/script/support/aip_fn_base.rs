@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::future::Future;
+use std::sync::Arc;
 
 // region:    --- AipFn Error
 
@@ -62,6 +63,15 @@ impl<T> AipToLua for T where T: Serialize {}
 
 // endregion: --- AipFn Lua Conversion
 
+// region:    --- AipHandler
+
+pub enum AipHandler<P, R, E> {
+	Sync(fn(P) -> core::result::Result<R, E>),
+	Async(Box<dyn Fn(P) -> Box<dyn std::future::Future<Output = core::result::Result<R, E>> + Send> + Send + Sync>),
+}
+
+// endregion: --- AipHandler
+
 // region:    --- Function
 
 pub trait AipFn {
@@ -71,23 +81,7 @@ pub trait AipFn {
 	type Response: AipToLua + JsonSchema;
 	type Error: JsonSchema + IntoAipLuaError;
 
-	/// Convenience method to register a typed handler for this AipFn on a Lua table.
-	fn register_typed<H>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
-	where
-		H: Fn(Self::Params) -> Result<Self::Response, Self::Error> + 'static,
-		Self: Sized,
-	{
-		register_aip_fn::<Self, H>(lua, table, handler)
-	}
-
-	fn register_async_typed<H, Fut>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
-	where
-		H: Fn(Self::Params) -> Fut + Clone + MaybeSend + 'static,
-		Fut: Future<Output = Result<Self::Response, Self::Error>> + MaybeSend + 'static,
-		Self: Sized,
-	{
-		register_aip_fn_async::<Self, H, Fut>(lua, table, handler)
-	}
+	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error>;
 }
 
 // endregion: --- Function
@@ -141,6 +135,22 @@ where
 
 	table.set(F::NAME, func)?;
 	Ok(())
+}
+
+pub fn register_aip_fn_from_handler<F: AipFn>(
+	lua: &Lua,
+	table: &mlua::Table,
+) -> mlua::Result<()> {
+	match F::get_handler() {
+		AipHandler::Sync(handler) => register_aip_fn::<F, _>(lua, table, handler),
+		AipHandler::Async(handler) => {
+			let handler = Arc::new(handler);
+			register_aip_fn_async::<F, _, _>(lua, table, move |params| {
+				let handler = Arc::clone(&handler);
+				handler(params)
+			})
+		}
+	}
 }
 
 // endregion: --- AipFn Registration
