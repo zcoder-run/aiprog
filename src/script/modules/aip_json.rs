@@ -23,7 +23,7 @@
 //!
 
 use crate::Result;
-use crate::script::support::aip_fn_base::{AipApiError, AipFn};
+use crate::script::support::aip_fn_base::{AipApiError, AipFn, AipHandler, register_aip_fn_from_handler};
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
@@ -36,10 +36,10 @@ use std::io::BufReader;
 pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
-	AipJsonParseFn::register_typed(lua, &table, aip_json_parse_handler)?;
-	AipJsonParseJsonlFn::register_typed(lua, &table, aip_json_parse_jsonl_handler)?;
-	AipJsonStringifyFn::register_typed(lua, &table, aip_json_stringify_handler)?;
-	AipJsonStringifyPrettyFn::register_typed(lua, &table, aip_json_stringify_pretty_handler)?;
+	register_aip_fn_from_handler::<AipJsonParseFn>(lua, &table)?;
+	register_aip_fn_from_handler::<AipJsonParseJsonlFn>(lua, &table)?;
+	register_aip_fn_from_handler::<AipJsonStringifyFn>(lua, &table)?;
+	register_aip_fn_from_handler::<AipJsonStringifyPrettyFn>(lua, &table)?;
 
 	Ok(table)
 }
@@ -53,6 +53,10 @@ impl AipFn for AipJsonParseFn {
 	type Params = AipJsonParseParams;
 	type Response = AipJsonParseResult;
 	type Error = AipApiError;
+
+	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
+		AipHandler::Sync(aip_json_parse_handler)
+	}
 }
 
 /// Parameters for the `parse` function.
@@ -100,6 +104,10 @@ impl AipFn for AipJsonParseJsonlFn {
 	type Params = AipJsonParseJsonlParams;
 	type Response = AipJsonParseJsonlResult;
 	type Error = AipApiError;
+
+	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
+		AipHandler::Sync(aip_json_parse_jsonl_handler)
+	}
 }
 
 /// Parameters for the `parse_ndjson` function.
@@ -145,6 +153,10 @@ impl AipFn for AipJsonStringifyFn {
 	type Params = AipJsonStringifyParams;
 	type Response = AipJsonStringifyResult;
 	type Error = AipApiError;
+
+	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
+		AipHandler::Sync(aip_json_stringify_handler)
+	}
 }
 
 /// Parameters for the `stringify` and `stringify_pretty` functions.
@@ -186,6 +198,10 @@ impl AipFn for AipJsonStringifyPrettyFn {
 	type Params = AipJsonStringifyParams;
 	type Response = AipJsonStringifyPrettyResult;
 	type Error = AipApiError;
+
+	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
+		AipHandler::Sync(aip_json_stringify_pretty_handler)
+	}
 }
 
 /// Result of the `stringify_pretty` function.

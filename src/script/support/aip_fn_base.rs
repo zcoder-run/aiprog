@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 // region:    --- AipFn Error
@@ -65,9 +66,14 @@ impl<T> AipToLua for T where T: Serialize {}
 
 // region:    --- AipHandler
 
+/// Type alias for the async future returned by an AipFn handler.
+pub type AipAsyncFuture<R, E> = Pin<Box<dyn std::future::Future<Output = core::result::Result<R, E>> + Send>>;
+/// Type alias for the async handler closure.
+pub type AipAsyncHandlerFn<P, R, E> = Box<dyn Fn(P) -> AipAsyncFuture<R, E> + Send + Sync>;
+
 pub enum AipHandler<P, R, E> {
 	Sync(fn(P) -> core::result::Result<R, E>),
-	Async(Box<dyn Fn(P) -> Box<dyn std::future::Future<Output = core::result::Result<R, E>> + Send> + Send + Sync>),
+	Async(AipAsyncHandlerFn<P, R, E>),
 }
 
 // endregion: --- AipHandler
@@ -137,10 +143,12 @@ where
 	Ok(())
 }
 
-pub fn register_aip_fn_from_handler<F: AipFn>(
-	lua: &Lua,
-	table: &mlua::Table,
-) -> mlua::Result<()> {
+pub fn register_aip_fn_from_handler<F: AipFn>(lua: &Lua, table: &mlua::Table) -> mlua::Result<()>
+where
+	F::Params: 'static,
+	F::Response: 'static,
+	F::Error: 'static,
+{
 	match F::get_handler() {
 		AipHandler::Sync(handler) => register_aip_fn::<F, _>(lua, table, handler),
 		AipHandler::Async(handler) => {
