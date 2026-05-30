@@ -80,5 +80,5 @@ schemars = "1.2.1"
 
 
 [dev-dependencies]
-assertables = "9"
+assertables = "10"
 
