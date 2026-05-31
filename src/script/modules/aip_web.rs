@@ -19,12 +19,11 @@
 //!
 
 use crate::Result;
-use crate::script::support::aip_fn_base::{AipApiError, AipFn, AipHandler, register_aip_fn_from_handler};
+use crate::script::{AipApiError, HandlerRegistry, install_registry_on_table};
 use mlua::{Lua, Table};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Client, RequestBuilder};
 use std::collections::HashMap;
-use std::pin::Pin;
 
 const DEFAULT_UA_AIPACK: &str = "aipack";
 const DEFAULT_UA_BROWSER: &str =
@@ -33,7 +32,9 @@ const DEFAULT_UA_BROWSER: &str =
 pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
-	register_aip_fn_from_handler::<AipWebGetFn>(lua, &table)?;
+	let mut registry = HandlerRegistry::new();
+	registry.append_async::<_, AipWebGetParams, AipWebGetResult, AipApiError>("get", aip_web_get_handler)?;
+	install_registry_on_table(lua, &table, registry)?;
 
 	table.set("UA_AIPACK", DEFAULT_UA_AIPACK)?;
 	table.set("UA_BROWSER", DEFAULT_UA_BROWSER)?;
@@ -42,19 +43,6 @@ pub fn init_module(lua: &Lua) -> Result<Table> {
 }
 
 // region:    --- aip.web.get
-
-pub struct AipWebGetFn;
-
-impl AipFn for AipWebGetFn {
-	const NAME: &'static str = "get";
-	type Params = AipWebGetParams;
-	type Response = AipWebGetResult;
-	type Error = AipApiError;
-
-	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
-		AipHandler::Async(Box::new(|params| Box::pin(aip_web_get_handler(params))))
-	}
-}
 
 /// Parameters for the `get` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]

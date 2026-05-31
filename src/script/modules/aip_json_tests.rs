@@ -76,7 +76,7 @@ async fn test_script_lua_json_parse_invalid() -> Result<()> {
 	let err_str = res.as_str().ok_or("Expected error string")?;
 
 	assert_contains!(err_str, "PARSE_FAILED");
-	assert_contains!(&err_str, "json.parse failed");
+	assert_contains!(err_str, "aip.json.parse failed");
 	Ok(())
 }
 

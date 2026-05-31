@@ -4,6 +4,8 @@ This document defines the `AipFn` pattern used to expose Rust functions to AI-au
 
 The goal of `AipFn` is to make every AI-facing Lua API function consistent, typed, schema-friendly, and easy to register from Rust.
 
+This specification describes the target architecture, an `rpc-router`-style design that splits responsibilities into three layers: a Lua-agnostic handler layer, a concrete registry layer, and a Lua adapter layer.
+
 ## Related specifications
 
 - `dev/specs/spec-api-shape.md` defines the public AI-facing API shape.
@@ -18,6 +20,7 @@ The goal of `AipFn` is to make every AI-facing Lua API function consistent, type
 - Rust params, responses, and errors are strongly typed.
 - Params and responses derive JSON schema metadata for documentation and tooling.
 - Registration uses shared generic conversion logic instead of per-function Lua glue.
+- The core handler abstraction is Lua-agnostic. `mlua::Lua`, `mlua::Value`, and Lua function signatures must not leak into the handler, registry, or normalized boundary layers.
 
 ## Public Lua API shape
 
@@ -53,27 +56,92 @@ if not ok then
 end
 ```
 
-## Rust support module
+This public Lua API shape is unchanged by the architecture described in this document. The shape remains a single params table, a root-level `data` field on success, and thrown Lua errors on failure, as defined in `dev/specs/spec-api-shape.md`.
 
-The core implementation lives in:
+## Architecture overview
 
-- `src/script/support/aip_fn_base.rs`
+The implementation is organized into three layers with a strict dependency direction.
 
-The support module defines:
+```
+Lua adapter layer        (depends on mlua)
+        |
+        v
+Concrete registry layer  (no mlua)
+        |
+        v
+Handler layer            (no mlua)
+```
 
-- `AipApiError`
-- `IntoAipLuaError`
-- `AipFromLua`
-- `AipToLua`
-- `AipFn`
-- `register_aip_fn`
-- `lua_params_from_value`
-- `return_success_envelope`
-- `return_error_envelope`
+- The handler layer defines the generic typed handler abstraction and operates only on normalized `serde_json::Value` at its boundary.
+- The registry layer stores concrete normalized handler representations and invokes them through normalized `serde_json::Value`.
+- The Lua adapter layer is the only place that depends on `mlua`. It converts Lua params to normalized values, calls the registry, converts responses back to Lua, and converts handler errors to `mlua::Error`.
 
-## `AipApiError`
+Normalized boundary values use `serde_json::Value`. The handler and registry layers never observe `mlua` types.
 
-`AipApiError` is the standard typed error for AI-facing APIs.
+## Module layout
+
+The handler architecture lives under:
+
+- `src/script/support/handler/`
+
+The handler module is organized as follows:
+
+- `handler.rs`: the generic, Lua-agnostic handler trait, modeled on `rpc-router::Handler`. It defines how a typed handler is called with normalized params (`serde_json::Value`) and returns a normalized response result. It supports both sync and async handler kinds.
+
+- `handler_params.rs`: the normalized params representation and conversion. It defines how an incoming normalized `serde_json::Value` is converted into a typed `Params` value via `DeserializeOwned`, including the empty-object special case, with no dependency on Lua.
+
+- `handler_response.rs`: the normalized response handling. It defines how a typed response (`Serialize`) or a `serde_json::Value` is converted into a normalized `serde_json::Value`, preserving the root-level `data` response shape contract.
+
+- `handler_error.rs`: the typed API errors and conversion into a normalized handler error. The primary error contract is conversion into the normalized handler error, not directly into `mlua::Error`. Lua conversion of errors happens only at the Lua adapter layer.
+
+- `handler_wrapper.rs`: the type-erased wrappers for dynamic dispatch, modeled on `rpc-router::handler_wrapper`. A wrapper exposes a `call` that accepts normalized params (`serde_json::Value`) and returns a normalized response or normalized handler error. No `mlua` involvement.
+
+- `impl_handlers.rs`: the macro-generated handler implementations for the supported function signatures (single params argument, sync and async).
+
+- `registry.rs`: the Lua-agnostic registry that stores concrete handler metadata and type-erased handler wrappers (see the registry contract below).
+
+- `lua_adapter.rs`: the single Lua boundary layer that bridges Lua and the registry (see the Lua adapter contract below).
+
+- `mod.rs`: wires the handler submodules together and re-exports the public surface.
+
+The legacy single-file implementation in `src/script/support/aip_fn_base.rs` is superseded by this module layout once the migration is complete.
+
+## Handler layer
+
+The handler layer defines the generic typed handler trait, modeled on `rpc-router::Handler`.
+
+Key points:
+
+- A handler is a plain Rust function or closure that takes a single typed `Params` argument and returns a typed `Result<Response, Error>`.
+- The trait operates on normalized `serde_json::Value` at its public boundary. Typed conversion happens inside the handler implementation.
+- Both sync and async handler kinds are supported. Async handlers return a pinned future of the normalized result.
+- The handler layer has no dependency on `mlua`.
+
+### Normalized params conversion
+
+`handler_params.rs` converts an incoming normalized `serde_json::Value` into the typed params via `DeserializeOwned`.
+
+Behavior:
+
+- A normalized JSON object is deserialized directly into the params type.
+- An empty normalized value (empty object) is treated as an empty JSON object, allowing APIs with only optional fields to accept an empty params table.
+- Deserialization errors become a normalized handler error with code `INVALID_PARAMS`.
+
+The empty-object special case is defined at the normalized-value level, independent of Lua. The Lua adapter is responsible for converting an empty Lua table to an empty normalized object before it reaches this layer.
+
+### Normalized response conversion
+
+`handler_response.rs` converts a typed response (`Serialize`) into a normalized `serde_json::Value`.
+
+Because response structs already contain the `data` field, the normalized value has the expected root-level API shape. The Lua adapter converts this normalized value into a Lua table.
+
+## Handler error layer
+
+`handler_error.rs` defines the normalized handler error, modeled on `rpc-router::handler_error`.
+
+- The normalized handler error can carry a typed application error through a type-erased holder, so the boundary code can downcast and inspect the original typed error when needed.
+- An `IntoHandlerError` trait, with default implementations for common types, converts typed application errors into the normalized handler error.
+- `AipApiError` remains the standard typed API error. Its primary contract is conversion into the normalized handler error.
 
 ```rust
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
@@ -94,105 +162,60 @@ Fields:
 - `details`: optional additional information.
 - `cause`: optional lower-level cause.
 
-## `IntoAipLuaError`
+Conversion of a normalized handler error into `mlua::Error` is the responsibility of the Lua adapter layer, not the handler error type itself.
 
-`IntoAipLuaError` converts typed API errors into `mlua::Error`.
+## Type-erased wrapper layer
 
-```rust
-pub trait IntoAipLuaError {
-	fn into_aip_lua_error(self) -> mlua::Error;
-}
-```
+`handler_wrapper.rs` provides the type-erased wrappers used to store handlers in the registry, modeled on `rpc-router::handler_wrapper`.
 
-`AipApiError` implements this trait by converting the structured error into `mlua::Error::RuntimeError`.
+- A wrapper struct holds the concrete typed handler plus phantom marker types for its params, response, and error.
+- A boxed trait object enables dynamic dispatch.
+- The wrapper `call` accepts normalized params (`serde_json::Value`) and returns a normalized response (`serde_json::Value`) or a normalized handler error.
+- The wrapper layer has no `mlua` involvement.
 
-The formatted error includes:
+## Concrete registry layer
 
-- error code
-- message
-- optional details
-- optional cause
+The registry stores concrete normalized handler representations.
 
-## Lua conversion traits
+Per-function, the registry stores:
 
-`AipFn` uses local conversion traits rather than requiring every params or response type to implement `mlua::FromLua` or `mlua::IntoLua` directly.
+- path or name (the Lua function name registered on the module table)
+- sync or async kind
+- params and response JSON schema metadata (`schemars`)
+- a boxed type-erased handler wrapper
 
-### `AipFromLua`
+The registry contract:
 
-```rust
-pub trait AipFromLua: DeserializeOwned {
-	fn aip_from_lua(value: Value, _lua: &Lua) -> mlua::Result<Self>
-	where
-		Self: Sized,
-	{
-		lua_params_from_value(value)
-	}
-}
-```
+- A builder-style append API registers a function under its name with its schema metadata and boxed wrapper.
+- A call API invokes a handler by name with normalized `serde_json::Value` params and returns a normalized `serde_json::Value` response or a normalized handler error.
+- The registry has no dependency on `mlua`.
 
-There is a blanket implementation for all `DeserializeOwned` types.
+## Lua adapter layer
 
-This means params structs usually only need:
+`lua_adapter.rs` is the only place that depends on `mlua`.
 
-```rust
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct MyParams {
-	pub data: String,
-}
-```
+The Lua adapter contract:
 
-### `AipToLua`
+- Convert a Lua params value into a normalized `serde_json::Value`, including the empty-table case (an empty Lua table becomes an empty normalized object).
+- Invoke the registry or handler wrapper with the normalized params.
+- Convert the normalized `serde_json::Value` response back into a Lua value, preserving the root-level `data` shape.
+- Convert a normalized handler error into `mlua::Error`, including the error code, message, optional details, and optional cause.
 
-```rust
-pub trait AipToLua: Serialize {
-	fn aip_to_lua(self, lua: &Lua) -> mlua::Result<Value>
-	where
-		Self: Sized,
-	{
-		return_success_envelope(lua, self)
-	}
-}
-```
+The adapter also provides a registration helper that installs registry functions onto a Lua module table, replacing the per-function `mlua` glue.
 
-There is a blanket implementation for all `Serialize` types.
+## Registration flow
 
-This means response structs usually only need:
+A module builds a registry and installs it onto a Lua module table in `init_module`.
 
-```rust
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct MyResult {
-	pub data: String,
-}
-```
+The conceptual flow:
 
-## `AipFn` trait
-
-Each Lua function is represented by a marker struct that implements `AipFn`.
-
-```rust
-pub trait AipFn {
-	const NAME: &'static str;
-
-	type Params: AipFromLua + JsonSchema;
-	type Response: AipToLua + JsonSchema;
-	type Error: JsonSchema + IntoAipLuaError;
-
-	fn register_typed<H>(lua: &Lua, table: &mlua::Table, handler: H) -> mlua::Result<()>
-	where
-		H: Fn(Self::Params) -> Result<Self::Response, Self::Error> + 'static,
-		Self: Sized,
-	{
-		register_aip_fn::<Self, H>(lua, table, handler)
-	}
-}
-```
-
-Associated items:
-
-- `NAME`: Lua function name registered on the module table.
-- `Params`: typed params table.
-- `Response`: typed success response.
-- `Error`: typed error.
+1. Build a registry and append each typed function with its name, schema metadata, and handler.
+2. Use the Lua adapter to install registry functions onto the Lua module table.
+3. For each call, the Lua adapter:
+   - converts the single Lua params argument to a normalized `serde_json::Value`,
+   - invokes the registry handler by name,
+   - converts the normalized response back to a Lua value,
+   - converts any normalized handler error into a `mlua::Error`.
 
 ## Handler signature
 
@@ -206,6 +229,8 @@ fn my_handler(params: MyParams) -> core::result::Result<MyResult, AipApiError> {
 }
 ```
 
+Async handlers return a future of the same typed result.
+
 Handlers should contain the business logic.
 
 Handlers should not:
@@ -214,96 +239,13 @@ Handlers should not:
 - manually create Lua tables
 - manually serialize response envelopes
 - return `nil, err`
-- call `mlua` conversion helpers directly unless the function has a special conversion need
-
-## Registration flow
-
-A module registers functions in `init_module`.
-
-```rust
-pub fn init_module(lua: &Lua) -> Result<Table> {
-	let table = lua.create_table()?;
-
-	MyFn::register_typed(lua, &table, my_handler)?;
-
-	Ok(table)
-}
-```
-
-`register_typed` delegates to `register_aip_fn`.
-
-The generic registration flow is:
-
-1. Create a Lua function with `lua.create_function`.
-2. Require a single params argument.
-3. Convert the Lua value to `F::Params` through `AipFromLua`.
-4. Call the Rust handler.
-5. Convert `F::Response` to Lua through `AipToLua`.
-6. Convert `F::Error` to Lua error through `IntoAipLuaError`.
-7. Register the function on the Lua table using `F::NAME`.
-
-## Params conversion
-
-`lua_params_from_value` converts the incoming Lua value to a serde value, then deserializes it into the params type.
-
-Behavior:
-
-- A Lua table is converted into a serde object or array according to the existing Lua-to-serde helper behavior.
-- An empty Lua table is treated as an empty JSON object.
-- Non-table values are converted through the generic Lua-to-serde helper.
-- Deserialization errors become Lua runtime errors with `INVALID_PARAMS`.
-
-The empty table special case allows APIs with optional fields to accept:
-
-```lua
-aip.json.parse({})
-```
-
-## Success response conversion
-
-`return_success_envelope` serializes the response struct to serde JSON, then converts it to Lua.
-
-Because response structs already contain the `data` field, the returned Lua table has the expected root-level API shape.
-
-Example response struct:
-
-```rust
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyResult {
-	pub data: String,
-}
-```
-
-Lua result:
-
-```lua
-{
-  data = "{\"name\":\"AIProg\"}"
-}
-```
+- depend on `mlua` types
 
 ## Defining a new AipFn function
 
 Use this checklist when adding a new AI-facing Lua function.
 
-### 1. Define the marker struct
-
-```rust
-pub struct AipExampleEchoFn;
-```
-
-### 2. Implement `AipFn`
-
-```rust
-impl AipFn for AipExampleEchoFn {
-	const NAME: &'static str = "echo";
-	type Params = AipExampleEchoParams;
-	type Response = AipExampleEchoResult;
-	type Error = AipApiError;
-}
-```
-
-### 3. Define params
+### 1. Define params
 
 ```rust
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -316,7 +258,7 @@ Use `data` for the primary input payload.
 
 Use additional fields only for metadata, options, pagination, or other non-primary payload values.
 
-### 4. Define response
+### 2. Define response
 
 ```rust
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
@@ -327,7 +269,7 @@ pub struct AipExampleEchoResult {
 
 Use `data` for the primary output payload.
 
-### 5. Define handler
+### 3. Define handler
 
 ```rust
 fn aip_example_echo_handler(params: AipExampleEchoParams) -> core::result::Result<AipExampleEchoResult, AipApiError> {
@@ -337,11 +279,9 @@ fn aip_example_echo_handler(params: AipExampleEchoParams) -> core::result::Resul
 }
 ```
 
-### 6. Register the function
+### 4. Register the function in the registry
 
-```rust
-AipExampleEchoFn::register_typed(lua, &table, aip_example_echo_handler)?;
-```
+Append the typed handler to the module registry with its Lua name and schema metadata, then install the registry onto the Lua module table through the Lua adapter.
 
 ## Current `aip.json` functions
 
@@ -358,14 +298,7 @@ Functions:
 - `aip.json.stringify(params: { data: any }) -> { data: string }`
 - `aip.json.stringify_pretty(params: { data: any }) -> { data: string }`
 
-Marker structs:
-
-- `AipJsonParseFn`
-- `AipJsonParseNdjsonFn`
-- `AipJsonStringifyFn`
-- `AipJsonStringifyPrettyFn`
-
-The module registers all functions through `AipFn::register_typed`.
+The module registers all functions through the registry and installs them with the Lua adapter.
 
 Legacy positional argument support has been removed from this module. AI-facing code should use the single params-table shape only.
 
@@ -386,7 +319,7 @@ Response types should derive:
 Error types should implement:
 
 - `schemars::JsonSchema`
-- `IntoAipLuaError`
+- `IntoHandlerError`
 
 `AipApiError` is the default error type unless a function needs a specialized error type.
 
@@ -402,7 +335,6 @@ aip.json.stringify_pretty(...)
 
 Use:
 
-- marker struct: `AipJsonStringifyPrettyFn`
 - params type: `AipJsonStringifyParams`
 - result type: `AipJsonStringifyPrettyResult`
 - handler: `aip_json_stringify_pretty_handler`
@@ -426,11 +358,11 @@ Do not include dynamic details in the error code. Put dynamic details in `messag
 ## Rust implementation guidelines
 
 - Keep handler functions focused on business logic.
-- Keep Lua conversion in the shared `AipFn` support layer.
+- Keep the handler, registry, and normalized boundary layers free of `mlua` references.
+- Keep all Lua conversion isolated in the Lua adapter layer.
 - Avoid `.unwrap()` and `.expect(...)`.
 - Preserve root-level response shape, do not introduce a `result` wrapper.
 - Use `data` as the primary payload field.
 - Add schema derives to params and response types.
-- Prefer a marker struct and typed handler for every AI-facing function.
-- Keep marker structs near their related params, response, and handler definitions.
+- Prefer a typed handler for every AI-facing function.
 - Do not reintroduce legacy positional APIs for AI-facing functions unless explicitly required for backward compatibility.

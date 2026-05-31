@@ -23,7 +23,7 @@
 //!
 
 use crate::Result;
-use crate::script::support::aip_fn_base::{AipApiError, AipFn, AipHandler, register_aip_fn_from_handler};
+use crate::script::{AipApiError, HandlerRegistry, install_registry_on_table};
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
@@ -36,33 +36,41 @@ use std::io::BufReader;
 pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
-	register_aip_fn_from_handler::<AipJsonParseFn>(lua, &table)?;
-	register_aip_fn_from_handler::<AipJsonParseJsonlFn>(lua, &table)?;
-	register_aip_fn_from_handler::<AipJsonStringifyFn>(lua, &table)?;
-	register_aip_fn_from_handler::<AipJsonStringifyPrettyFn>(lua, &table)?;
+	let mut registry = HandlerRegistry::new();
+	registry
+		.append_sync::<_, AipJsonParseParams, AipJsonParseResult, AipApiError>("parse", aip_json_parse_handler)
+		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+	registry
+		.append_sync::<_, AipJsonParseJsonlParams, AipJsonParseJsonlResult, AipApiError>(
+			"parse_jsonl",
+			aip_json_parse_jsonl_handler,
+		)
+		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+	registry
+		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyResult, AipApiError>(
+			"stringify",
+			aip_json_stringify_handler,
+		)
+		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+	registry
+		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyPrettyResult, AipApiError>(
+			"stringify_pretty",
+			aip_json_stringify_pretty_handler,
+		)
+		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+
+	install_registry_on_table(lua, &table, registry)?;
 
 	Ok(table)
 }
 
 // region:    --- aip.json.parse
 
-pub struct AipJsonParseFn;
-
-impl AipFn for AipJsonParseFn {
-	const NAME: &'static str = "parse";
-	type Params = AipJsonParseParams;
-	type Response = AipJsonParseResult;
-	type Error = AipApiError;
-
-	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
-		AipHandler::Sync(aip_json_parse_handler)
-	}
-}
-
 /// Parameters for the `parse` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseParams {
 	/// The JSON string to parse.
+	#[serde(default)]
 	pub data: Option<String>,
 }
 
@@ -97,23 +105,11 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<Ai
 
 // region:    --- aip.json.parse_ndjson
 
-pub struct AipJsonParseJsonlFn;
-
-impl AipFn for AipJsonParseJsonlFn {
-	const NAME: &'static str = "parse_jsonl";
-	type Params = AipJsonParseJsonlParams;
-	type Response = AipJsonParseJsonlResult;
-	type Error = AipApiError;
-
-	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
-		AipHandler::Sync(aip_json_parse_jsonl_handler)
-	}
-}
-
 /// Parameters for the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseJsonlParams {
 	/// The NDJSON string to parse.
+	#[serde(default)]
 	pub data: Option<String>,
 }
 
@@ -146,19 +142,6 @@ fn aip_json_parse_jsonl_handler(
 
 // region:    --- aip.json.stringify
 
-pub struct AipJsonStringifyFn;
-
-impl AipFn for AipJsonStringifyFn {
-	const NAME: &'static str = "stringify";
-	type Params = AipJsonStringifyParams;
-	type Response = AipJsonStringifyResult;
-	type Error = AipApiError;
-
-	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
-		AipHandler::Sync(aip_json_stringify_handler)
-	}
-}
-
 /// Parameters for the `stringify` and `stringify_pretty` functions.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyParams {
@@ -190,19 +173,6 @@ fn aip_json_stringify_handler(
 // endregion: --- aip.json.stringify
 
 // region:    --- aip.json.stringify_pretty
-
-pub struct AipJsonStringifyPrettyFn;
-
-impl AipFn for AipJsonStringifyPrettyFn {
-	const NAME: &'static str = "stringify_pretty";
-	type Params = AipJsonStringifyParams;
-	type Response = AipJsonStringifyPrettyResult;
-	type Error = AipApiError;
-
-	fn get_handler() -> AipHandler<Self::Params, Self::Response, Self::Error> {
-		AipHandler::Sync(aip_json_stringify_pretty_handler)
-	}
-}
 
 /// Result of the `stringify_pretty` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]

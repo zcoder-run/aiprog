@@ -25,6 +25,12 @@ pub enum Error {
 	SimpleFs(simple_fs::Error),
 }
 
+impl From<crate::script::RegistryError> for Error {
+	fn from(err: crate::script::RegistryError) -> Self {
+		Error::Custom(err.to_string())
+	}
+}
+
 // region:    --- Custom
 
 impl Error {
