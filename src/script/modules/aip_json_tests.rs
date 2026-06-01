@@ -344,3 +344,22 @@ async fn test_script_lua_json_stringify_to_line_alias_removed() -> Result<()> {
 	assert!(res.as_bool().ok_or("Expected boolean result")?);
 	Ok(())
 }
+
+#[tokio::test]
+async fn test_script_lua_json_chained_stringify_and_parse() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+        local obj = { name = "John", age = 30 }
+        local stringified = aip.json.stringify({ data = obj })
+        local parsed = aip.json.parse({ data = stringified.data })
+        return parsed
+    "#;
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+
+	// -- Check (the round‑tripped object should match the JSON representation)
+	assert_eq!(res["data"]["name"], "John");
+	assert_eq!(res["data"]["age"], 30);
+	Ok(())
+}

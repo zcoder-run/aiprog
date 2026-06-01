@@ -1,10 +1,12 @@
+use crate::script::{FromLua, HandlerError, ToLua};
+use mlua::{Lua, Value};
+
 /// Macro generating the `Handler` implementations for the supported handler
 /// signatures: a single typed params argument, in both sync and async forms.
 ///
-/// Modeled on `rpc-router::impl_handler_pair`, but adapted to the single
-/// params-table shape used by `AipFn`. The boundary stays on
-/// `serde_json::Value`, with typed conversion performed inside the
-/// implementation.
+/// The `HandlerWrapper::call` method performs `FromLua` conversion outside the
+/// async block and passes the pre-converted `P` to this macro. This keeps
+/// `mlua::Lua` and `mlua::Value` out of the async state, preserving `Send`.
 #[macro_export]
 macro_rules! impl_aip_handlers {
 	() => {
@@ -12,18 +14,16 @@ macro_rules! impl_aip_handlers {
 		impl<F, P, R, E> $crate::script::Handler<P, R, $crate::script::SyncMarker> for F
 		where
 			F: FnOnce(P) -> core::result::Result<R, E> + Clone + Send + 'static,
-			P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
-			R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
+			P: schemars::JsonSchema + Send + Sync + 'static,
+			R: $crate::script::handler::lua_traits::ToLua + schemars::JsonSchema + Send + Sync + 'static,
 			E: $crate::script::IntoHandlerError,
 		{
 			type Future = $crate::script::PinFutureValue;
 
-			fn call(self, params_value: serde_json::Value) -> Self::Future {
+			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
-					let params: P = $crate::script::params_from_value(params_value)?;
-
 					match self(params) {
-						Ok(response) => $crate::script::response_to_value(response),
+						Ok(response) => response.to_lua(&lua),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -34,19 +34,17 @@ macro_rules! impl_aip_handlers {
 		impl<F, Fut, P, R, E> $crate::script::Handler<P, R, $crate::script::AsyncMarker> for F
 		where
 			F: FnOnce(P) -> Fut + Clone + Send + 'static,
-			P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
-			R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
+			P: schemars::JsonSchema + Send + Sync + 'static,
+			R: $crate::script::handler::lua_traits::ToLua + schemars::JsonSchema + Send + Sync + 'static,
 			E: $crate::script::IntoHandlerError,
 			Fut: core::future::Future<Output = core::result::Result<R, E>> + Send,
 		{
 			type Future = $crate::script::PinFutureValue;
 
-			fn call(self, params_value: serde_json::Value) -> Self::Future {
+			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
-					let params: P = $crate::script::params_from_value(params_value)?;
-
 					match self(params).await {
-						Ok(response) => $crate::script::response_to_value(response),
+						Ok(response) => response.to_lua(&lua),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -55,12 +53,130 @@ macro_rules! impl_aip_handlers {
 	};
 }
 
+// region:    --- Tuple FromLua/ToLua implementations
+
+impl<A: FromLua> FromLua for (A,) {
+	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
+		let val_0 = table.get(1).map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok((A::from_lua(lua, val_0)?,))
+	}
+}
+
+impl<A: ToLua> ToLua for (A,) {
+	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(1, self.0.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok(Value::Table(table))
+	}
+}
+
+impl<A: FromLua, B: FromLua> FromLua for (A, B) {
+	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
+		let val_0 = table.get(1).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_1 = table.get(2).map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok((A::from_lua(lua, val_0)?, B::from_lua(lua, val_1)?))
+	}
+}
+
+impl<A: ToLua, B: ToLua> ToLua for (A, B) {
+	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(1, self.0.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(2, self.1.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok(Value::Table(table))
+	}
+}
+
+impl<A: FromLua, B: FromLua, C: FromLua> FromLua for (A, B, C) {
+	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
+		let val_0 = table.get(1).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_1 = table.get(2).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_2 = table.get(3).map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok((
+			A::from_lua(lua, val_0)?,
+			B::from_lua(lua, val_1)?,
+			C::from_lua(lua, val_2)?,
+		))
+	}
+}
+
+impl<A: ToLua, B: ToLua, C: ToLua> ToLua for (A, B, C) {
+	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(1, self.0.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(2, self.1.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(3, self.2.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok(Value::Table(table))
+	}
+}
+
+impl<A: FromLua, B: FromLua, C: FromLua, D: FromLua> FromLua for (A, B, C, D) {
+	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
+		let val_0 = table.get(1).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_1 = table.get(2).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_2 = table.get(3).map_err(|e| HandlerError::new(e.to_string()))?;
+		let val_3 = table.get(4).map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok((
+			A::from_lua(lua, val_0)?,
+			B::from_lua(lua, val_1)?,
+			C::from_lua(lua, val_2)?,
+			D::from_lua(lua, val_3)?,
+		))
+	}
+}
+
+impl<A: ToLua, B: ToLua, C: ToLua, D: ToLua> ToLua for (A, B, C, D) {
+	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(1, self.0.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(2, self.1.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(3, self.2.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		table
+			.set(4, self.3.to_lua(lua)?)
+			.map_err(|e| HandlerError::new(e.to_string()))?;
+		Ok(Value::Table(table))
+	}
+}
+
+// endregion: --- Tuple FromLua/ToLua implementations
+
 impl_aip_handlers!();
 
 // region:    --- Tests
 
 #[cfg(test)]
 mod tests {
+	use crate::impl_lua_serde_traits;
 	use crate::script::{AipApiError, Handler};
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
@@ -68,15 +184,18 @@ mod tests {
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-	#[derive(Debug, Deserialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-	#[derive(Debug, Serialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
+
+	impl_lua_serde_traits!(EchoParams);
+	impl_lua_serde_traits!(EchoResult);
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })
@@ -86,37 +205,59 @@ mod tests {
 		Ok(EchoResult { data: params.data })
 	}
 
+	fn fail_sync(_params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
+		Err(AipApiError::new("INTERNAL_ERROR", "boom"))
+	}
 	#[tokio::test]
 	async fn test_handler_sync_call_ok() -> TestResult<()> {
+		// -- Setup
+		let lua = mlua::Lua::new();
+		let params_json = json!({ "data": "hello" });
+		let params = serde_json::from_value::<EchoParams>(params_json.clone())?;
+
 		// -- Exec
-		let value = echo_sync.call(json!({ "data": "hello" })).await?;
+		let lua_val = echo_sync.call(lua.clone(), params).await?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "hello" }));
+		let back_json =
+			crate::script::lua_value_to_serde_value(lua_val).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, params_json);
 
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn test_handler_async_call_ok() -> TestResult<()> {
+		// -- Setup
+		let lua = mlua::Lua::new();
+		let params_json = json!({ "data": "world" });
+		let params = serde_json::from_value::<EchoParams>(params_json.clone())?;
+
 		// -- Exec
-		let value = echo_async.call(json!({ "data": "world" })).await?;
+		let lua_val = echo_async.call(lua.clone(), params).await?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "world" }));
+		let back_json =
+			crate::script::lua_value_to_serde_value(lua_val).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, params_json);
 
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn test_handler_sync_invalid_params_err() -> TestResult<()> {
-		// -- Exec
-		let res = echo_sync.call(json!({ "data": 123 })).await;
+		// -- Setup
+		let lua = mlua::Lua::new();
+		let params = EchoParams {
+			data: "irrelevant".to_string(),
+		};
 
-		// -- Check
-		let err = res.err().ok_or("should be an error")?;
+		// -- Exec
+		let result = fail_sync.call(lua.clone(), params).await;
+		assert!(result.is_err());
+		let err = result.unwrap_err();
 		let api_err = err.get::<AipApiError>().ok_or("should hold AipApiError")?;
-		assert_eq!(api_err.code, "INVALID_PARAMS");
+		assert_eq!(api_err.code, "INTERNAL_ERROR");
 
 		Ok(())
 	}

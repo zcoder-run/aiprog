@@ -19,7 +19,7 @@
 //!
 
 use crate::Result;
-use crate::script::{AipApiError, HandlerRegistry, install_registry_on_table};
+use crate::script::{AipApiError, FromLua, HandlerRegistry, ToLua, install_registry_on_table};
 use mlua::{Lua, Table};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Client, RequestBuilder};
@@ -63,6 +63,22 @@ pub struct AipWebGetParams {
 	pub parse: Option<bool>,
 }
 
+impl FromLua for AipWebGetParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
+		let data: String = table.get("data").map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(AipWebGetParams {
+			data,
+			user_agent: None,
+			headers: None,
+			redirect_limit: None,
+			parse: None,
+		})
+	}
+}
+
 /// User-Agent option for the `get` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
@@ -104,6 +120,20 @@ pub struct AipWebGetResult {
 	/// Status error text for non-success HTTP status codes.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub error: Option<String>,
+}
+
+impl ToLua for AipWebGetResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("data", data_lua)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
 }
 
 async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<AipWebGetResult, AipApiError> {

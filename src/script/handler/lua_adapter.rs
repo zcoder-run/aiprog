@@ -1,41 +1,13 @@
-use crate::script::helpers::{lua_value_to_serde_value, serde_value_to_lua_value};
 use crate::script::{AipApiError, HandlerError, HandlerRegistry, RegistryError};
 use mlua::{Function, Lua, MultiValue, Table, Value};
 use std::sync::Arc;
 
 // The single Lua boundary layer that bridges Lua and the `HandlerRegistry`.
 //
-// This is the only place that depends on `mlua`. It converts Lua params into a
-// normalized `serde_json::Value`, invokes the registry, converts the normalized
-// response back into a Lua value, and converts a normalized `HandlerError` into
-// an `mlua::Error`. The handler, registry, and normalized boundary layers remain
-// fully Lua-agnostic.
-
-// region:    --- Value Conversion
-
-/// Convert a single Lua params argument into a normalized `serde_json::Value`.
-///
-/// The empty-table case (`aip.fn({})`) and a missing argument (`aip.fn()`) both
-/// become an empty normalized object, matching the empty-object special case
-/// handled in `handler_params.rs`.
-pub fn lua_params_to_value(lua_value: Value) -> mlua::Result<serde_json::Value> {
-	let value = match lua_value {
-		// A missing argument is treated as an empty params object.
-		Value::Nil => serde_json::Value::Object(serde_json::Map::new()),
-		other => lua_value_to_serde_value(other)
-			.map_err(|err| mlua::Error::RuntimeError(format!("Failed to convert Lua params to JSON: {err}")))?,
-	};
-	Ok(value)
-}
-
-/// Convert a normalized `serde_json::Value` response back into a Lua value,
-/// preserving the root-level `data` response shape.
-pub fn value_to_lua_response(lua: &Lua, value: serde_json::Value) -> mlua::Result<Value> {
-	serde_value_to_lua_value(lua, value)
-		.map_err(|err| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {err}")))
-}
-
-// endregion: --- Value Conversion
+// This is the only place that depends on `mlua`. It passes the raw `mlua::Value`
+// to the registry, which now handles `FromLua`/`ToLua` conversions directly.
+// The handler, registry, and normalized boundary layers remain
+// fully Lua-agnostic (the registry and wrapper trait now use `mlua::Value`).
 
 // region:    --- Error Conversion
 
@@ -102,12 +74,10 @@ fn make_registry_function(lua: &Lua, registry: Arc<HandlerRegistry>, name: Strin
 		let name = name.clone();
 		async move {
 			let arg = args.into_iter().next().unwrap_or(Value::Nil);
-			let params_value = lua_params_to_value(arg)?;
 
-			let response_value = registry.call(&name, params_value).await.map_err(handler_error_to_lua)?;
+			let response_value = registry.call(lua.clone(), &name, arg).await.map_err(handler_error_to_lua)?;
 
-			let response_lua = value_to_lua_response(&lua, response_value)?;
-			Ok::<Value, mlua::Error>(response_lua)
+			Ok::<Value, mlua::Error>(response_value)
 		}
 	})
 }
@@ -120,21 +90,25 @@ fn make_registry_function(lua: &Lua, registry: Arc<HandlerRegistry>, name: Strin
 mod tests {
 	use super::*;
 	use crate::script::{AipApiError, HandlerRegistry};
+use crate::impl_lua_serde_traits;
 	use mlua::Lua;
 	use serde::{Deserialize, Serialize};
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-	#[derive(Debug, Deserialize, schemars::JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoParams {
 		#[serde(default)]
 		data: String,
 	}
 
-	#[derive(Debug, Serialize, schemars::JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
+
+	impl_lua_serde_traits!(EchoParams);
+	impl_lua_serde_traits!(EchoResult);
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })

@@ -1,24 +1,24 @@
 use super::{AipParams, AipResponse};
-use crate::script::{HandlerError, params_from_value, response_to_value};
+use crate::script::HandlerError;
+use mlua::{Lua, Value};
 use std::future::Future;
 use std::pin::Pin;
 
 /// The pinned future returned by a handler call, resolving to a normalized
-/// response (`serde_json::Value`) or a normalized `HandlerError`.
-pub type PinFutureValue = Pin<Box<dyn Future<Output = core::result::Result<serde_json::Value, HandlerError>> + Send>>;
+/// response (`mlua::Value`) or a normalized `HandlerError`.
+pub type PinFutureValue = Pin<Box<dyn Future<Output = core::result::Result<Value, HandlerError>>>>;
 
 /// The generic, Lua-agnostic handler trait, modeled on `rpc-router::Handler`.
 ///
 /// Key points:
 /// - A handler is a plain Rust function or closure taking a single typed `P`
 ///   (params) argument and returning a typed `Result<R, E>`.
-/// - The trait operates on normalized `serde_json::Value` at its public
-///   boundary. Typed conversion happens inside the handler implementation
-///   (params satisfy `AipParams`, response satisfy `AipResponse`, error via
-///   `IntoHandlerError`).
+/// - The trait operates on `mlua::Value` at its public boundary. Typed conversion
+///   happens inside the handler implementation (params satisfy `AipParams`,
+///   response satisfy `AipResponse`, error via `IntoHandlerError`).
 /// - Both sync and async handler kinds are supported through the
 ///   `impl_handler!` macro implementations.
-/// - The handler layer has no dependency on `mlua`.
+/// - The handler layer now depends on `mlua` for the Lua value types.
 ///
 /// Type parameters:
 /// - `P` is the typed params (satisfies `AipParams`).
@@ -27,15 +27,15 @@ pub type PinFutureValue = Pin<Box<dyn Future<Output = core::result::Result<serde
 ///   implementations during type resolution.
 pub trait Handler<P, R, M>: Clone
 where
-	P: AipParams,
-	R: AipResponse,
+	P: Send + Sync + 'static,
+	R: crate::script::ToLua + Send + Sync + 'static,
 {
 	/// The future type returned by calling this handler.
-	type Future: Future<Output = core::result::Result<serde_json::Value, HandlerError>> + Send + 'static;
+	type Future: Future<Output = core::result::Result<Value, HandlerError>> + 'static;
 
-	/// Call the handler with normalized params (`serde_json::Value`) and return
-	/// a future resolving to the normalized response or a normalized error.
-	fn call(self, params_value: serde_json::Value) -> Self::Future;
+	/// Call the handler with a Lua state and a pre-converted params value, and
+	/// return a future resolving to a Lua value response or a normalized error.
+	fn call(self, lua: Lua, params: P) -> Self::Future;
 }
 
 // region:    --- Markers
@@ -47,12 +47,3 @@ pub struct SyncMarker;
 pub struct AsyncMarker;
 
 // endregion: --- Markers
-
-// region:    --- Re-export helpers
-
-// Re-exported so the macro can reference them through this module path.
-pub(crate) use super::{
-	params_from_value as handler_params_from_value, response_to_value as handler_response_to_value,
-};
-
-// endregion: --- Re-export helpers

@@ -151,6 +151,14 @@ impl IntoHandlerError for AipApiError {
 	}
 }
 
+impl core::fmt::Display for AipApiError {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		write!(f, "[{}] {}", self.code, self.message)
+	}
+}
+
+impl std::error::Error for AipApiError {}
+
 // endregion: --- AipApiError
 
 // region:    --- Error Boilerplate

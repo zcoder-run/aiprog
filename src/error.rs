@@ -5,6 +5,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, Display, From)]
 #[display("{self:?}")]
 pub enum Error {
+	#[from(crate::script::HandlerError)]
+	Handler(crate::script::HandlerError),
+
 	#[from(String, &String, &str)]
 	Custom(String),
 

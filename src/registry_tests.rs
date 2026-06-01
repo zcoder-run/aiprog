@@ -1,21 +1,25 @@
 // region:    --- Tests
 
 use super::*;
+use crate::impl_lua_serde_traits;
 use crate::script::AipApiError;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct TestParams {
 	data: String,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct TestResponse {
 	data: String,
 }
+
+impl_lua_serde_traits!(TestParams);
+impl_lua_serde_traits!(TestResponse);
 
 fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 	Ok(TestResponse { data: params.data })
@@ -80,7 +84,8 @@ fn test_registry_duplicate_path_rejection() -> Result<()> {
 
 	// -- Check
 	assert!(result.is_err(), "expected duplicate path error");
-	assert!(matches!(result.unwrap_err(), AipRegistryError::DuplicatePath(_)));
+	let err = result.as_ref().unwrap_err();
+	assert!(matches!(err, AipRegistryError::DuplicatePath(_)));
 
 	Ok(())
 }

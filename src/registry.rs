@@ -6,6 +6,7 @@ use crate::script::{
 };
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -160,19 +161,13 @@ impl AipRegistry {
 		let error_schema = schema_for!(E);
 
 		let closure: LuaSyncClosure = Box::new(move |lua: &Lua, value: Value| -> mlua::Result<Value> {
-			let serde_val = lua_value_to_serde_value(value)
-				.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert Lua params: {e}")))?;
-
-			let params: P = serde_json::from_value(serde_val)
-				.map_err(|e| mlua::Error::RuntimeError(format!("Invalid params: {e}")))?;
+			let params: P =
+				P::from_lua(lua, value).map_err(|e| mlua::Error::RuntimeError(format!("Invalid params: {e}")))?;
 
 			match handler.call_sync(params) {
-				Ok(response) => {
-					let response_json = serde_json::to_value(&response)
-						.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize success response: {e}")))?;
-					serde_value_to_lua_value(lua, response_json)
-						.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}")))
-				}
+				Ok(response) => response
+					.to_lua(lua)
+					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
 				Err(err) => Err(handler_error_to_lua(err.into_handler_error())),
 			}
 		});
@@ -193,7 +188,7 @@ impl AipRegistry {
 	pub fn register_async<P, R, E, H>(&mut self, path: &str, handler: H) -> core::result::Result<(), AipRegistryError>
 	where
 		P: AipParams,
-		R: AipResponse,
+		R: AipResponse + serde::Serialize,
 		E: AipError,
 		H: AipAsyncFnWrapper<P, R, E>,
 	{
@@ -209,36 +204,27 @@ impl AipRegistry {
 		let handler_arc = Arc::new(handler);
 
 		let closure: LuaAsyncClosure = Box::new(
-			move |_lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>> + Send>> {
+			move |lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>> + Send>> {
 				let handler = Arc::clone(&handler_arc);
-				// Perform the non-Send Lua -> serde conversion synchronously, before the await, and keep only
-				// Send types (serde_json::Value / mlua::Error message strings) crossing the await boundary.
-				// We deliberately avoid capturing `Lua` or `mlua::Result<P>` into the async block, since
-				// neither is `Send` (Lua holds an Rc<ReentrantMutex<RawLua>>, and mlua::Error is not Send/Sync).
-				let params_serde_res: core::result::Result<serde_json::Value, String> =
-					lua_value_to_serde_value(value).map_err(|e| format!("Failed to convert Lua params: {e}"));
 
-				// Compute the Send response future. It yields a serde_json::Value on success, or a Send error
-				// (either a String message, or the typed handler error converted later on the Lua thread).
+				let params = P::from_lua(lua, value);
+
 				let response_fut = async move {
-					let serde_val = params_serde_res.map_err(AsyncCallError::Message)?;
-					let params: P = serde_json::from_value(serde_val)
-						.map_err(|e| AsyncCallError::Message(format!("Invalid params: {e}")))?;
+					let params = params.map_err(|e| AsyncCallError::Message(e.to_string()))?;
 					match handler.call_async(params).await {
-						Ok(response) => serde_json::to_value(&response)
-							.map_err(|e| AsyncCallError::Message(format!("Failed to serialize success response: {e}"))),
+						Ok(response) => Ok(response),
 						Err(err) => Err(AsyncCallError::Handler(handler_error_to_lua(err.into_handler_error()))),
 					}
 				};
 
-				// The future yields a `Send` `serde_json::Value`. We never capture `Lua` here, so the boxed
-				// future stays `Send`. The Lua engine performs the final serde -> Lua conversion on the Lua
-				// thread after awaiting this future.
 				Box::pin(async move {
-					response_fut.await.map_err(|e| match e {
+					let response = response_fut.await.map_err(|e| match e {
 						AsyncCallError::Message(msg) => mlua::Error::RuntimeError(msg),
 						AsyncCallError::Handler(err) => err,
-					})
+					})?;
+				let response_serde = serde_json::to_value(response)
+					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}")))?;
+				Ok(response_serde)
 				})
 			},
 		);

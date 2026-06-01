@@ -1,7 +1,7 @@
 use super::{AipError, AipParams, AipResponse};
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
+use mlua::{Lua, Value};
 use schemars::{JsonSchema, Schema, schema_for};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -78,8 +78,8 @@ struct RegistryEntry {
 ///
 /// Modeled on `rpc-router::RouterInner`, but adapted to the single
 /// params-table shape used by `AipFn`. It exposes a builder-style append API
-/// and a call API that invokes a handler by name with normalized
-/// `serde_json::Value` params. The registry never observes `mlua` types.
+/// and a call API that invokes a handler by name with `mlua::Value` params.
+/// The registry never observes `mlua` types directly (the wrapper trait does).
 #[derive(Default)]
 pub struct HandlerRegistry {
 	entries: HashMap<&'static str, RegistryEntry>,
@@ -105,8 +105,8 @@ impl HandlerRegistry {
 	pub fn append_sync<H, P, R, E>(&mut self, name: &'static str, handler: H) -> core::result::Result<(), RegistryError>
 	where
 		H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
-		P: AipParams,
-		R: AipResponse,
+		P: AipParams + crate::script::FromLua,
+		R: AipResponse + crate::script::ToLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Sync, handler.into_dyn())
@@ -123,20 +123,20 @@ impl HandlerRegistry {
 	) -> core::result::Result<(), RegistryError>
 	where
 		H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
-		P: AipParams,
-		R: AipResponse,
+		P: AipParams + crate::script::FromLua,
+		R: AipResponse + crate::script::ToLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Async, handler.into_dyn())
 	}
 
-	/// Invoke a registered handler by `name` with normalized `serde_json::Value`
-	/// params, returning the normalized response or a normalized `HandlerError`.
+	/// Invoke a registered handler by `name` with a Lua state and a Lua value
+	/// params argument, returning a Lua value response or a normalized `HandlerError`.
 	///
 	/// An unknown method yields a `HandlerError` carrying a `RegistryError`.
-	pub async fn call(&self, name: &str, params_value: Value) -> core::result::Result<Value, HandlerError> {
+	pub async fn call(&self, lua: Lua, name: &str, params_value: Value) -> core::result::Result<Value, HandlerError> {
 		match self.entries.get(name) {
-			Some(entry) => entry.wrapper.call(params_value).await,
+			Some(entry) => entry.wrapper.call(&lua, params_value).await,
 			None => Err(HandlerError::new(RegistryError::MethodUnknown(name.to_string()))),
 		}
 	}
@@ -200,20 +200,24 @@ fn validate_name(name: &str) -> core::result::Result<(), RegistryError> {
 mod tests {
 	use super::*;
 	use crate::script::AipApiError;
+use crate::impl_lua_serde_traits;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-	#[derive(Debug, Deserialize, schemars::JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-	#[derive(Debug, Serialize, schemars::JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
+
+	impl_lua_serde_traits!(EchoParams);
+	impl_lua_serde_traits!(EchoResult);
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })
@@ -226,14 +230,19 @@ mod tests {
 	#[tokio::test]
 	async fn test_registry_sync_call_ok() -> TestResult<()> {
 		// -- Setup & Fixtures
+		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "hello" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = registry.call("echo", json!({ "data": "hello" })).await?;
+		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "hello" }));
+		let back_json = crate::script::lua_value_to_serde_value(value)
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, json!({ "data": "hello" }));
 
 		Ok(())
 	}
@@ -241,14 +250,19 @@ mod tests {
 	#[tokio::test]
 	async fn test_registry_async_call_ok() -> TestResult<()> {
 		// -- Setup & Fixtures
+		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_async::<_, EchoParams, EchoResult, AipApiError>("echo", echo_async)?;
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "world" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = registry.call("echo", json!({ "data": "world" })).await?;
+		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "world" }));
+		let back_json = crate::script::lua_value_to_serde_value(value)
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, json!({ "data": "world" }));
 
 		Ok(())
 	}
@@ -256,10 +270,12 @@ mod tests {
 	#[tokio::test]
 	async fn test_registry_method_unknown_err() -> TestResult<()> {
 		// -- Setup & Fixtures
+		let lua = mlua::Lua::new();
 		let registry = HandlerRegistry::new();
+		let params_lua = mlua::Value::Nil;
 
 		// -- Exec
-		let res = registry.call("missing", json!({})).await;
+		let res = registry.call(lua, "missing", params_lua).await;
 
 		// -- Check
 		let err = res.err().ok_or("should be an error")?;
@@ -288,17 +304,41 @@ mod tests {
 	#[tokio::test]
 	async fn test_registry_invalid_params_err() -> TestResult<()> {
 		// -- Setup & Fixtures
+		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": 123 }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let res = registry.call("echo", json!({ "data": 123 })).await;
+		let res = registry.call(lua.clone(), "echo", params_lua).await;
 
 		// -- Check
 		let err = res.err().ok_or("should be an error")?;
 		let api_err = err.get::<AipApiError>().ok_or("should hold AipApiError")?;
 		assert_eq!(api_err.code, "INVALID_PARAMS");
 
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_registry_list_registered_fns_contains_schemas() -> TestResult<()> {
+		// -- Setup & Fixtures
+		let mut registry = HandlerRegistry::new();
+		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
+
+		// -- Exec
+		let fns = registry.list_registered_fns();
+
+		// -- Check
+		assert_eq!(fns.len(), 1);
+		let registered = &fns[0];
+		assert_eq!(registered.name, "echo");
+		assert!(matches!(registered.kind, HandlerKind::Sync));
+		// Schemas should resolve to something non‑null
+        assert!(!registered.params_schema.clone().to_value().is_null());
+        assert!(!registered.response_schema.clone().to_value().is_null());
+        assert!(!registered.error_schema.clone().to_value().is_null());
 		Ok(())
 	}
 }

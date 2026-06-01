@@ -1,18 +1,18 @@
 use super::{AipParams, AipResponse};
-use crate::script::{Handler, HandlerError, PinFutureValue};
+use crate::script::{Handler, HandlerError, PinFutureValue, handler_error_to_lua};
+use mlua::{Lua, Value};
 use std::marker::PhantomData;
 
 /// `HandlerWrapper` is a `Handler` wrapper that implements
 /// `HandlerWrapperTrait` for type erasure, enabling dynamic dispatch.
 ///
 /// Modeled on `rpc-router::RpcHandlerWrapper`, but adapted to the single
-/// params-table shape used by `AipFn`. The boundary stays fully Lua-agnostic
-/// and operates only on normalized `serde_json::Value`.
+/// params-table shape used by `AipFn`. The boundary now uses `mlua::Value`.
 ///
 /// Generics:
 /// - `H`: the concrete handler (function or closure) implementing `Handler`.
-/// - `P`: the typed params (`DeserializeOwned`).
-/// - `R`: the typed response (`Serialize`).
+/// - `P`: the typed params (`FromLua`).
+/// - `R`: the typed response (`ToLua`).
 /// - `M`: the marker type distinguishing the sync and async implementations.
 ///
 /// All types except `H` match the generics of the `H` handler trait and are
@@ -36,37 +36,43 @@ impl<H, P, R, M> HandlerWrapper<H, P, R, M> {
 // Call Impl
 impl<H, P, R, M> HandlerWrapper<H, P, R, M>
 where
-	H: Handler<P, R, M> + Clone + Send + Sync + 'static,
+	H: Handler<P, R, M> + Send + Sync + 'static,
 	P: AipParams,
 	R: AipResponse,
 	M: Send + Sync + 'static,
 {
-	pub fn call(&self, params_value: serde_json::Value) -> H::Future {
-		// Note: Since the handler is `FnOnce`-like, we clone it so it can be
-		//       called repeatedly. This is typically optimized by the compiler.
+	/// Convert the Lua value to typed params, then call the wrapped handler.
+	/// `FromLua` conversion happens synchronously here (outside the async block)
+	/// so that `Lua` and `Value` are never captured across an await point,
+	/// preserving the `Send` bound on the returned future.
+	pub fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue {
+		let params = match P::from_lua(lua, params_value) {
+			Ok(p) => p,
+			Err(err) => return Box::pin(async move { Err(err) }),
+		};
 		let handler = self.handler.clone();
-		Handler::call(handler, params_value)
+		Box::pin(handler.call(lua.clone(), params))
 	}
 }
 
 /// `HandlerWrapperTrait` enables `HandlerWrapper` to become a trait object,
 /// allowing for dynamic dispatch by the registry.
 pub trait HandlerWrapperTrait: Send + Sync {
-	/// Call the wrapped handler with normalized params (`serde_json::Value`),
-	/// returning a pinned future resolving to the normalized response or a
+	/// Call the wrapped handler with a Lua state and a Lua value params argument,
+	/// returning a pinned future resolving to a Lua value response or a
 	/// normalized `HandlerError`.
-	fn call(&self, params_value: serde_json::Value) -> PinFutureValue;
+	fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue;
 }
 
 impl<H, P, R, M> HandlerWrapperTrait for HandlerWrapper<H, P, R, M>
 where
-	H: Handler<P, R, M> + Clone + Send + Sync + 'static,
+	H: Handler<P, R, M> + Send + Sync + 'static,
 	P: AipParams,
 	R: AipResponse,
 	M: Send + Sync + 'static,
 {
-	fn call(&self, params_value: serde_json::Value) -> PinFutureValue {
-		Box::pin(self.call(params_value))
+	fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue {
+		self.call(lua, params_value)
 	}
 }
 
@@ -99,22 +105,26 @@ where
 
 #[cfg(test)]
 mod tests {
-	use crate::script::{AipApiError, IntoHandlerWrapper};
+	use crate::script::{AipApiError, IntoHandlerWrapper, handler_error_to_lua};
+use crate::impl_lua_serde_traits;
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-	#[derive(Debug, Deserialize, JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-	#[derive(Debug, Serialize, JsonSchema)]
+    #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
+
+	impl_lua_serde_traits!(EchoParams);
+	impl_lua_serde_traits!(EchoResult);
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })
@@ -128,12 +138,20 @@ mod tests {
 	async fn test_handler_wrapper_sync_dyn_call_ok() -> TestResult<()> {
 		// -- Setup & Fixtures
 		let wrapper = echo_sync.into_dyn();
+		let lua = mlua::Lua::new();
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "hello" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = wrapper.call(json!({ "data": "hello" })).await?;
+		let value = wrapper
+			.call(&lua, params_lua)
+			.await
+			.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "hello" }));
+		let back_json = crate::script::lua_value_to_serde_value(value)
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, json!({ "data": "hello" }));
 
 		Ok(())
 	}
@@ -142,12 +160,20 @@ mod tests {
 	async fn test_handler_wrapper_async_dyn_call_ok() -> TestResult<()> {
 		// -- Setup & Fixtures
 		let wrapper = echo_async.into_dyn();
+		let lua = mlua::Lua::new();
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "world" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = wrapper.call(json!({ "data": "world" })).await?;
+		let value = wrapper
+			.call(&lua, params_lua)
+			.await
+			.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		assert_eq!(value, json!({ "data": "world" }));
+		let back_json = crate::script::lua_value_to_serde_value(value)
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, json!({ "data": "world" }));
 
 		Ok(())
 	}
@@ -156,13 +182,18 @@ mod tests {
 	async fn test_handler_wrapper_invalid_params_err() -> TestResult<()> {
 		// -- Setup & Fixtures
 		let wrapper = echo_sync.into_dyn();
+		let lua = mlua::Lua::new();
+		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": 123 }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let res = wrapper.call(json!({ "data": 123 })).await;
+		let res = wrapper.call(&lua, params_lua).await;
 
 		// -- Check
-		let err = res.err().ok_or("should be an error")?;
-		let api_err = err.get::<AipApiError>().ok_or("should hold AipApiError")?;
+		let herr = res.err().ok_or("should be an error")?;
+		let api_err = herr
+			.get::<AipApiError>()
+			.ok_or("should hold AipApiError")?;
 		assert_eq!(api_err.code, "INVALID_PARAMS");
 
 		Ok(())

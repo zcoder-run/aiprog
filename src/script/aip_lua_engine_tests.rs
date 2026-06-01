@@ -1,4 +1,5 @@
 use super::*;
+use crate::impl_lua_serde_traits;
 use crate::registry::{AipRegistry, AipRegistryError};
 use crate::script::AipApiError;
 use mlua::{Lua, Value};
@@ -7,15 +8,18 @@ use serde::{Deserialize, Serialize};
 
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct TestParams {
 	data: String,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct TestResponse {
 	data: String,
 }
+
+impl_lua_serde_traits!(TestParams);
+impl_lua_serde_traits!(TestResponse);
 
 fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 	Ok(TestResponse { data: params.data })
@@ -102,7 +106,8 @@ fn test_aip_lua_engine_intermediate_non_table_conflict() -> Result<()> {
 
 	// -- Check
 	assert!(result.is_err());
-	assert!(result.unwrap_err().to_string().contains("not a table"));
+	let err_str = result.as_ref().unwrap_err().to_string();
+	assert!(err_str.contains("not a table"));
 
 	Ok(())
 }
@@ -133,7 +138,8 @@ fn test_aip_lua_engine_leaf_conflict() -> Result<()> {
 
 	// -- Check
 	assert!(result.is_err());
-	assert!(result.unwrap_err().to_string().contains("already exists"));
+	let err_str = result.as_ref().unwrap_err().to_string();
+	assert!(err_str.contains("already exists"));
 
 	Ok(())
 }

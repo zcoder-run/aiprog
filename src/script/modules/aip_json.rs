@@ -23,7 +23,7 @@
 //!
 
 use crate::Result;
-use crate::script::{AipApiError, HandlerRegistry, install_registry_on_table};
+use crate::script::{AipApiError, FromLua, HandlerRegistry, ToLua, install_registry_on_table};
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
@@ -37,21 +37,25 @@ pub fn init_module(lua: &Lua) -> Result<Table> {
 	let table = lua.create_table()?;
 
 	let mut registry = HandlerRegistry::new();
+
 	registry
 		.append_sync::<_, AipJsonParseParams, AipJsonParseResult, AipApiError>("parse", aip_json_parse_handler)
 		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+
 	registry
 		.append_sync::<_, AipJsonParseJsonlParams, AipJsonParseJsonlResult, AipApiError>(
 			"parse_jsonl",
 			aip_json_parse_jsonl_handler,
 		)
 		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+
 	registry
 		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyResult, AipApiError>(
 			"stringify",
 			aip_json_stringify_handler,
 		)
 		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
+
 	registry
 		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyPrettyResult, AipApiError>(
 			"stringify_pretty",
@@ -74,11 +78,35 @@ pub struct AipJsonParseParams {
 	pub data: Option<String>,
 }
 
+impl FromLua for AipJsonParseParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
+		let data = table.get("data").ok();
+		Ok(AipJsonParseParams { data })
+	}
+}
+
 /// Result of the `parse` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseResult {
 	/// The parsed JSON value.
 	pub data: serde_json::Value,
+}
+
+impl ToLua for AipJsonParseResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("data", data_lua)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
 }
 
 fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<AipJsonParseResult, AipApiError> {
@@ -87,6 +115,7 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<Ai
 			data: serde_json::Value::Null,
 		});
 	};
+
 	match jsons::parse_jsonc_to_serde_value(&content) {
 		Ok(Some(json_val)) => Ok(AipJsonParseResult { data: json_val }),
 		Ok(None) => Ok(AipJsonParseResult {
@@ -113,11 +142,45 @@ pub struct AipJsonParseJsonlParams {
 	pub data: Option<String>,
 }
 
+impl FromLua for AipJsonParseJsonlParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
+		let data = table.get("data").ok();
+		Ok(AipJsonParseJsonlParams { data })
+	}
+}
+
 /// Result of the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseJsonlResult {
 	/// The parsed list of JSON values.
 	pub data: Vec<serde_json::Value>,
+}
+
+impl ToLua for AipJsonParseJsonlResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+
+		let mut data_vec = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+
+		for (i, item) in self.data.into_iter().enumerate() {
+			let item_lua = crate::script::serde_value_to_lua_value(lua, item)
+				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+			data_vec
+				.set(i + 1, item_lua)
+				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		}
+		table
+			.set("data", data_vec)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
 }
 
 fn aip_json_parse_jsonl_handler(
@@ -149,11 +212,35 @@ pub struct AipJsonStringifyParams {
 	pub data: serde_json::Value,
 }
 
+impl FromLua for AipJsonStringifyParams {
+	fn from_lua(lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+		let table = value
+			.as_table()
+			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
+		let data_val: mlua::Value = table.get("data").map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let data = crate::script::lua_value_to_serde_value(data_val)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(AipJsonStringifyParams { data })
+	}
+}
+
 /// Result of the `stringify` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyResult {
 	/// The stringified JSON string.
 	pub data: String,
+}
+
+impl ToLua for AipJsonStringifyResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("data", self.data)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
 }
 
 fn aip_json_stringify_handler(
@@ -179,6 +266,18 @@ fn aip_json_stringify_handler(
 pub struct AipJsonStringifyPrettyResult {
 	/// The pretty-stringified JSON string.
 	pub data: String,
+}
+
+impl ToLua for AipJsonStringifyPrettyResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("data", self.data)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
 }
 
 fn aip_json_stringify_pretty_handler(
