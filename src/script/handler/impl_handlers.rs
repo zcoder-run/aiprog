@@ -12,8 +12,8 @@ macro_rules! impl_aip_handlers {
 		impl<F, P, R, E> $crate::script::Handler<P, R, $crate::script::SyncMarker> for F
 		where
 			F: FnOnce(P) -> core::result::Result<R, E> + Clone + Send + 'static,
-            P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
-            R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
+			P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
+			R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
 			E: $crate::script::IntoHandlerError,
 		{
 			type Future = $crate::script::PinFutureValue;
@@ -34,8 +34,8 @@ macro_rules! impl_aip_handlers {
 		impl<F, Fut, P, R, E> $crate::script::Handler<P, R, $crate::script::AsyncMarker> for F
 		where
 			F: FnOnce(P) -> Fut + Clone + Send + 'static,
-            P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
-            R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
+			P: serde::de::DeserializeOwned + schemars::JsonSchema + Send + Sync + 'static,
+			R: serde::Serialize + schemars::JsonSchema + Send + Sync + 'static,
 			E: $crate::script::IntoHandlerError,
 			Fut: core::future::Future<Output = core::result::Result<R, E>> + Send,
 		{
@@ -61,19 +61,19 @@ impl_aip_handlers!();
 
 #[cfg(test)]
 mod tests {
-		use schemars::JsonSchema;
 	use crate::script::{AipApiError, Handler};
+	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-		#[derive(Debug, Deserialize, JsonSchema)]
+	#[derive(Debug, Deserialize, JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-		#[derive(Debug, Serialize, JsonSchema)]
+	#[derive(Debug, Serialize, JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}

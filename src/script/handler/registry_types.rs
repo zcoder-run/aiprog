@@ -1,6 +1,6 @@
+use super::{AipError, AipParams, AipResponse};
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use schemars::{JsonSchema, Schema, schema_for};
-use super::{AipParams, AipResponse, AipError};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -102,12 +102,12 @@ impl HandlerRegistry {
 	///
 	/// The handler is boxed into a type-erased `HandlerWrapperTrait` so it can
 	/// be stored and invoked dynamically by the registry.
-pub fn append_sync<H, P, R, E>(&mut self, name: &'static str, handler: H) -> core::result::Result<(), RegistryError>
-where
-	H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
-	P: AipParams,
-	R: AipResponse,
-	E: AipError,
+	pub fn append_sync<H, P, R, E>(&mut self, name: &'static str, handler: H) -> core::result::Result<(), RegistryError>
+	where
+		H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
+		P: AipParams,
+		R: AipResponse,
+		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Sync, handler.into_dyn())
 	}
@@ -116,16 +116,16 @@ where
 	///
 	/// The handler is boxed into a type-erased `HandlerWrapperTrait` so it can
 	/// be stored and invoked dynamically by the registry.
-pub fn append_async<H, P, R, E>(
-	&mut self,
-	name: &'static str,
-	handler: H,
-) -> core::result::Result<(), RegistryError>
-where
-	H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
-	P: AipParams,
-	R: AipResponse,
-	E: AipError,
+	pub fn append_async<H, P, R, E>(
+		&mut self,
+		name: &'static str,
+		handler: H,
+	) -> core::result::Result<(), RegistryError>
+	where
+		H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
+		P: AipParams,
+		R: AipResponse,
+		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Async, handler.into_dyn())
 	}
@@ -155,16 +155,16 @@ where
 			.collect()
 	}
 
-fn insert_entry<P, R, E>(
-	&mut self,
-	name: &'static str,
-	kind: HandlerKind,
-	wrapper: Box<dyn HandlerWrapperTrait>,
-) -> core::result::Result<(), RegistryError>
-where
-	P: AipParams,
-	R: AipResponse,
-	E: AipError,
+	fn insert_entry<P, R, E>(
+		&mut self,
+		name: &'static str,
+		kind: HandlerKind,
+		wrapper: Box<dyn HandlerWrapperTrait>,
+	) -> core::result::Result<(), RegistryError>
+	where
+		P: AipParams,
+		R: AipResponse,
+		E: AipError,
 	{
 		validate_name(name)?;
 		if self.entries.contains_key(name) {

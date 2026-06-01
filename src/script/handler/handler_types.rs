@@ -1,5 +1,5 @@
-use crate::script::{HandlerError, params_from_value, response_to_value};
 use super::{AipParams, AipResponse};
+use crate::script::{HandlerError, params_from_value, response_to_value};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -27,8 +27,8 @@ pub type PinFutureValue = Pin<Box<dyn Future<Output = core::result::Result<serde
 ///   implementations during type resolution.
 pub trait Handler<P, R, M>: Clone
 where
-    P: AipParams,
-    R: AipResponse,
+	P: AipParams,
+	R: AipResponse,
 {
 	/// The future type returned by calling this handler.
 	type Future: Future<Output = core::result::Result<serde_json::Value, HandlerError>> + Send + 'static;
