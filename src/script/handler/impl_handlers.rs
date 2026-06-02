@@ -14,9 +14,9 @@ macro_rules! impl_aip_handlers {
 		impl<F, P, R, E> $crate::script::Handler<P, R, $crate::script::SyncMarker> for F
 		where
 			F: FnOnce(P) -> core::result::Result<R, E> + Clone + Send + 'static,
-			P: schemars::JsonSchema + Send + Sync + 'static,
-			R: $crate::script::handler::lua_traits::ToLua + schemars::JsonSchema + Send + Sync + 'static,
-			E: $crate::script::IntoHandlerError,
+			P: $crate::script::AipParams,
+			R: $crate::script::AipResponse,
+			E: $crate::script::AipError,
 		{
 			type Future = $crate::script::PinFutureValue;
 
@@ -34,9 +34,9 @@ macro_rules! impl_aip_handlers {
 		impl<F, Fut, P, R, E> $crate::script::Handler<P, R, $crate::script::AsyncMarker> for F
 		where
 			F: FnOnce(P) -> Fut + Clone + Send + 'static,
-			P: schemars::JsonSchema + Send + Sync + 'static,
-			R: $crate::script::handler::lua_traits::ToLua + schemars::JsonSchema + Send + Sync + 'static,
-			E: $crate::script::IntoHandlerError,
+			P: $crate::script::AipParams,
+			R: $crate::script::AipResponse,
+			E: $crate::script::AipError,
 			Fut: core::future::Future<Output = core::result::Result<R, E>> + Send,
 		{
 			type Future = $crate::script::PinFutureValue;

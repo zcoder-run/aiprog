@@ -222,9 +222,9 @@ impl AipRegistry {
 						AsyncCallError::Message(msg) => mlua::Error::RuntimeError(msg),
 						AsyncCallError::Handler(err) => err,
 					})?;
-				let response_serde = serde_json::to_value(response)
-					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}")))?;
-				Ok(response_serde)
+					let response_serde = serde_json::to_value(response)
+						.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}")))?;
+					Ok(response_serde)
 				})
 			},
 		);

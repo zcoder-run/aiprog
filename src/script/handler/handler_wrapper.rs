@@ -105,20 +105,20 @@ where
 
 #[cfg(test)]
 mod tests {
+	use crate::impl_lua_serde_traits;
 	use crate::script::{AipApiError, IntoHandlerWrapper, handler_error_to_lua};
-use crate::impl_lua_serde_traits;
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-    #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-    #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
@@ -143,14 +143,11 @@ use crate::impl_lua_serde_traits;
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = wrapper
-			.call(&lua, params_lua)
-			.await
-			.map_err(handler_error_to_lua)?;
+		let value = wrapper.call(&lua, params_lua).await.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		let back_json = crate::script::lua_value_to_serde_value(value)
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json =
+			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, json!({ "data": "hello" }));
 
 		Ok(())
@@ -165,14 +162,11 @@ use crate::impl_lua_serde_traits;
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
-		let value = wrapper
-			.call(&lua, params_lua)
-			.await
-			.map_err(handler_error_to_lua)?;
+		let value = wrapper.call(&lua, params_lua).await.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		let back_json = crate::script::lua_value_to_serde_value(value)
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json =
+			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, json!({ "data": "world" }));
 
 		Ok(())
@@ -191,9 +185,7 @@ use crate::impl_lua_serde_traits;
 
 		// -- Check
 		let herr = res.err().ok_or("should be an error")?;
-		let api_err = herr
-			.get::<AipApiError>()
-			.ok_or("should hold AipApiError")?;
+		let api_err = herr.get::<AipApiError>().ok_or("should hold AipApiError")?;
 		assert_eq!(api_err.code, "INVALID_PARAMS");
 
 		Ok(())

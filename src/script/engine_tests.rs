@@ -41,13 +41,13 @@ fn test_error_handler(params: TestParams) -> core::result::Result<TestResponse, 
 // region:    --- Nested table creation
 
 #[test]
-fn test_aip_lua_engine_nested_table_creation() -> Result<()> {
+fn test_script_engine_nested_table_creation() -> Result<()> {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::default();
 	registry.register_sync("aip.test.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let engine = AipLuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Check
 	let lua = engine.lua();
@@ -63,7 +63,7 @@ fn test_aip_lua_engine_nested_table_creation() -> Result<()> {
 // region:    --- Existing compatible intermediate table
 
 #[test]
-fn test_aip_lua_engine_existing_compatible_table() -> Result<()> {
+fn test_script_engine_existing_compatible_table() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = Lua::new();
 	let aip = lua.create_table()?;
@@ -75,7 +75,7 @@ fn test_aip_lua_engine_existing_compatible_table() -> Result<()> {
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let engine = AipLuaEngine::from_registry_with_lua(lua, registry)?;
+	let engine = ScriptEngine::from_registry_with_lua(lua, registry)?;
 
 	// -- Check
 	let value: Value = engine.lua().load("return aip.existing.my_func({data='world'})").eval()?;
@@ -90,7 +90,7 @@ fn test_aip_lua_engine_existing_compatible_table() -> Result<()> {
 // region:    --- Intermediate non-table conflict
 
 #[test]
-fn test_aip_lua_engine_intermediate_non_table_conflict() -> Result<()> {
+fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = Lua::new();
 	// Set aip.existing to a number instead of table
@@ -102,7 +102,7 @@ fn test_aip_lua_engine_intermediate_non_table_conflict() -> Result<()> {
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let result = AipLuaEngine::from_registry_with_lua(lua, registry);
+	let result = ScriptEngine::from_registry_with_lua(lua, registry);
 
 	// -- Check
 	assert!(result.is_err());
@@ -117,7 +117,7 @@ fn test_aip_lua_engine_intermediate_non_table_conflict() -> Result<()> {
 // region:    --- Leaf conflict
 
 #[test]
-fn test_aip_lua_engine_leaf_conflict() -> Result<()> {
+fn test_script_engine_leaf_conflict() -> Result<()> {
 	// -- Setup & Fixtures
 	let lua = Lua::new();
 	// Create aip.conflict table and a function at my_func
@@ -134,7 +134,7 @@ fn test_aip_lua_engine_leaf_conflict() -> Result<()> {
 	registry.register_sync("aip.conflict.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let result = AipLuaEngine::from_registry_with_lua(lua, registry);
+	let result = ScriptEngine::from_registry_with_lua(lua, registry);
 
 	// -- Check
 	assert!(result.is_err());
@@ -149,11 +149,11 @@ fn test_aip_lua_engine_leaf_conflict() -> Result<()> {
 // region:    --- Sync invocation
 
 #[test]
-fn test_aip_lua_engine_sync_invocation() -> Result<()> {
+fn test_script_engine_sync_invocation() -> Result<()> {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::default();
 	registry.register_sync("aip.test.echo", test_sync_handler)?;
-	let engine = AipLuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
 	let value: Value = engine.lua().load("return aip.test.echo({data='sync test'})").eval()?;
@@ -170,11 +170,11 @@ fn test_aip_lua_engine_sync_invocation() -> Result<()> {
 // region:    --- Sync handler error conversion
 
 #[test]
-fn test_aip_lua_engine_sync_error_conversion() -> Result<()> {
+fn test_script_engine_sync_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::default();
 	registry.register_sync("aip.test.fail", test_error_handler)?;
-	let engine = AipLuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
 	let lua = engine.lua();
@@ -194,11 +194,11 @@ fn test_aip_lua_engine_sync_error_conversion() -> Result<()> {
 // region:    --- Async invocation
 
 #[tokio::test]
-async fn test_aip_lua_engine_async_invocation() -> Result<()> {
+async fn test_script_engine_async_invocation() -> Result<()> {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::default();
 	registry.register_async("aip.test.echo_async", test_async_handler)?;
-	let engine = AipLuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
 	let value: Value = engine
@@ -219,7 +219,7 @@ async fn test_aip_lua_engine_async_invocation() -> Result<()> {
 // region:    --- Async handler error conversion
 
 #[tokio::test]
-async fn test_aip_lua_engine_async_error_conversion() -> Result<()> {
+async fn test_script_engine_async_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
 	async fn async_error_handler(_: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 		Err(AipApiError {
@@ -232,7 +232,7 @@ async fn test_aip_lua_engine_async_error_conversion() -> Result<()> {
 
 	let mut registry = AipRegistry::default();
 	registry.register_async("aip.test.fail_async", async_error_handler)?;
-	let engine = AipLuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
 	let lua = engine.lua();

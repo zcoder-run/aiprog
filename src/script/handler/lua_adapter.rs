@@ -89,20 +89,20 @@ fn make_registry_function(lua: &Lua, registry: Arc<HandlerRegistry>, name: Strin
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::impl_lua_serde_traits;
 	use crate::script::{AipApiError, HandlerRegistry};
-use crate::impl_lua_serde_traits;
 	use mlua::Lua;
 	use serde::{Deserialize, Serialize};
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoParams {
 		#[serde(default)]
 		data: String,
 	}
 
-    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}

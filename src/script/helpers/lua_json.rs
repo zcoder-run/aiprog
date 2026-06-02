@@ -10,7 +10,7 @@ use mlua::{Lua, LuaSerdeExt as _};
 ///            and we want it for aipack.
 pub fn serde_value_to_lua_value(lua: &Lua, val: serde_json::Value) -> Result<mlua::Value> {
 	let res = match val {
-		serde_json::Value::Null => mlua::Value::Nil,
+		serde_json::Value::Null => mlua::Value::NULL,
 		other => lua.to_value(&other)?,
 	};
 	Ok(res)

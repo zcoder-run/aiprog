@@ -199,19 +199,19 @@ fn validate_name(name: &str) -> core::result::Result<(), RegistryError> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::impl_lua_serde_traits;
 	use crate::script::AipApiError;
-use crate::impl_lua_serde_traits;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoParams {
 		data: String,
 	}
 
-    #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 	struct EchoResult {
 		data: String,
 	}
@@ -240,8 +240,8 @@ use crate::impl_lua_serde_traits;
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		let back_json = crate::script::lua_value_to_serde_value(value)
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json =
+			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, json!({ "data": "hello" }));
 
 		Ok(())
@@ -260,8 +260,8 @@ use crate::impl_lua_serde_traits;
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		let back_json = crate::script::lua_value_to_serde_value(value)
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json =
+			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, json!({ "data": "world" }));
 
 		Ok(())
@@ -336,9 +336,9 @@ use crate::impl_lua_serde_traits;
 		assert_eq!(registered.name, "echo");
 		assert!(matches!(registered.kind, HandlerKind::Sync));
 		// Schemas should resolve to something non‑null
-        assert!(!registered.params_schema.clone().to_value().is_null());
-        assert!(!registered.response_schema.clone().to_value().is_null());
-        assert!(!registered.error_schema.clone().to_value().is_null());
+		assert!(!registered.params_schema.clone().to_value().is_null());
+		assert!(!registered.response_schema.clone().to_value().is_null());
+		assert!(!registered.error_schema.clone().to_value().is_null());
 		Ok(())
 	}
 }

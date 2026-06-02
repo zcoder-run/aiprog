@@ -9,7 +9,7 @@ mod error;
 mod script;
 
 pub use error::{Error, Result};
-pub use script::LuaEngine;
+pub use script::ScriptEngine;
 
 pub mod registry;
 pub mod types;
