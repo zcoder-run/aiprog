@@ -3,7 +3,6 @@ use mlua::{BorrowedStr, Table, Value};
 /// Convenient Lua Value extension
 ///
 /// TODO: Will need to handle the case where the found value is not of correct type. Probably should return `Result<Option<>>`
-#[allow(unused)]
 pub trait LuaValueExt {
 	fn x_is_null(&self) -> bool;
 

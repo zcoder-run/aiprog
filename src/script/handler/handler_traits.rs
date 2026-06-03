@@ -1,5 +1,5 @@
 use super::IntoHandlerError;
-use crate::script::handler::lua_traits::{FromLua, ToLua};
+use crate::script::handler::lua_traits::{AipFromLua, AipToLua};
 use schemars::JsonSchema;
 
 // region:    --- AipParams
@@ -9,9 +9,9 @@ use schemars::JsonSchema;
 /// Any type used as handler params must be deserializable from a Lua value, have a
 /// JSON schema, and be thread-safe. The blanket implementation ensures any
 /// type satisfying the component bounds automatically qualifies.
-pub trait AipParams: FromLua + JsonSchema + Send + Sync + 'static {}
+pub trait AipParams: AipFromLua + JsonSchema + Send + Sync + 'static {}
 
-impl<T> AipParams for T where T: FromLua + JsonSchema + Send + Sync + 'static {}
+impl<T> AipParams for T where T: AipFromLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipParams
 
@@ -22,9 +22,9 @@ impl<T> AipParams for T where T: FromLua + JsonSchema + Send + Sync + 'static {}
 /// Any type used as a handler response must be serializable to a Lua value, have a
 /// JSON schema, and be thread-safe. The blanket implementation ensures any
 /// type satisfying the component bounds automatically qualifies.
-pub trait AipResponse: ToLua + JsonSchema + Send + Sync + 'static {}
+pub trait AipResponse: AipToLua + JsonSchema + Send + Sync + 'static {}
 
-impl<T> AipResponse for T where T: ToLua + JsonSchema + Send + Sync + 'static {}
+impl<T> AipResponse for T where T: AipToLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipResponse
 

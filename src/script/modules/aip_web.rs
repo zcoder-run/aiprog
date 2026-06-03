@@ -19,7 +19,7 @@
 //!
 
 use crate::Result;
-use crate::script::{AipApiError, FromLua, HandlerRegistry, ToLua, install_registry_on_table};
+use crate::script::{AipApiError, AipFromLua, AipToLua, HandlerRegistry, install_registry_on_table};
 use mlua::{Lua, Table};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Client, RequestBuilder};
@@ -63,7 +63,7 @@ pub struct AipWebGetParams {
 	pub parse: Option<bool>,
 }
 
-impl FromLua for AipWebGetParams {
+impl AipFromLua for AipWebGetParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
 		let table = value
 			.as_table()
@@ -122,7 +122,7 @@ pub struct AipWebGetResult {
 	pub error: Option<String>,
 }
 
-impl ToLua for AipWebGetResult {
+impl AipToLua for AipWebGetResult {
 	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
 		let table = lua
 			.create_table()

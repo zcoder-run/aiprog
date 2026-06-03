@@ -65,7 +65,9 @@ fn test_script_engine_nested_table_creation() -> Result<()> {
 #[test]
 fn test_script_engine_existing_compatible_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let lua = Lua::new();
+	let engine = ScriptEngine::new()?;
+	let lua = engine.lua();
+
 	let aip = lua.create_table()?;
 	let existing = lua.create_table()?;
 	aip.set("existing", existing.clone())?;
@@ -75,10 +77,10 @@ fn test_script_engine_existing_compatible_table() -> Result<()> {
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let engine = ScriptEngine::from_registry_with_lua(lua, registry)?;
+	engine.register(registry)?;
 
 	// -- Check
-	let value: Value = engine.lua().load("return aip.existing.my_func({data='world'})").eval()?;
+	let value: Value = lua.load("return aip.existing.my_func({data='world'})").eval()?;
 	let table = value.as_table().ok_or("Expected table")?;
 	assert_eq!(table.get::<String>("data")?, "world");
 
@@ -92,7 +94,9 @@ fn test_script_engine_existing_compatible_table() -> Result<()> {
 #[test]
 fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 	// -- Setup & Fixtures
-	let lua = Lua::new();
+	let engine = ScriptEngine::new()?;
+	let lua = engine.lua();
+
 	// Set aip.existing to a number instead of table
 	lua.globals().set("aip", lua.create_table()?)?;
 	let aip_table: mlua::Table = lua.globals().get("aip")?;
@@ -102,7 +106,7 @@ fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let result = ScriptEngine::from_registry_with_lua(lua, registry);
+	let result = engine.register(registry);
 
 	// -- Check
 	assert!(result.is_err());
@@ -119,7 +123,9 @@ fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 #[test]
 fn test_script_engine_leaf_conflict() -> Result<()> {
 	// -- Setup & Fixtures
-	let lua = Lua::new();
+	let engine = ScriptEngine::new()?;
+	let lua = engine.lua();
+
 	// Create aip.conflict table and a function at my_func
 	let aip = lua.create_table()?;
 	let conflict = lua.create_table()?;
@@ -134,7 +140,7 @@ fn test_script_engine_leaf_conflict() -> Result<()> {
 	registry.register_sync("aip.conflict.my_func", test_sync_handler)?;
 
 	// -- Exec
-	let result = ScriptEngine::from_registry_with_lua(lua, registry);
+	let result = engine.register(registry);
 
 	// -- Check
 	assert!(result.is_err());

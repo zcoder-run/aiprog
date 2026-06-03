@@ -13,6 +13,7 @@ async fn test_script_lua_json_parse_simple() -> Result<()> {
             local content = '{"name": "John", "age": 30}'
             return aip.json.parse({ data = content })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -33,6 +34,7 @@ async fn test_script_lua_json_parse_with_comment() -> Result<()> {
 					]]
             return aip.json.parse({ data = content })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -49,6 +51,7 @@ async fn test_script_lua_json_parse_nil() -> Result<()> {
 	let script = r#"
             return aip.json.parse({})
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -69,6 +72,7 @@ async fn test_script_lua_json_parse_invalid() -> Result<()> {
                 return tostring(err)
             end
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -88,6 +92,7 @@ async fn test_script_lua_json_parse_jsonl_simple() -> Result<()> {
             local content = '{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}'
             return aip.json.parse_jsonl({ data = content })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -108,6 +113,7 @@ async fn test_script_lua_json_parse_jsonl_empty_lines() -> Result<()> {
             local content = '{"id": 1}\n\n{"id": 2}\n   \n{"id": 3}'
             return aip.json.parse_jsonl({ data = content })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -128,6 +134,7 @@ async fn test_script_lua_json_parse_jsonl_nil() -> Result<()> {
 	let script = r#"
             return aip.json.parse_jsonl({})
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -148,6 +155,7 @@ async fn test_script_lua_json_parse_jsonl_invalid_json() -> Result<()> {
                 return tostring(err)
             end
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -169,6 +177,7 @@ async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
             }
             return aip.json.stringify_pretty({ data = obj })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 	// -- Check
@@ -230,6 +239,7 @@ async fn test_script_lua_json_stringify_simple() -> Result<()> {
             }
             return aip.json.stringify({ data = obj })
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 	// -- Check
@@ -248,6 +258,7 @@ async fn test_script_lua_json_parse_new_api() -> Result<()> {
             local res = aip.json.parse({ data = '{"name": "John", "age": 30}' })
             return res
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -269,6 +280,7 @@ async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
                 return "should have failed"
             end
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -285,6 +297,7 @@ async fn test_script_lua_json_parse_jsonl_new_api() -> Result<()> {
             local res = aip.json.parse_jsonl({ data = '{"name": "John"}\n{"name": "Jane"}' })
             return res
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -305,6 +318,7 @@ async fn test_script_lua_json_stringify_new_api() -> Result<()> {
             local res = aip.json.stringify({ data = { name = "John", age = 30 } })
             return res
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -322,6 +336,7 @@ async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
             local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
             return res
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 
@@ -338,6 +353,7 @@ async fn test_script_lua_json_stringify_to_line_alias_removed() -> Result<()> {
 	let script = r#"
             return aip.json.stringify_to_line == nil
         "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 	// -- Check
@@ -355,6 +371,7 @@ async fn test_script_lua_json_chained_stringify_and_parse() -> Result<()> {
         local parsed = aip.json.parse({ data = stringified.data })
         return parsed
     "#;
+
 	// -- Exec
 	let res = eval_lua(&lua, script)?;
 

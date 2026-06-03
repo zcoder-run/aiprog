@@ -1,4 +1,4 @@
-use crate::script::{FromLua, HandlerError, ToLua};
+use crate::script::{AipFromLua, AipToLua, HandlerError};
 use mlua::{Lua, Value};
 
 /// Macro generating the `Handler` implementations for the supported handler
@@ -55,7 +55,7 @@ macro_rules! impl_aip_handlers {
 
 // region:    --- Tuple FromLua/ToLua implementations
 
-impl<A: FromLua> FromLua for (A,) {
+impl<A: AipFromLua> AipFromLua for (A,) {
 	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -65,7 +65,7 @@ impl<A: FromLua> FromLua for (A,) {
 	}
 }
 
-impl<A: ToLua> ToLua for (A,) {
+impl<A: AipToLua> AipToLua for (A,) {
 	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
@@ -75,7 +75,7 @@ impl<A: ToLua> ToLua for (A,) {
 	}
 }
 
-impl<A: FromLua, B: FromLua> FromLua for (A, B) {
+impl<A: AipFromLua, B: AipFromLua> AipFromLua for (A, B) {
 	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -86,7 +86,7 @@ impl<A: FromLua, B: FromLua> FromLua for (A, B) {
 	}
 }
 
-impl<A: ToLua, B: ToLua> ToLua for (A, B) {
+impl<A: AipToLua, B: AipToLua> AipToLua for (A, B) {
 	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
@@ -99,7 +99,7 @@ impl<A: ToLua, B: ToLua> ToLua for (A, B) {
 	}
 }
 
-impl<A: FromLua, B: FromLua, C: FromLua> FromLua for (A, B, C) {
+impl<A: AipFromLua, B: AipFromLua, C: AipFromLua> AipFromLua for (A, B, C) {
 	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -115,7 +115,7 @@ impl<A: FromLua, B: FromLua, C: FromLua> FromLua for (A, B, C) {
 	}
 }
 
-impl<A: ToLua, B: ToLua, C: ToLua> ToLua for (A, B, C) {
+impl<A: AipToLua, B: AipToLua, C: AipToLua> AipToLua for (A, B, C) {
 	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
@@ -131,7 +131,7 @@ impl<A: ToLua, B: ToLua, C: ToLua> ToLua for (A, B, C) {
 	}
 }
 
-impl<A: FromLua, B: FromLua, C: FromLua, D: FromLua> FromLua for (A, B, C, D) {
+impl<A: AipFromLua, B: AipFromLua, C: AipFromLua, D: AipFromLua> AipFromLua for (A, B, C, D) {
 	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -149,7 +149,7 @@ impl<A: FromLua, B: FromLua, C: FromLua, D: FromLua> FromLua for (A, B, C, D) {
 	}
 }
 
-impl<A: ToLua, B: ToLua, C: ToLua, D: ToLua> ToLua for (A, B, C, D) {
+impl<A: AipToLua, B: AipToLua, C: AipToLua, D: AipToLua> AipToLua for (A, B, C, D) {
 	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table

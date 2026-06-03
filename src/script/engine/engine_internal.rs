@@ -1,51 +1,33 @@
-use crate::Result;
 use crate::registry::{AipFnKind, AipHandlerClosure, AipRegistry};
 use crate::script::serde_value_to_lua_value;
+use crate::{Result, ScriptEngine};
 use mlua::{Function, Lua, LuaSerdeExt, MultiValue, Value};
 
-pub struct ScriptEngine {
-	lua: Lua,
-}
-
-impl core::fmt::Debug for ScriptEngine {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_struct("ScriptEngine").finish()
-	}
-}
-
 impl ScriptEngine {
-	pub fn new() -> Self {
-		Self::default()
-	}
+	pub(super) fn register(&self, registry: AipRegistry) -> Result<()> {
+		let lua = &self.lua;
 
-	pub fn from_registry(registry: AipRegistry) -> mlua::Result<Self> {
-		Self::from_registry_with_lua(Lua::new(), registry)
-	}
-
-	pub fn from_registry_with_lua(lua: Lua, registry: AipRegistry) -> mlua::Result<Self> {
 		for entry in registry.entries {
 			let func = match entry.kind {
 				AipFnKind::Sync => {
 					let handler = if let AipHandlerClosure::Sync(handler) = entry.handler {
 						handler
 					} else {
-						return Err(mlua::Error::RuntimeError(
-							"Mismatched handler kind for sync entry".into(),
-						));
+						return Err("Mismatched handler kind for sync entry".into());
 					};
 					lua.create_function(move |lua: &Lua, args: MultiValue| -> mlua::Result<Value> {
 						let arg = args.into_iter().next().unwrap_or(Value::Nil);
 						handler(lua, arg)
 					})?
 				}
+
 				AipFnKind::Async => {
 					let handler = if let AipHandlerClosure::Async(handler) = entry.handler {
 						handler
 					} else {
-						return Err(mlua::Error::RuntimeError(
-							"Mismatched handler kind for async entry".into(),
-						));
+						return Err("Mismatched handler kind for async entry".into());
 					};
+
 					lua.create_async_function(move |lua: Lua, args: MultiValue| {
 						let arg = args.into_iter().next().unwrap_or(Value::Nil);
 						let response_fut = handler(&lua, arg);
@@ -59,26 +41,104 @@ impl ScriptEngine {
 					})?
 				}
 			};
-			install_function_at_path(&lua, &entry.path, func)?;
+			install_function_at_path(lua, &entry.path, func)?;
 		}
-		Ok(Self { lua })
+
+		Ok(())
 	}
 
-	pub fn exec(&self, code: &str) -> Result<serde_json::Value> {
-		let value = self.lua.load(code).eval()?;
-		let value = self.lua.from_value(value)?;
+	pub(super) fn init_native_is(&self) -> mlua::Result<()> {
+		// region:    --- init_null
 
-		Ok(value)
-	}
+		let globals = self.lua.globals();
+		globals.set("null", Value::NULL)?;
+		globals.set("Null", Value::NULL)?;
+		globals.set("NULL", Value::NULL)?;
 
-	pub fn lua(&self) -> &Lua {
-		&self.lua
-	}
-}
+		// is_null(x) -> boolean
+		globals.set(
+			"is_null",
+			self.lua
+				.create_function(|_, v: Value| Ok(matches!(v, Value::Nil) || v == Value::NULL))?,
+		)?;
 
-impl Default for ScriptEngine {
-	fn default() -> Self {
-		Self { lua: Lua::new() }
+		// nil_if_null(x) -> x or nil
+		globals.set(
+			"nil_if_null",
+			self.lua.create_function(|_, v: Value| {
+				if matches!(v, Value::Nil) || v == Value::NULL {
+					Ok(Value::Nil)
+				} else {
+					Ok(v)
+				}
+			})?,
+		)?;
+
+		// value_or(value, alt) -> value or alt
+		globals.set(
+			"value_or",
+			self.lua.create_function(|_, (v, alt): (Value, Value)| {
+				if matches!(v, Value::Nil) || v == Value::NULL {
+					Ok(alt)
+				} else {
+					Ok(v)
+				}
+			})?,
+		)?;
+
+		// is_not_null(x) -> boolean
+		globals.set(
+			"is_not_null",
+			self.lua
+				.create_function(|_, v: Value| Ok(!(matches!(v, Value::Nil) || v == Value::NULL)))?,
+		)?;
+
+		// is_table(x) -> boolean
+		globals.set(
+			"is_table",
+			self.lua.create_function(|_, v: Value| {
+				if matches!(v, Value::Nil) || v == Value::NULL {
+					return Ok(false);
+				}
+				Ok(matches!(v, Value::Table(_)))
+			})?,
+		)?;
+
+		// is_list(x) -> boolean
+		globals.set(
+			"is_list",
+			self.lua.create_function(|_, v: Value| {
+				if matches!(v, Value::Nil) || v == Value::NULL {
+					return Ok(false);
+				}
+				if let Value::Table(t) = v {
+					let val = t.raw_get(1)?;
+					Ok(!matches!(val, Value::Nil))
+				} else {
+					Ok(false)
+				}
+			})?,
+		)?;
+
+		// is_object(x) -> boolean
+		globals.set(
+			"is_object",
+			self.lua.create_function(|_, v: Value| {
+				if matches!(v, Value::Nil) || v == Value::NULL {
+					return Ok(false);
+				}
+				if let Value::Table(t) = v {
+					let val = t.raw_get(1)?;
+					Ok(matches!(val, Value::Nil))
+				} else {
+					Ok(false)
+				}
+			})?,
+		)?;
+
+		// endregion: --- init_null
+
+		Ok(())
 	}
 }
 
@@ -120,11 +180,3 @@ fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Resu
 	current.set(*leaf, func)?;
 	Ok(())
 }
-
-// region:    --- Tests
-
-#[cfg(test)]
-#[path = "engine_tests.rs"]
-mod tests;
-
-// endregion: --- Tests

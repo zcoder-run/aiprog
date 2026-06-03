@@ -1,7 +1,7 @@
 use aiprog::ScriptEngine;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let lua_engine = ScriptEngine::new();
+	let lua_engine = ScriptEngine::new()?;
 
 	let result = lua_engine.exec(
 		r#"

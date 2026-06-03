@@ -105,8 +105,8 @@ impl HandlerRegistry {
 	pub fn append_sync<H, P, R, E>(&mut self, name: &'static str, handler: H) -> core::result::Result<(), RegistryError>
 	where
 		H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
-		P: AipParams + crate::script::FromLua,
-		R: AipResponse + crate::script::ToLua,
+		P: AipParams + crate::script::AipFromLua,
+		R: AipResponse + crate::script::AipToLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Sync, handler.into_dyn())
@@ -123,8 +123,8 @@ impl HandlerRegistry {
 	) -> core::result::Result<(), RegistryError>
 	where
 		H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
-		P: AipParams + crate::script::FromLua,
-		R: AipResponse + crate::script::ToLua,
+		P: AipParams + crate::script::AipFromLua,
+		R: AipResponse + crate::script::AipToLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Async, handler.into_dyn())

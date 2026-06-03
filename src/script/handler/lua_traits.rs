@@ -5,23 +5,23 @@ pub use mlua::Value as LuaValue;
 use mlua::{Lua, Value};
 use std::collections::HashMap;
 
-pub trait FromLua: Sized {
+pub trait AipFromLua: Sized {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self, HandlerError>;
 }
 
-pub trait ToLua {
+pub trait AipToLua {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError>;
 }
 
 // region:    --- FromLua implementations
 
-impl FromLua for Value {
+impl AipFromLua for Value {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		Ok(value)
 	}
 }
 
-impl FromLua for String {
+impl AipFromLua for String {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		value
 			.x_as_lua_str()
@@ -30,7 +30,7 @@ impl FromLua for String {
 	}
 }
 
-impl FromLua for i64 {
+impl AipFromLua for i64 {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		value
 			.x_as_i64()
@@ -38,13 +38,13 @@ impl FromLua for i64 {
 	}
 }
 
-impl FromLua for f64 {
+impl AipFromLua for f64 {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		value.x_as_f64().ok_or_else(|| HandlerError::new("expected number".to_string()))
 	}
 }
 
-impl FromLua for bool {
+impl AipFromLua for bool {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		value
 			.as_boolean()
@@ -52,7 +52,7 @@ impl FromLua for bool {
 	}
 }
 
-impl<T: FromLua> FromLua for Option<T> {
+impl<T: AipFromLua> AipFromLua for Option<T> {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		if value.is_nil() || value.x_is_null() {
 			Ok(None)
@@ -62,7 +62,7 @@ impl<T: FromLua> FromLua for Option<T> {
 	}
 }
 
-impl<T: FromLua> FromLua for Vec<T> {
+impl<T: AipFromLua> AipFromLua for Vec<T> {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -76,7 +76,7 @@ impl<T: FromLua> FromLua for Vec<T> {
 	}
 }
 
-impl<T: FromLua> FromLua for HashMap<String, T> {
+impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		let table = value
 			.as_table()
@@ -102,7 +102,7 @@ impl<T: FromLua> FromLua for HashMap<String, T> {
 	}
 }
 
-impl FromLua for serde_json::Value {
+impl AipFromLua for serde_json::Value {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
 		lua_value_to_serde_value(value).map_err(|e| HandlerError::new(e.to_string()))
 	}
@@ -116,7 +116,7 @@ impl FromLua for serde_json::Value {
 #[macro_export]
 macro_rules! impl_lua_serde_traits {
 	($ty:path) => {
-		impl $crate::script::FromLua for $ty {
+		impl $crate::script::AipFromLua for $ty {
 			fn from_lua(
 				_lua: &mlua::Lua,
 				value: mlua::Value,
@@ -132,7 +132,7 @@ macro_rules! impl_lua_serde_traits {
 				})
 			}
 		}
-		impl $crate::script::ToLua for $ty {
+		impl $crate::script::AipToLua for $ty {
 			fn to_lua(self, lua: &mlua::Lua) -> core::result::Result<mlua::Value, $crate::script::HandlerError> {
 				let serde_value =
 					serde_json::to_value(self).map_err(|e| $crate::script::HandlerError::new(e.to_string()))?;
@@ -149,13 +149,13 @@ macro_rules! impl_lua_serde_traits {
 
 // region:    --- ToLua implementations
 
-impl ToLua for Value {
+impl AipToLua for Value {
 	fn to_lua(self, _lua: &Lua) -> Result<Value, HandlerError> {
 		Ok(self)
 	}
 }
 
-impl ToLua for String {
+impl AipToLua for String {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
 		Ok(Value::String(
 			lua.create_string(&self).map_err(|e| HandlerError::new(e.to_string()))?,
@@ -163,25 +163,25 @@ impl ToLua for String {
 	}
 }
 
-impl ToLua for i64 {
+impl AipToLua for i64 {
 	fn to_lua(self, _lua: &Lua) -> Result<Value, HandlerError> {
 		Ok(Value::Integer(self))
 	}
 }
 
-impl ToLua for f64 {
+impl AipToLua for f64 {
 	fn to_lua(self, _lua: &Lua) -> Result<Value, HandlerError> {
 		Ok(Value::Number(self))
 	}
 }
 
-impl ToLua for bool {
+impl AipToLua for bool {
 	fn to_lua(self, _lua: &Lua) -> Result<Value, HandlerError> {
 		Ok(Value::Boolean(self))
 	}
 }
 
-impl<T: ToLua> ToLua for Option<T> {
+impl<T: AipToLua> AipToLua for Option<T> {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
 		match self {
 			None => Ok(Value::NULL),
@@ -190,7 +190,7 @@ impl<T: ToLua> ToLua for Option<T> {
 	}
 }
 
-impl<T: ToLua> ToLua for Vec<T> {
+impl<T: AipToLua> AipToLua for Vec<T> {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		for (i, v) in self.into_iter().enumerate() {
@@ -200,7 +200,7 @@ impl<T: ToLua> ToLua for Vec<T> {
 	}
 }
 
-impl<T: ToLua> ToLua for HashMap<String, T> {
+impl<T: AipToLua> AipToLua for HashMap<String, T> {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		for (k, v) in self {
@@ -210,7 +210,7 @@ impl<T: ToLua> ToLua for HashMap<String, T> {
 	}
 }
 
-impl ToLua for serde_json::Value {
+impl AipToLua for serde_json::Value {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
 		serde_value_to_lua_value(lua, self).map_err(|e| HandlerError::new(e.to_string()))
 	}
