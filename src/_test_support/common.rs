@@ -26,8 +26,6 @@ where
 	}
 
 	globals.set("aip", &aip)?;
-	// For backward compatiblity
-	globals.set("utils", aip)?;
 
 	Ok(lua)
 }

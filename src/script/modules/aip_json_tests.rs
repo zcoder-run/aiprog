@@ -4,6 +4,7 @@ use crate::_test_support::{eval_lua, setup_lua};
 use crate::script::modules;
 use assertables::{assert_contains, assert_not_contains};
 use serde_json::json;
+use value_ext::JsonValueExt;
 
 #[tokio::test]
 async fn test_script_lua_json_parse_simple() -> Result<()> {
@@ -20,6 +21,26 @@ async fn test_script_lua_json_parse_simple() -> Result<()> {
 	// -- Check
 	assert_eq!(res["data"]["name"], "John");
 	assert_eq!(res["data"]["age"], 30);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_lua_json_parse_roundtrip() -> Result<()> {
+	// -- Setup & Fixtures
+	let lua = setup_lua(modules::aip_json::init_module, "json").await?;
+	let script = r#"
+            local content = '{"name": "John", "age": 30}'
+            local json_value = aip.json.parse({ data = content })
+            return aip.json.stringify(json_value)
+        "#;
+
+	// -- Exec
+	let res = eval_lua(&lua, script)?;
+	let data = res.x_get_as::<&str>("data")?;
+
+	// -- Check
+	assert_contains!(data, r#""age":30"#);
+
 	Ok(())
 }
 
