@@ -18,6 +18,7 @@ pub enum Error {
 	#[from]
 	Io(std::io::Error),
 
+
 	#[from]
 	Json(serde_json::Error),
 
@@ -30,6 +31,12 @@ pub enum Error {
 
 impl From<crate::script::RegistryError> for Error {
 	fn from(err: crate::script::RegistryError) -> Self {
+		Error::Custom(err.to_string())
+	}
+}
+
+impl From<crate::registry::AipRegistryError> for Error {
+	fn from(err: crate::registry::AipRegistryError) -> Self {
 		Error::Custom(err.to_string())
 	}
 }

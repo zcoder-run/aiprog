@@ -38,6 +38,12 @@ impl ScriptEngine {
 	pub fn lua(&self) -> &Lua {
 		&self.lua
 	}
+
+	// -- set_value_at_path
+	/// Install any value at a dotted Lua path, creating intermediate tables as needed.
+	pub fn set_value_at_path(&self, path: &str, value: mlua::Value) -> mlua::Result<()> {
+		install_value_at_path(&self.lua, path, value)
+	}
 }
 
 /// Install a Lua function at a dotted path, creating intermediate tables as needed.
@@ -76,5 +82,35 @@ fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Resu
 		)));
 	}
 	current.set(*leaf, func)?;
+	Ok(())
+}
+
+/// Install a Lua value at a dotted path, creating intermediate tables as needed.
+pub(crate) fn install_value_at_path(lua: &Lua, path: &str, value: mlua::Value) -> mlua::Result<()> {
+	let segments: Vec<_> = path.split('.').collect();
+	if segments.is_empty() {
+		return Err(mlua::Error::RuntimeError(
+			"Invalid empty path for value installation".into(),
+		));
+	}
+	let (leaf, ancestors) = segments.split_last().unwrap();
+	let globals = lua.globals();
+	let mut current = globals;
+	for &seg in ancestors {
+		let next: mlua::Value = current.get(seg)?;
+		if next.is_nil() {
+			let table = lua.create_table()?;
+			current.set(seg, table.clone())?;
+			current = table;
+		} else if let mlua::Value::Table(t) = next {
+			current = t;
+		} else {
+			return Err(mlua::Error::RuntimeError(format!(
+				"Path segment '{}' exists but is not a table",
+				seg
+			)));
+		}
+	}
+	current.set(*leaf, value)?;
 	Ok(())
 }

@@ -23,46 +23,19 @@
 //!
 
 use crate::Result;
+use crate::registry::AipRegistry;
 use crate::script::{AipApiError, AipFromLua, AipToLua, HandlerRegistry, install_registry_on_table};
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
-// region:    --- Types
-
-// endregion: --- Types
-
-pub fn init_module(lua: &Lua) -> Result<Table> {
-	let table = lua.create_table()?;
-
-	let mut registry = HandlerRegistry::new();
-
-	registry
-		.append_sync::<_, _, _, AipApiError>("parse", aip_json_parse_handler)
-		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
-
-	registry
-		.append_sync::<_, _, _, AipApiError>("parse_jsonl", aip_json_parse_jsonl_handler)
-		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
-
-	registry
-		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyResult, AipApiError>(
-			"stringify",
-			aip_json_stringify_handler,
-		)
-		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
-
-	registry
-		.append_sync::<_, AipJsonStringifyParams, AipJsonStringifyPrettyResult, AipApiError>(
-			"stringify_pretty",
-			aip_json_stringify_pretty_handler,
-		)
-		.map_err(|err| mlua::Error::RuntimeError(err.to_string()))?;
-
-	install_registry_on_table(lua, &table, registry)?;
-
-	Ok(table)
+pub fn register(registry: &mut AipRegistry) -> crate::Result<()> {
+	registry.register_sync::<_, _, _, _>("aip.json.parse", aip_json_parse_handler)?;
+	registry.register_sync::<_, _, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	registry.register_sync::<_, _, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
+	registry.register_sync::<_, _, _, _>("aip.json.stringify_pretty", aip_json_stringify_pretty_handler)?;
+	Ok(())
 }
 
 // region:    --- aip.json.parse
@@ -292,10 +265,6 @@ fn aip_json_stringify_pretty_handler(
 }
 
 // endregion: --- aip.json.stringify_pretty
-
-// region:    --- AipFn marker structs
-
-// endregion: --- AipFn marker structs
 
 // region:    --- Tests
 

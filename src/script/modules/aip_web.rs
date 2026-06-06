@@ -13,33 +13,43 @@
 //! ### Constants
 //!
 //! - `aip.web.UA_BROWSER: string`: Default browser User Agent string.
-//! - `aip.web.UA_AIPACK: string`: Default aipack User Agent string (`aipack`).
+//! - `aip.web.UA_AIPROG: string`: Default aipROG User Agent string (`aipROG`).
 //!
 //! ---
 //!
 
 use crate::Result;
-use crate::script::{AipApiError, AipFromLua, AipToLua, HandlerRegistry, install_registry_on_table};
-use mlua::{Lua, Table};
+use crate::registry::AipRegistry;
+use crate::script::{AipApiError, AipFromLua, AipToLua, ScriptEngine};
+use mlua::Lua;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Client, RequestBuilder};
 use std::collections::HashMap;
 
-const DEFAULT_UA_AIPACK: &str = "aipack";
+const DEFAULT_UA_AIPROG: &str = "aiprog";
 const DEFAULT_UA_BROWSER: &str =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
-pub fn init_module(lua: &Lua) -> Result<Table> {
-	let table = lua.create_table()?;
+pub fn register(registry: &mut AipRegistry) -> crate::Result<()> {
+	registry.register_async::<_, _, _, _>("aip.web.get", aip_web_get_handler)?;
+	Ok(())
+}
 
-	let mut registry = HandlerRegistry::new();
-	registry.append_async::<_, AipWebGetParams, AipWebGetResult, AipApiError>("get", aip_web_get_handler)?;
-	install_registry_on_table(lua, &table, registry)?;
-
-	table.set("UA_AIPACK", DEFAULT_UA_AIPACK)?;
-	table.set("UA_BROWSER", DEFAULT_UA_BROWSER)?;
-
-	Ok(table)
+/// Install the web module constants (`UA_AIPROG`, `UA_BROWSER`) into Lua.
+///
+/// This must be called **after** the handler has been registered and the engine
+/// has populated the `aip.web` table.
+pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
+	let lua = engine.lua();
+	engine.set_value_at_path(
+		"aip.web.UA_AIPROG",
+		mlua::Value::String(lua.create_string(DEFAULT_UA_AIPROG)?),
+	)?;
+	engine.set_value_at_path(
+		"aip.web.UA_BROWSER",
+		mlua::Value::String(lua.create_string(DEFAULT_UA_BROWSER)?),
+	)?;
+	Ok(())
 }
 
 // region:    --- aip.web.get
@@ -50,7 +60,7 @@ pub struct AipWebGetParams {
 	/// The URL to request.
 	pub data: String,
 
-	/// User-Agent behavior. `true` uses `aipack`, `false` disables the default, and a string is used as-is.
+	/// User-Agent behavior. `true` uses `aipROG`, `false` disables the default, and a string is used as-is.
 	pub user_agent: Option<AipWebUserAgent>,
 
 	/// Request headers.
@@ -120,20 +130,6 @@ pub struct AipWebGetResult {
 	/// Status error text for non-success HTTP status codes.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub error: Option<String>,
-}
-
-impl AipToLua for AipWebGetResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		table
-			.set("data", data_lua)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		Ok(mlua::Value::Table(table))
-	}
 }
 
 async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<AipWebGetResult, AipApiError> {
@@ -215,14 +211,14 @@ fn build_client(params: &AipWebGetParams) -> core::result::Result<Client, AipApi
 
 	match &params.user_agent {
 		Some(AipWebUserAgent::Bool(true)) => {
-			builder = builder.user_agent(DEFAULT_UA_AIPACK);
+			builder = builder.user_agent(DEFAULT_UA_AIPROG);
 		}
 		Some(AipWebUserAgent::Bool(false)) => {}
 		Some(AipWebUserAgent::String(user_agent)) => {
 			builder = builder.user_agent(user_agent);
 		}
 		None if !has_user_agent_header => {
-			builder = builder.user_agent(DEFAULT_UA_AIPACK);
+			builder = builder.user_agent(DEFAULT_UA_AIPROG);
 		}
 		None => {}
 	}
@@ -310,3 +306,56 @@ fn aip_web_error(
 }
 
 // endregion: --- Support
+
+// region:    --- Tests
+
+#[cfg(test)]
+#[path = "aip_web_tests.rs"]
+mod tests;
+
+// endregion: --- Tests
+
+impl AipToLua for AipWebGetResult {
+	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+		let table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+
+		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("data", data_lua)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("success", self.success)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("status", self.status)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table
+			.set("url", self.url.as_str())
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		if let Some(content_type) = self.content_type {
+			table
+				.set("content_type", content_type.as_str())
+				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		}
+		if let Some(error) = self.error {
+			table
+				.set("error", error.as_str())
+				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		}
+		let headers_table = lua
+			.create_table()
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		for (key, value) in self.headers.iter() {
+			headers_table
+				.set(key.as_str(), value.as_str())
+				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		}
+		table
+			.set("headers", headers_table)
+			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		Ok(mlua::Value::Table(table))
+	}
+}

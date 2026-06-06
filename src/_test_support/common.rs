@@ -1,5 +1,6 @@
-use crate::Result;
+use crate::registry::AipRegistry;
 use crate::script::{lua_value_to_serde_value, process_lua_eval_result};
+use crate::{Result, ScriptEngine};
 use mlua::{Lua, Table};
 use serde_json::Value;
 
@@ -28,6 +29,19 @@ where
 	globals.set("aip", &aip)?;
 
 	Ok(lua)
+}
+
+pub fn setup_script_engine<F>(register_fn: F) -> crate::Result<crate::ScriptEngine>
+where
+	F: FnOnce(&mut crate::registry::AipRegistry) -> crate::Result<()>,
+{
+	let mut registry = crate::registry::AipRegistry::default();
+	register_fn(&mut registry)?;
+	crate::ScriptEngine::from_registry(registry)
+}
+
+pub fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<serde_json::Value> {
+	engine.exec(code)
 }
 
 pub fn eval_lua(lua: &Lua, code: &str) -> Result<Value> {
