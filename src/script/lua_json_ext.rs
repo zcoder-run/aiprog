@@ -2,44 +2,92 @@ use crate::{Error, Result, script::LuaExt};
 use mlua::{Lua, LuaSerdeExt as _, Table, Value};
 
 /// Lua JSON conversion extension trait for Lua values.
+///
+/// This trait provides custom JSON ↔ Lua conversion methods that replace
+/// the default `mlua::Lua::to_value()` / `mlua::LuaSerdeExt` integration.
+///
+/// ## Why not use the default serde-based conversion?
+///
+/// 1. **Null / Nil mapping** — `serde_json::Value::Null` is serialised as
+///    an opaque `UserData` value by `mlua`’s default serde bridge, not as
+///    Lua `nil`.  The methods in this trait explicitly handle `Null` and
+///    produce Lua `nil`, which matches common Lua scripting expectations.
+///
+/// 1. **Null / Sentinel mapping** — `serde_json::Value::Null` is serialised as
+///    an opaque `UserData` value by `mlua Value::NULL`.  The methods in this trait explicitly handle `Null` and
+///    produce `mlua::Value::NULL`, the standard Lua null sentinel
+///    (a `LightUserData`).  This sentinel is recognised by `LuaExt::x_is_null`,
+///    so callers can uniformly test for null values with `value.x_is_null()`.
+///
+/// 2. **Table ↔ Array heuristics** — When converting Lua tables to JSON,
+///    the default `mlua` behaviour treats every table as a JSON object.
+///    This trait inspects the table and, if it contains a contiguous
+///    1..n integer-keyed sequence, emits a JSON array instead.  This
+///    aligns with the common Lua convention where lists are represented
+///    as tables with consecutive integer keys.
+///
+/// 3. **Explicit nil-to-None semantics** — `to_json_value` returns
+///    `Result<Option<serde_json::Value>>`, allowing callers to
+///    distinguish "not present" (`nil` → `None`) from a genuine JSON
+///    `null`.  The default serde conversion does not provide this
+///    distinction.
+///
+/// 4. **`LuaExt` integration** — The trait has a supertrait bound `LuaExt`,
+///    so all query helpers from `LuaExt` (including `x_is_null`) are
+///    automatically available on any value that supports JSON conversion.
+///
+/// 5. **Fallback key handling** — For tables that are not strict arrays,
+///    keys are stringified according to their Lua type (e.g., integer
+///    keys become their decimal string representation).  This deterministic
+///    behaviour is superior to the opaque `map_key` callback often required
+///    with `mlua`’s serde wrapper.
+///
+/// Implementors automatically get `LuaExt` query helpers (e.g., `x_as_list`, `x_get_string`)
+/// because of the `: LuaExt` supertrait bound.
 pub trait LuaJsonExt: LuaExt {
-	/// Convert a serde_json::Value into a mlua::Value.
-	fn from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value>;
+	/// Convert a `serde_json::Value` into a `mlua::Value`.
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value>;
 
-	/// Convert an iterable of JSON values into a Vec<mlua::Value>.
-	fn from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	/// Convert an iterable of JSON values into a `Vec<mlua::Value>`.
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
 	where
 		I: IntoIterator<Item = serde_json::Value>;
 
-	/// Convenient function to take lua value to serde value
+	/// Convert this Lua value into a JSON value.
 	///
-	/// NOTE: The app should use this one rather to call serde_json::to_value directly
-	///       This way we can normalize the behavior and error and such.
-	///
-	/// Custom logic:
-	/// - Converts Lua tables either as arrays (when contiguous 1..n integer keys without gaps) or objects (stringified keys).
-	fn to_json_value(&self) -> Result<serde_json::Value>;
+	/// - Returns `Ok(None)` when the value is `nil`.
+	/// - Returns `Ok(Some(json))` for convertible types (booleans, numbers, strings, tables, etc.).
+	/// - Tables are converted to JSON arrays (if contiguous 1..n integer keys) or objects (stringified keys).
+	/// - Returns `Err` for unsupported Lua types (function, userdata, thread, error, …).
+	fn x_to_json_value(&self) -> Result<Option<serde_json::Value>>;
 
-	/// If this Lua value is a table/list, convert it into a Vec<serde_json::Value>.
-	fn to_json_values(&self) -> Result<Vec<serde_json::Value>>;
+	/// If this Lua value is a table/list, convert its elements to JSON values.
+	///
+	/// - Returns `Ok(None)` when the value is `nil` or not a table.
+	/// - Returns `Ok(Some(vec))` when the value is a table; the vector contains the JSON
+	///   representation of each element (using `to_json_value`).
+	/// - Returns `Err` if any element cannot be converted.
+	fn x_to_json_values(&self) -> Result<Option<Vec<serde_json::Value>>>;
 }
 
 impl LuaJsonExt for Value {
-	fn from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value> {
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value> {
+		// Map serde `Null` to `mlua::Value::NULL` — the null sentinel
+		// that is compatible with `LuaExt::x_is_null`.
 		match val {
 			serde_json::Value::Null => Ok(Value::NULL),
 			other => Ok(lua.to_value(&other)?),
 		}
 	}
 
-	fn from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
-		values.into_iter().map(|v| Self::from_json_value(lua, v)).collect()
+		values.into_iter().map(|v| Self::x_from_json_value(lua, v)).collect()
 	}
 
-	fn to_json_value(&self) -> Result<serde_json::Value> {
+	fn x_to_json_value(&self) -> Result<Option<serde_json::Value>> {
 		fn number_from_f64(v: f64) -> Result<serde_json::Number> {
 			serde_json::Number::from_f64(v)
 				.ok_or_else(|| Error::custom("Cannot convert non-finite Lua number to JSON (NaN or Infinity)"))
@@ -86,7 +134,7 @@ impl LuaJsonExt for Value {
 							numeric_only = false;
 							break;
 						}
-						vec[idx - 1] = Some(v.to_json_value()?);
+						vec[idx - 1] = Some(v.x_to_json_value()?.unwrap_or(serde_json::Value::Null));
 					} else {
 						numeric_only = false;
 						break;
@@ -115,25 +163,25 @@ impl LuaJsonExt for Value {
 						)));
 					}
 				};
-				map.insert(key, v.to_json_value()?);
+				map.insert(key, v.x_to_json_value()?.unwrap_or(serde_json::Value::Null));
 			}
 			Ok(serde_json::Value::Object(map))
 		}
 
 		let lua_value = self.clone();
 		match lua_value {
-			Value::Nil => Ok(serde_json::Value::Null),
-			Value::Boolean(b) => Ok(serde_json::Value::Bool(b)),
-			Value::Integer(i) => Ok(serde_json::Value::Number(serde_json::Number::from(i))),
-			Value::Number(n) => Ok(serde_json::Value::Number(number_from_f64(n)?)),
-			Value::String(s) => Ok(serde_json::Value::String(s.to_str()?.to_string())),
-			Value::Table(t) => convert_table(t),
+			Value::Nil => Ok(None),
+			Value::Boolean(b) => Ok(Some(serde_json::Value::Bool(b))),
+			Value::Integer(i) => Ok(Some(serde_json::Value::Number(serde_json::Number::from(i)))),
+			Value::Number(n) => Ok(Some(serde_json::Value::Number(number_from_f64(n)?))),
+			Value::String(s) => Ok(Some(serde_json::Value::String(s.to_str()?.to_string()))),
+			Value::Table(t) => Ok(Some(convert_table(t)?)),
 			Value::LightUserData(ldata) => {
 				if Value::LightUserData(ldata) == Value::NULL {
-					Ok(serde_json::Value::Null)
+					Ok(Some(serde_json::Value::Null))
 				} else {
 					// for now, still null
-					Ok(serde_json::Value::Null)
+					Ok(Some(serde_json::Value::Null))
 				}
 			}
 			Value::Function(_) | Value::Thread(_) | Value::UserData(_) => Err(Error::custom(
@@ -148,47 +196,37 @@ impl LuaJsonExt for Value {
 		}
 	}
 
-	fn to_json_values(&self) -> Result<Vec<serde_json::Value>> {
-		let vals = self.x_as_list();
-		let val = self.clone();
-		let table = match val {
-			Value::Table(t) => t,
-			other => {
-				return Err(Error::custom(format!(
-					"Lua Value is not a List. Expected a Lua table (list) as the second argument, but got {}",
-					other.type_name()
-				)));
-			}
+	fn x_to_json_values(&self) -> Result<Option<Vec<serde_json::Value>>> {
+		let Some(list) = self.x_as_list() else {
+			return Ok(None);
 		};
-		let iter = table.sequence_values::<Value>();
-		let json_values: Vec<serde_json::Value> = iter
+		let json_list = list
 			.into_iter()
-			.map(|v| v?.to_json_value())
-			.collect::<Result<Vec<_>>>()
-			.map_err(|e| Error::custom(format!("A mlua Value cannot be serialize to Json.\nCause: {e}",)))?;
-		Ok(json_values)
+			.map(|v| v.x_to_json_value().map(|opt| opt.unwrap_or(serde_json::Value::Null)))
+			.collect::<Result<Vec<_>>>()?;
+		Ok(Some(json_list))
 	}
 }
 
 impl LuaJsonExt for Table {
-	fn from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value> {
-		Value::from_json_value(lua, val)
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value> {
+		Value::x_from_json_value(lua, val)
 	}
 
-	fn from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
-		Value::from_json_values(lua, values)
+		Value::x_from_json_values(lua, values)
 	}
 
-	fn to_json_value(&self) -> Result<serde_json::Value> {
+	fn x_to_json_value(&self) -> Result<Option<serde_json::Value>> {
 		let val: Value = Value::Table(self.clone());
-		val.to_json_value()
+		val.x_to_json_value()
 	}
 
-	fn to_json_values(&self) -> Result<Vec<serde_json::Value>> {
+	fn x_to_json_values(&self) -> Result<Option<Vec<serde_json::Value>>> {
 		let val: Value = Value::Table(self.clone());
-		val.to_json_values()
+		val.x_to_json_values()
 	}
 }

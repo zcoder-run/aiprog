@@ -1,5 +1,6 @@
 use super::{AipError, AipParams, AipResponse};
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
+use crate::script::LuaJsonExt;
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, Schema, schema_for};
 use std::collections::HashMap;
@@ -201,6 +202,7 @@ mod tests {
 	use super::*;
 	use crate::impl_lua_serde_traits;
 	use crate::script::AipApiError;
+use crate::script::LuaJsonExt;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
@@ -233,16 +235,16 @@ mod tests {
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
-		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "hello" }))
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "hello" }))
+            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
 		let back_json =
-			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-		assert_eq!(back_json, json!({ "data": "hello" }));
+            value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, Some(json!({ "data": "hello" })));
 
 		Ok(())
 	}
@@ -253,15 +255,16 @@ mod tests {
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_async::<_, EchoParams, EchoResult, AipApiError>("echo", echo_async)?;
-		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": "world" }))
+        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "world" }))
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		let back_json =
-			crate::script::lua_value_to_serde_value(value).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json = value.x_to_json_value()
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
+			.ok_or_else(|| mlua::Error::RuntimeError("expected JSON value".to_string()))?;
 		assert_eq!(back_json, json!({ "data": "world" }));
 
 		Ok(())
@@ -307,7 +310,7 @@ mod tests {
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
-		let params_lua = crate::script::serde_value_to_lua_value(&lua, json!({ "data": 123 }))
+        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": 123 }))
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec

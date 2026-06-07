@@ -1,5 +1,5 @@
 use crate::registry::AipRegistry;
-use crate::script::{lua_value_to_serde_value, process_lua_eval_result};
+use crate::script::{process_lua_eval_result, LuaJsonExt};
 use crate::{Result, ScriptEngine};
 use mlua::{Lua, Table};
 use serde_json::Value;
@@ -47,6 +47,7 @@ pub fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<se
 pub fn eval_lua(lua: &Lua, code: &str) -> Result<Value> {
 	let res = lua.load(code).eval::<mlua::Value>();
 	let res_lua_value = process_lua_eval_result(lua, res, code)?;
-	let serde_value = lua_value_to_serde_value(res_lua_value)?;
+	let some_value = res_lua_value.x_to_json_value()?;
+	let serde_value = some_value.ok_or_else(|| crate::Error::custom("Lua value converted to nil"))?;
 	Ok(serde_value)
 }

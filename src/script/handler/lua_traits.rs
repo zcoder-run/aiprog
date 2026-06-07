@@ -1,5 +1,5 @@
 use super::handler_error::HandlerError;
-use crate::script::{LuaExt, lua_value_to_serde_value, serde_value_to_lua_value};
+use crate::script::LuaExt;
 // Re-export for convenience
 pub use mlua::Value as LuaValue;
 use mlua::{Lua, Value};
@@ -104,7 +104,9 @@ impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
 
 impl AipFromLua for serde_json::Value {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self, HandlerError> {
-		lua_value_to_serde_value(value).map_err(|e| HandlerError::new(e.to_string()))
+		crate::script::LuaJsonExt::x_to_json_value(&value)
+			.map_err(|e| HandlerError::new(e.to_string()))?
+			.ok_or_else(|| HandlerError::new("cannot convert Lua nil to JSON value".to_string()))
 	}
 }
 
@@ -121,8 +123,11 @@ macro_rules! impl_lua_serde_traits {
 				_lua: &mlua::Lua,
 				value: mlua::Value,
 			) -> core::result::Result<Self, $crate::script::HandlerError> {
-				let serde_value = $crate::script::lua_value_to_serde_value(value).map_err(|e| {
+				let serde_value = $crate::script::LuaJsonExt::x_to_json_value(&value).map_err(|e| {
 					$crate::script::HandlerError::new($crate::script::AipApiError::new("INVALID_PARAMS", e.to_string()))
+				})?;
+				let serde_value = serde_value.ok_or_else(|| {
+					$crate::script::HandlerError::new($crate::script::AipApiError::new("INVALID_PARAMS", "expected JSON value, got nil".to_string()))
 				})?;
 				serde_json::from_value(serde_value).map_err(|e| {
 					$crate::script::HandlerError::new($crate::script::AipApiError::new(
@@ -136,7 +141,7 @@ macro_rules! impl_lua_serde_traits {
 			fn to_lua(self, lua: &mlua::Lua) -> core::result::Result<mlua::Value, $crate::script::HandlerError> {
 				let serde_value =
 					serde_json::to_value(self).map_err(|e| $crate::script::HandlerError::new(e.to_string()))?;
-				$crate::script::serde_value_to_lua_value(lua, serde_value)
+				<mlua::Value as $crate::script::LuaJsonExt>::x_from_json_value(lua, serde_value)
 					.map_err(|e| $crate::script::HandlerError::new(e.to_string()))
 			}
 		}
@@ -212,7 +217,8 @@ impl<T: AipToLua> AipToLua for HashMap<String, T> {
 
 impl AipToLua for serde_json::Value {
 	fn to_lua(self, lua: &Lua) -> Result<Value, HandlerError> {
-		serde_value_to_lua_value(lua, self).map_err(|e| HandlerError::new(e.to_string()))
+		<mlua::Value as crate::script::LuaJsonExt>::x_from_json_value(lua, self)
+			.map_err(|e| HandlerError::new(e.to_string()))
 	}
 }
 

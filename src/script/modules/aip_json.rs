@@ -25,6 +25,7 @@
 use crate::Result;
 use crate::registry::AipRegistry;
 use crate::script::{AipApiError, AipFromLua, AipToLua, HandlerRegistry, install_registry_on_table};
+use crate::script::LuaJsonExt;
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
@@ -70,8 +71,8 @@ impl AipToLua for AipJsonParseResult {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+        let data_lua = mlua::Value::x_from_json_value(lua, self.data)
+            .map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
 		table
 			.set("data", data_lua)
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
@@ -140,8 +141,8 @@ impl AipToLua for AipJsonParseJsonlResult {
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
 
 		for (i, item) in self.data.into_iter().enumerate() {
-			let item_lua = crate::script::serde_value_to_lua_value(lua, item)
-				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+            let item_lua = mlua::Value::x_from_json_value(lua, item)
+                .map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
 			data_vec
 				.set(i + 1, item_lua)
 				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
@@ -188,8 +189,9 @@ impl AipFromLua for AipJsonStringifyParams {
 			.as_table()
 			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
 		let data_val: mlua::Value = table.get("data").map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		let data = crate::script::lua_value_to_serde_value(data_val)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+        let data = data_val.x_to_json_value()
+            .map_err(|e| crate::script::HandlerError::new(e.to_string()))?
+            .unwrap_or(serde_json::Value::Null);
 		Ok(AipJsonStringifyParams { data })
 	}
 }

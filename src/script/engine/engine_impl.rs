@@ -1,6 +1,5 @@
 use crate::Result;
 use crate::registry::{AipFnKind, AipHandlerClosure, AipRegistry};
-use crate::script::serde_value_to_lua_value;
 use mlua::{Function, Lua, LuaSerdeExt, MultiValue, Value};
 
 pub struct ScriptEngine {

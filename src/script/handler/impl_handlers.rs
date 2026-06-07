@@ -1,4 +1,4 @@
-use crate::script::{AipFromLua, AipToLua, HandlerError};
+use crate::script::{AipFromLua, AipToLua, HandlerError, LuaJsonExt};
 use mlua::{Lua, Value};
 
 /// Macro generating the `Handler` implementations for the supported handler
@@ -178,6 +178,7 @@ impl_aip_handlers!();
 mod tests {
 	use crate::impl_lua_serde_traits;
 	use crate::script::{AipApiError, Handler};
+use crate::script::LuaJsonExt;
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
@@ -220,8 +221,8 @@ mod tests {
 
 		// -- Check
 		let back_json =
-			crate::script::lua_value_to_serde_value(lua_val).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-		assert_eq!(back_json, params_json);
+            lua_val.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, Some(params_json));
 
 		Ok(())
 	}
@@ -238,8 +239,8 @@ mod tests {
 
 		// -- Check
 		let back_json =
-			crate::script::lua_value_to_serde_value(lua_val).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-		assert_eq!(back_json, params_json);
+            lua_val.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		assert_eq!(back_json, Some(params_json));
 
 		Ok(())
 	}

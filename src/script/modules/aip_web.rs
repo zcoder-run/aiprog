@@ -20,6 +20,7 @@
 
 use crate::registry::AipRegistry;
 use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
+use crate::script::LuaJsonExt;
 use crate::{Result, webc};
 use mlua::Lua;
 use std::collections::HashMap;
@@ -387,7 +388,7 @@ impl AipToLua for AipWebGetResult {
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
 
-		let data_lua = crate::script::serde_value_to_lua_value(lua, self.data)
+		let data_lua = mlua::Value::x_from_json_value(lua, self.data)
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
 		table
 			.set("data", data_lua)
