@@ -19,7 +19,7 @@
 //!
 
 use crate::registry::AipRegistry;
-use crate::script::{AipApiError, AipFromLua, AipToLua, LuaValueExt, ScriptEngine};
+use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
 use crate::{Result, webc};
 use mlua::Lua;
 use std::collections::HashMap;

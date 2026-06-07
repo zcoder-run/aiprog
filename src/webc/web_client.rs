@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use crate::webc::error::{Error, Result};
 use reqwest::Client as ReqwestClient;
+use std::collections::HashMap;
 
 // -- Types
 
@@ -173,9 +172,10 @@ impl WebClient {
 				Body::Text(text)
 			}
 			BodyFormat::Json => {
-				let value = response.json::<serde_json::Value>().await.map_err(|e| {
-					Error::body_parse_failed(format!("JSON parse error: {e}"))
-				})?;
+				let value = response
+					.json::<serde_json::Value>()
+					.await
+					.map_err(|e| Error::body_parse_failed(format!("JSON parse error: {e}")))?;
 				Body::Json(value)
 			}
 			BodyFormat::Binary => {

@@ -1,5 +1,5 @@
 use crate::Result;
-use crate::script::LuaValueExt as _;
+use crate::script::LuaExt as _;
 
 /// The type of "extrude" to be performed.
 /// - `Content`   Concatenate all lines outside of marked blocks into one string.

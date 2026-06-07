@@ -3,11 +3,12 @@ use mlua::{BorrowedStr, Table, Value};
 /// Convenient Lua Value extension
 ///
 /// TODO: Will need to handle the case where the found value is not of correct type. Probably should return `Result<Option<>>`
-pub trait LuaValueExt {
+pub trait LuaExt {
 	/// return true if NULL, Nil, or None (for Option<Value>)
 	fn x_is_null(&self) -> bool;
 
 	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>>;
+
 	/// Note: Will round if floating number
 	fn x_as_i64(&self) -> Option<i64>;
 	fn x_as_f64(&self) -> Option<f64>;
@@ -21,9 +22,18 @@ pub trait LuaValueExt {
 	fn x_get_bool(&self, key: &str) -> Option<bool>;
 	fn x_get_i64(&self, key: &str) -> Option<i64>;
 	fn x_get_f64(&self, key: &str) -> Option<f64>;
+
+	/// Returns the sequential list part of a table as an owned Vec<Value>.
+	///
+	/// - If `self` is not a table, returns `None`.
+	/// - If it is a table and has key `1`, returns the contiguous sequence from 1 until the first `nil`.
+	/// - If it is a table but does not have key `1`, returns `Some(vec![])` (empty list).
+	///
+	/// The returned values are owned (cloned), so they can outlive the original Lua value.
+	fn x_as_list(&self) -> Option<Vec<Value>>;
 }
 
-impl LuaValueExt for Value {
+impl LuaExt for Value {
 	fn x_is_null(&self) -> bool {
 		self == &Value::NULL || self == &Value::Nil
 	}
@@ -84,9 +94,14 @@ impl LuaValueExt for Value {
 		let val = val.as_f64()?;
 		Some(val)
 	}
+
+	fn x_as_list(&self) -> Option<Vec<Value>> {
+		let table = self.as_table()?;
+		Some(table_as_list(table))
+	}
 }
 
-impl LuaValueExt for Option<Value> {
+impl LuaExt for Option<Value> {
 	/// Return true if None
 	fn x_is_null(&self) -> bool {
 		let Some(val) = self.as_ref() else { return true };
@@ -129,9 +144,13 @@ impl LuaValueExt for Option<Value> {
 	fn x_get_f64(&self, key: &str) -> Option<f64> {
 		self.as_ref()?.x_get_f64(key)
 	}
+
+	fn x_as_list(&self) -> Option<Vec<Value>> {
+		self.as_ref()?.x_as_list()
+	}
 }
 
-impl LuaValueExt for Table {
+impl LuaExt for Table {
 	fn x_is_null(&self) -> bool {
 		false
 	}
@@ -179,4 +198,13 @@ impl LuaValueExt for Table {
 		let val = val.as_f64()?;
 		Some(val)
 	}
+
+	fn x_as_list(&self) -> Option<Vec<Value>> {
+		Some(table_as_list(self))
+	}
+}
+
+/// Extract the sequence part of a Lua table (keys 1..N contiguous, stops at first nil).
+fn table_as_list(table: &Table) -> Vec<Value> {
+	table.sequence_values().filter_map(|v| v.ok()).collect()
 }

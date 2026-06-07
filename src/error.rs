@@ -18,7 +18,6 @@ pub enum Error {
 	#[from]
 	Io(std::io::Error),
 
-
 	#[from]
 	Json(serde_json::Error),
 

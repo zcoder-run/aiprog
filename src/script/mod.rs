@@ -2,13 +2,18 @@
 
 mod error_lua_support;
 mod handler;
+mod lua_ext;
 mod modules;
 
 mod engine;
 mod helpers;
 
-pub use engine::ScriptEngine;
+// crate only
 pub(crate) use handler::*;
-pub use helpers::*;
+pub(crate) use helpers::*;
+
+// public
+pub use engine::ScriptEngine;
+pub use lua_ext::*;
 
 // endregion: --- Section

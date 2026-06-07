@@ -53,16 +53,14 @@ async fn test_script_lua_web_get_simple() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(
-		r#"return aip.web.get{{ data = "{url}", parse = true }}"#,
-	);
+	let script = format!(r#"return aip.web.get{{ data = "{url}", parse = true }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
 	let table = value.as_table().ok_or("Expected table result")?;
 
 	// -- Check
-	assert_eq!(table.get::<bool>("success")?, true);
+	assert!(table.get::<bool>("success")?);
 	assert_eq!(table.get::<u16>("status")?, 200);
 	let data: mlua::Value = table.get("data")?;
 	let data_table = data.as_table().ok_or("Expected data table")?;

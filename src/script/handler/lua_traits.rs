@@ -1,5 +1,5 @@
 use super::handler_error::HandlerError;
-use crate::script::{LuaValueExt, lua_value_to_serde_value, serde_value_to_lua_value};
+use crate::script::{LuaExt, lua_value_to_serde_value, serde_value_to_lua_value};
 // Re-export for convenience
 pub use mlua::Value as LuaValue;
 use mlua::{Lua, Value};
