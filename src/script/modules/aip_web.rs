@@ -19,7 +19,7 @@
 //!
 
 use crate::registry::AipRegistry;
-use crate::script::{AipApiError, AipFromLua, AipToLua, ScriptEngine};
+use crate::script::{AipApiError, AipFromLua, AipToLua, LuaValueExt, ScriptEngine};
 use crate::{Result, webc};
 use mlua::Lua;
 use std::collections::HashMap;
@@ -86,7 +86,7 @@ impl AipFromLua for AipWebGetParams {
 
 		let headers: Option<HashMap<String, AipWebHeaderValue>> =
 			table.get::<mlua::Value>("headers").ok().and_then(|v| {
-				if v.is_nil() {
+				if v.x_is_null() {
 					return None;
 				}
 				let t = v.as_table()?;

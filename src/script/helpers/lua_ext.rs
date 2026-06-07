@@ -4,6 +4,7 @@ use mlua::{BorrowedStr, Table, Value};
 ///
 /// TODO: Will need to handle the case where the found value is not of correct type. Probably should return `Result<Option<>>`
 pub trait LuaValueExt {
+	/// return true if NULL, Nil, or None (for Option<Value>)
 	fn x_is_null(&self) -> bool;
 
 	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>>;
@@ -24,7 +25,7 @@ pub trait LuaValueExt {
 
 impl LuaValueExt for Value {
 	fn x_is_null(&self) -> bool {
-		self == &Value::NULL
+		self == &Value::NULL || self == &Value::Nil
 	}
 
 	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>> {
@@ -86,10 +87,11 @@ impl LuaValueExt for Value {
 }
 
 impl LuaValueExt for Option<Value> {
+	/// Return true if None
 	fn x_is_null(&self) -> bool {
-		let Some(val) = self.as_ref() else { return false };
+		let Some(val) = self.as_ref() else { return true };
 
-		val == &Value::NULL
+		val == &Value::NULL || val == &Value::Nil
 	}
 
 	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>> {
