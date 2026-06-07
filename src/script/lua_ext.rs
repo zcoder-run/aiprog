@@ -101,55 +101,6 @@ impl LuaExt for Value {
 	}
 }
 
-impl LuaExt for Option<Value> {
-	/// Return true if None
-	fn x_is_null(&self) -> bool {
-		let Some(val) = self.as_ref() else { return true };
-
-		val == &Value::NULL || val == &Value::Nil
-	}
-
-	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>> {
-		self.as_ref()?.as_string().and_then(|s| s.to_str().ok())
-	}
-
-	fn x_as_i64(&self) -> Option<i64> {
-		let val = self.as_ref()?;
-		val.x_as_i64()
-	}
-	fn x_as_f64(&self) -> Option<f64> {
-		let val = self.as_ref()?;
-		val.x_as_f64()
-	}
-
-	fn x_to_string(&self) -> Option<String> {
-		self.as_ref().and_then(|v| v.x_to_string())
-	}
-
-	fn x_get_value(&self, key: &str) -> Option<Value> {
-		self.as_ref()?.x_get_value(key)
-	}
-	fn x_get_string(&self, key: &str) -> Option<String> {
-		self.as_ref()?.x_get_string(key)
-	}
-
-	fn x_get_bool(&self, key: &str) -> Option<bool> {
-		self.as_ref()?.x_get_bool(key)
-	}
-
-	fn x_get_i64(&self, key: &str) -> Option<i64> {
-		self.as_ref()?.x_get_i64(key)
-	}
-
-	fn x_get_f64(&self, key: &str) -> Option<f64> {
-		self.as_ref()?.x_get_f64(key)
-	}
-
-	fn x_as_list(&self) -> Option<Vec<Value>> {
-		self.as_ref()?.x_as_list()
-	}
-}
-
 impl LuaExt for Table {
 	fn x_is_null(&self) -> bool {
 		false
