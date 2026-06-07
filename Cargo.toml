@@ -40,7 +40,7 @@ serde_yaml_ng = "0.10"
 csv = "1"
 lopdf = "0.40"
 # -- Web
-reqwest = {version = "0.13", default-features = false, features = ["json", "stream"]}
+reqwest = {version = "0.13", features = ["json", "stream"]}
 # -- AI
 genai = { version = "0.6.0" }
 udiffx = { version = "0.1.43", features = ["prompt"]}

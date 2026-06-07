@@ -13,5 +13,6 @@ pub use script::ScriptEngine;
 
 pub mod registry;
 pub mod types;
+pub mod webc;
 
 // endregion: --- Modules
