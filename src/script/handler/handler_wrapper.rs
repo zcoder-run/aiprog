@@ -48,7 +48,7 @@ where
 	pub fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue {
 		let params = match P::from_lua(lua, params_value) {
 			Ok(p) => p,
-			Err(err) => return Box::pin(async move { Err(err) }),
+            Err(err) => return Box::pin(async move { Err(crate::script::HandlerError::from(err)) }),
 		};
 		let handler = self.handler.clone();
 		Box::pin(handler.call(lua.clone(), params))

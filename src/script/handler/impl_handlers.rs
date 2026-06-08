@@ -1,3 +1,4 @@
+use crate::Result;
 use crate::script::{AipFromLua, AipToLua, HandlerError, LuaJsonExt};
 use mlua::{Lua, Value};
 
@@ -23,7 +24,7 @@ macro_rules! impl_aip_handlers {
 			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
 					match self(params) {
-						Ok(response) => response.to_lua(&lua),
+						Ok(response) => response.to_lua(&lua).map_err($crate::script::HandlerError::from),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -44,7 +45,7 @@ macro_rules! impl_aip_handlers {
 			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
 					match self(params).await {
-						Ok(response) => response.to_lua(&lua),
+						Ok(response) => response.to_lua(&lua).map_err($crate::script::HandlerError::from),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -56,7 +57,7 @@ macro_rules! impl_aip_handlers {
 // region:    --- Tuple FromLua/ToLua implementations
 
 impl<A: AipFromLua> AipFromLua for (A,) {
-	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
@@ -66,7 +67,7 @@ impl<A: AipFromLua> AipFromLua for (A,) {
 }
 
 impl<A: AipToLua> AipToLua for (A,) {
-	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
 			.set(1, self.0.to_lua(lua)?)
@@ -76,7 +77,7 @@ impl<A: AipToLua> AipToLua for (A,) {
 }
 
 impl<A: AipFromLua, B: AipFromLua> AipFromLua for (A, B) {
-	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
@@ -87,7 +88,7 @@ impl<A: AipFromLua, B: AipFromLua> AipFromLua for (A, B) {
 }
 
 impl<A: AipToLua, B: AipToLua> AipToLua for (A, B) {
-	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
 			.set(1, self.0.to_lua(lua)?)
@@ -100,7 +101,7 @@ impl<A: AipToLua, B: AipToLua> AipToLua for (A, B) {
 }
 
 impl<A: AipFromLua, B: AipFromLua, C: AipFromLua> AipFromLua for (A, B, C) {
-	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
@@ -116,7 +117,7 @@ impl<A: AipFromLua, B: AipFromLua, C: AipFromLua> AipFromLua for (A, B, C) {
 }
 
 impl<A: AipToLua, B: AipToLua, C: AipToLua> AipToLua for (A, B, C) {
-	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
 			.set(1, self.0.to_lua(lua)?)
@@ -132,7 +133,7 @@ impl<A: AipToLua, B: AipToLua, C: AipToLua> AipToLua for (A, B, C) {
 }
 
 impl<A: AipFromLua, B: AipFromLua, C: AipFromLua, D: AipFromLua> AipFromLua for (A, B, C, D) {
-	fn from_lua(lua: &Lua, value: Value) -> core::result::Result<Self, HandlerError> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| HandlerError::new("Expected table for tuple".to_string()))?;
@@ -150,7 +151,7 @@ impl<A: AipFromLua, B: AipFromLua, C: AipFromLua, D: AipFromLua> AipFromLua for 
 }
 
 impl<A: AipToLua, B: AipToLua, C: AipToLua, D: AipToLua> AipToLua for (A, B, C, D) {
-	fn to_lua(self, lua: &Lua) -> core::result::Result<Value, HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
 		table
 			.set(1, self.0.to_lua(lua)?)

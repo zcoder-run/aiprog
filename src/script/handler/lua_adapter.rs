@@ -89,8 +89,10 @@ fn make_registry_function(lua: &Lua, registry: Arc<HandlerRegistry>, name: Strin
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::impl_lua_serde_traits;
-	use crate::script::{AipApiError, HandlerRegistry};
+	use crate::{
+		impl_lua_serde_traits,
+		script::{AipApiError, HandlerRegistry},
+	};
 	use mlua::Lua;
 	use serde::{Deserialize, Serialize};
 

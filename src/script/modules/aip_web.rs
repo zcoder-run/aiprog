@@ -18,10 +18,11 @@
 //! ---
 //!
 
+use crate::Result;
 use crate::registry::AipRegistry;
 use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
 use crate::script::LuaJsonExt;
-use crate::{Result, webc};
+use crate::webc;
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -73,7 +74,7 @@ pub struct AipWebGetParams {
 }
 
 impl AipFromLua for AipWebGetParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
@@ -383,7 +384,7 @@ mod tests;
 // endregion: --- Tests
 
 impl AipToLua for AipWebGetResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;

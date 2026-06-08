@@ -161,6 +161,19 @@ impl std::error::Error for AipApiError {}
 
 // endregion: --- AipApiError
 
+// region:    --- Conversions
+
+impl From<crate::Error> for HandlerError {
+    fn from(e: crate::Error) -> Self {
+        match e {
+            crate::Error::Handler(h) => h,
+            other => HandlerError::new(other.to_string()),
+        }
+    }
+}
+
+// endregion: --- Conversions
+
 // region:    --- Error Boilerplate
 
 impl core::fmt::Display for HandlerError {

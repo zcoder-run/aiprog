@@ -50,7 +50,7 @@ pub struct AipJsonParseParams {
 }
 
 impl AipFromLua for AipJsonParseParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
@@ -67,7 +67,7 @@ pub struct AipJsonParseResult {
 }
 
 impl AipToLua for AipJsonParseResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
@@ -114,7 +114,7 @@ pub struct AipJsonParseJsonlParams {
 }
 
 impl AipFromLua for AipJsonParseJsonlParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
@@ -131,7 +131,7 @@ pub struct AipJsonParseJsonlResult {
 }
 
 impl AipToLua for AipJsonParseJsonlResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
@@ -184,7 +184,7 @@ pub struct AipJsonStringifyParams {
 }
 
 impl AipFromLua for AipJsonStringifyParams {
-	fn from_lua(lua: &Lua, value: mlua::Value) -> std::result::Result<Self, crate::script::HandlerError> {
+	fn from_lua(lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
@@ -204,7 +204,7 @@ pub struct AipJsonStringifyResult {
 }
 
 impl AipToLua for AipJsonStringifyResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
@@ -241,7 +241,7 @@ pub struct AipJsonStringifyPrettyResult {
 }
 
 impl AipToLua for AipJsonStringifyPrettyResult {
-	fn to_lua(self, lua: &Lua) -> std::result::Result<mlua::Value, crate::script::HandlerError> {
+	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;

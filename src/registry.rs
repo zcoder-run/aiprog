@@ -201,29 +201,26 @@ impl AipRegistry {
 		let error_schema = schema_for!(E);
 
 		let handler_arc = Arc::new(handler);
-
 		let closure: LuaAsyncClosure = Box::new(
 			move |lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>> + Send>> {
 				let handler = Arc::clone(&handler_arc);
 
-				let params = P::from_lua(lua, value);
-
-				let response_fut = async move {
-					let params = params.map_err(|e| AsyncCallError::Message(e.to_string()))?;
-					match handler.call_async(params).await {
-						Ok(response) => Ok(response),
-						Err(err) => Err(AsyncCallError::Handler(handler_error_to_lua(err.into_handler_error()))),
+				let params = match P::from_lua(lua, value) {
+					Ok(p) => p,
+					Err(e) => {
+						let err_msg = format!("Invalid params: {e}");
+						return Box::pin(async move {
+							Err(mlua::Error::RuntimeError(err_msg))
+						});
 					}
 				};
 
 				Box::pin(async move {
-					let response = response_fut.await.map_err(|e| match e {
-						AsyncCallError::Message(msg) => mlua::Error::RuntimeError(msg),
-						AsyncCallError::Handler(err) => err,
-					})?;
-					let response_serde = serde_json::to_value(response)
-						.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}")))?;
-					Ok(response_serde)
+					match handler.call_async(params).await {
+						Ok(response) => serde_json::to_value(response)
+							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
+						Err(err) => Err(handler_error_to_lua(err.into_handler_error())),
+					}
 				})
 			},
 		);
@@ -286,14 +283,3 @@ mod tests;
 
 // endregion: --- Tests
 
-// region:    --- Async Call Error
-
-/// Internal error type used by async handler closures so that only `Send` data crosses the
-/// await boundary. `mlua::Error` is not `Send`, so handler errors are carried as the already
-/// converted `mlua::Error` only after the inner (Send) future resolves.
-enum AsyncCallError {
-	Message(String),
-	Handler(mlua::Error),
-}
-
-// endregion: --- Async Call Error

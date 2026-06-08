@@ -48,8 +48,9 @@ pub trait LuaJsonExt: LuaExt {
 	/// Convert a `serde_json::Value` into a `mlua::Value`.
 	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> Result<Value>;
 
-	/// Convert an iterable of JSON values into a `Vec<mlua::Value>`.
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	/// Convert an iterable of JSON values into a Lua table (list) as a `mlua::Value`.
+	/// The table uses 1-based integer keys to form a Lua list.
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>;
 
@@ -80,11 +81,16 @@ impl LuaJsonExt for Value {
 		}
 	}
 
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
-		values.into_iter().map(|v| Self::x_from_json_value(lua, v)).collect()
+		let table = lua.create_table()?;
+		for (i, v) in values.into_iter().enumerate() {
+			let lua_val = Self::x_from_json_value(lua, v)?;
+			table.set(i + 1, lua_val)?;
+		}
+		Ok(Value::Table(table))
 	}
 
 	fn x_to_json_value(&self) -> Result<Option<serde_json::Value>> {
@@ -213,7 +219,7 @@ impl LuaJsonExt for Table {
 		Value::x_from_json_value(lua, val)
 	}
 
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Vec<Value>>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
