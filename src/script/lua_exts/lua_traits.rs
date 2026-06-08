@@ -1,5 +1,4 @@
 use crate::Result;
-use crate::script::HandlerError;
 use crate::script::LuaExt;
 // Re-export for convenience
 pub use mlua::Value as LuaValue;
@@ -24,32 +23,25 @@ impl AipFromLua for Value {
 
 impl AipFromLua for String {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self> {
-		value
-			.x_as_lua_str()
-			.map(|s| s.to_string())
-			.ok_or_else(|| "expected string".into())
+		Ok(value.x_as_lua_str().map(|s| s.to_string()).ok_or("expected string")?)
 	}
 }
 
 impl AipFromLua for i64 {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self> {
-		Ok(value
-			.x_as_i64()
-			.ok_or_else(|| HandlerError::new("expected integer".to_string()))?)
+		Ok(value.x_as_i64().ok_or("expected integer")?)
 	}
 }
 
 impl AipFromLua for f64 {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self> {
-		Ok(value.x_as_f64().ok_or_else(|| HandlerError::new("expected number".to_string()))?)
+		Ok(value.x_as_f64().ok_or("expected number")?)
 	}
 }
 
 impl AipFromLua for bool {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self> {
-		Ok(value
-			.as_boolean()
-			.ok_or_else(|| HandlerError::new("expected boolean".to_string()))?)
+		Ok(value.as_boolean().ok_or("expected boolean")?)
 	}
 }
 
@@ -65,12 +57,10 @@ impl<T: AipFromLua> AipFromLua for Option<T> {
 
 impl<T: AipFromLua> AipFromLua for Vec<T> {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self> {
-		let table = value
-			.as_table()
-			.ok_or_else(|| HandlerError::new("expected table".to_string()))?;
+		let table = value.as_table().ok_or("expected table")?;
 		let mut vec = Vec::new();
 		for val in table.sequence_values::<Value>() {
-			let val = val.map_err(|e| HandlerError::new(e.to_string()))?;
+			let val = val?;
 			vec.push(T::from_lua(lua, val)?);
 		}
 		Ok(vec)
@@ -79,22 +69,17 @@ impl<T: AipFromLua> AipFromLua for Vec<T> {
 
 impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
 	fn from_lua(lua: &Lua, value: Value) -> Result<Self> {
-		let table = value
-			.as_table()
-			.ok_or_else(|| HandlerError::new("expected table".to_string()))?;
+		let table = value.as_table().ok_or("expected table")?;
 		let mut map = HashMap::new();
 		for pair in table.pairs::<Value, Value>() {
-			let (key, val) = pair.map_err(|e| HandlerError::new(e.to_string()))?;
+			let (key, val) = pair?;
 			let key_str = match key {
-				Value::String(s) => s.to_str().map_err(|e| HandlerError::new(e.to_string()))?.to_string(),
+				Value::String(s) => s.to_str()?.to_string(),
 				Value::Integer(i) => i.to_string(),
 				Value::Number(n) => n.to_string(),
 				Value::Boolean(b) => b.to_string(),
 				other => {
-					return Err(crate::Error::Handler(HandlerError::new(format!(
-						"unsupported Lua table key type: {}",
-						other.type_name()
-					))));
+					return Err(format!("unsupported Lua table key type: {}", other.type_name()).into());
 				}
 			};
 			map.insert(key_str, T::from_lua(lua, val)?);
@@ -105,9 +90,9 @@ impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
 
 impl AipFromLua for serde_json::Value {
 	fn from_lua(_lua: &Lua, value: Value) -> Result<Self> {
-		Ok(crate::script::LuaJsonExt::x_to_json_value(&value)
-			.map_err(|e| HandlerError::new(e.to_string()))?
-			.ok_or_else(|| HandlerError::new("cannot convert Lua nil to JSON value".to_string()))?)
+		let value =
+			crate::script::LuaJsonExt::x_to_json_value(&value)?.ok_or("cannot convert Lua nil to JSON value")?;
+		Ok(value)
 	}
 }
 
@@ -120,33 +105,18 @@ impl AipFromLua for serde_json::Value {
 macro_rules! impl_lua_serde_traits {
 	($ty:path) => {
 		impl $crate::script::AipFromLua for $ty {
-			fn from_lua(
-				_lua: &mlua::Lua,
-				value: mlua::Value,
-	) -> $crate::Result<Self> {
-				let serde_value = $crate::script::LuaJsonExt::x_to_json_value(&value).map_err(|e| {
-					$crate::script::HandlerError::new($crate::script::AipApiError::new("INVALID_PARAMS", e.to_string()))
-				})?;
-				let serde_value = serde_value.ok_or_else(|| {
-					$crate::script::HandlerError::new($crate::script::AipApiError::new(
-						"INVALID_PARAMS",
-						"expected JSON value, got nil".to_string(),
-					))
-				})?;
-		Ok(serde_json::from_value(serde_value).map_err(|e| {
-					$crate::script::HandlerError::new($crate::script::AipApiError::new(
-						"INVALID_PARAMS",
-						format!("deserialization error: {e}"),
-					))
-		})?)
+			fn from_lua(_lua: &mlua::Lua, value: mlua::Value) -> $crate::Result<Self> {
+				let serde_value = $crate::script::LuaJsonExt::x_to_json_value(&value)
+					.map_err(|e| $crate::Error::custom(format!("Invalid params: {e}")))?;
+				let serde_value =
+					serde_value.ok_or_else(|| $crate::Error::custom("expected JSON value, got nil".to_string()))?;
+				Ok(serde_json::from_value(serde_value).map_err(|e| format!("deserialization error: {e}"))?)
 			}
 		}
 		impl $crate::script::AipToLua for $ty {
-	fn to_lua(self, lua: &mlua::Lua) -> $crate::Result<mlua::Value> {
-				let serde_value =
-					serde_json::to_value(self).map_err(|e| $crate::script::HandlerError::new(e.to_string()))?;
-		Ok(<mlua::Value as $crate::script::LuaJsonExt>::x_from_json_value(lua, serde_value)
-			.map_err(|e| $crate::script::HandlerError::new(e.to_string()))?)
+			fn to_lua(self, lua: &mlua::Lua) -> $crate::Result<mlua::Value> {
+				let serde_value = serde_json::to_value(self).map_err(|e| $crate::Error::custom(e.to_string()))?;
+				<mlua::Value as $crate::script::LuaJsonExt>::x_from_json_value(lua, serde_value).into()
 			}
 		}
 	};
@@ -164,9 +134,7 @@ impl AipToLua for Value {
 
 impl AipToLua for String {
 	fn to_lua(self, lua: &Lua) -> Result<Value> {
-		Ok(Value::String(
-			lua.create_string(&self).map_err(|e| HandlerError::new(e.to_string()))?,
-		))
+		Ok(Value::String(lua.create_string(&self)?))
 	}
 }
 
@@ -199,9 +167,9 @@ impl<T: AipToLua> AipToLua for Option<T> {
 
 impl<T: AipToLua> AipToLua for Vec<T> {
 	fn to_lua(self, lua: &Lua) -> Result<Value> {
-		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		let table = lua.create_table()?;
 		for (i, v) in self.into_iter().enumerate() {
-			table.set(i + 1, v.to_lua(lua)?).map_err(|e| HandlerError::new(e.to_string()))?;
+			table.set(i + 1, v.to_lua(lua)?)?;
 		}
 		Ok(Value::Table(table))
 	}
@@ -209,9 +177,9 @@ impl<T: AipToLua> AipToLua for Vec<T> {
 
 impl<T: AipToLua> AipToLua for HashMap<String, T> {
 	fn to_lua(self, lua: &Lua) -> Result<Value> {
-		let table = lua.create_table().map_err(|e| HandlerError::new(e.to_string()))?;
+		let table = lua.create_table()?;
 		for (k, v) in self {
-			table.set(k, v.to_lua(lua)?).map_err(|e| HandlerError::new(e.to_string()))?;
+			table.set(k, v.to_lua(lua)?)?;
 		}
 		Ok(Value::Table(table))
 	}
@@ -219,8 +187,7 @@ impl<T: AipToLua> AipToLua for HashMap<String, T> {
 
 impl AipToLua for serde_json::Value {
 	fn to_lua(self, lua: &Lua) -> Result<Value> {
-		Ok(<mlua::Value as crate::script::LuaJsonExt>::x_from_json_value(lua, self)
-			.map_err(|e| HandlerError::new(e.to_string()))?)
+		<mlua::Value as crate::script::LuaJsonExt>::x_from_json_value(lua, self)
 	}
 }
 
@@ -231,7 +198,6 @@ impl AipToLua for serde_json::Value {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::script::HandlerError;
 	use mlua::Lua;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
@@ -382,12 +348,10 @@ mod tests {
 		let l = lua();
 		let str_val = mlua::Value::String(l.create_string("nope").unwrap());
 		let err = i64::from_lua(&l, str_val).unwrap_err();
-		let handler_err = match err {
-			crate::Error::Handler(h) => h,
-			other => panic!("expected Handler error, got {:?}", other),
+		match err {
+			crate::Error::Custom(msg) => assert_eq!(msg, "expected integer"),
+			other => panic!("expected Custom error, got {:?}", other),
 		};
-		let inner = handler_err.get::<String>().expect("should contain string error");
-		assert_eq!(inner.as_str(), "expected integer");
 	}
 
 	// endregion: --- Error cases

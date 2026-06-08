@@ -14,6 +14,9 @@ pub enum Error {
 	#[display("Error: {_0}\n\tCause: {_1}")]
 	CustomAndCause(String, String),
 
+	#[from]
+	AipApi(crate::script::AipApiError),
+
 	// -- Externals
 	#[from]
 	Io(std::io::Error),

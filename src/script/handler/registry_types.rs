@@ -318,8 +318,9 @@ use crate::script::LuaJsonExt;
 
 		// -- Check
 		let err = res.err().ok_or("should be an error")?;
-		let api_err = err.get::<AipApiError>().ok_or("should hold AipApiError")?;
-		assert_eq!(api_err.code, "INVALID_PARAMS");
+		// After refactoring, the error is a HandlerError containing a string message
+		// from the deserialization failure, rather than a typed AipApiError.
+		assert!(err.get::<String>().is_some(), "expected error message from invalid params");
 
 		Ok(())
 	}

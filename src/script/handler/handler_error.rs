@@ -167,6 +167,7 @@ impl From<crate::Error> for HandlerError {
     fn from(e: crate::Error) -> Self {
         match e {
             crate::Error::Handler(h) => h,
+            crate::Error::AipApi(api_err) => HandlerError::new(api_err),
             other => HandlerError::new(other.to_string()),
         }
     }

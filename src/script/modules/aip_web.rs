@@ -20,8 +20,8 @@
 
 use crate::Result;
 use crate::registry::AipRegistry;
-use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
 use crate::script::LuaJsonExt;
+use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
 use crate::webc;
 use mlua::Lua;
 use std::collections::HashMap;
@@ -75,10 +75,8 @@ pub struct AipWebGetParams {
 
 impl AipFromLua for AipWebGetParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value
-			.as_table()
-			.ok_or_else(|| crate::script::HandlerError::new("Expected table".to_string()))?;
-		let data: String = table.get("data").map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let table = value.as_table().ok_or("Expected table")?;
+		let data: String = table.get("data")?;
 
 		let user_agent: Option<AipWebUserAgent> = table.get::<mlua::Value>("user_agent").ok().and_then(|v| match v {
 			mlua::Value::Boolean(b) => Some(AipWebUserAgent::Bool(b)),
@@ -385,45 +383,24 @@ mod tests;
 
 impl AipToLua for AipWebGetResult {
 	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let table = lua.create_table()?;
 
-		let data_lua = mlua::Value::x_from_json_value(lua, self.data)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		table
-			.set("data", data_lua)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		table
-			.set("success", self.success)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		table
-			.set("status", self.status)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
-		table
-			.set("url", self.url.as_str())
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;
+		table.set("data", data_lua)?;
+		table.set("success", self.success)?;
+		table.set("status", self.status)?;
+		table.set("url", self.url.as_str())?;
 		if let Some(content_type) = self.content_type {
-			table
-				.set("content_type", content_type.as_str())
-				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+			table.set("content_type", content_type.as_str())?;
 		}
 		if let Some(error) = self.error {
-			table
-				.set("error", error.as_str())
-				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+			table.set("error", error.as_str())?;
 		}
-		let headers_table = lua
-			.create_table()
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		let headers_table = lua.create_table()?;
 		for (key, value) in self.headers.iter() {
-			headers_table
-				.set(key.as_str(), value.as_str())
-				.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+			headers_table.set(key.as_str(), value.as_str())?;
 		}
-		table
-			.set("headers", headers_table)
-			.map_err(|e| crate::script::HandlerError::new(e.to_string()))?;
+		table.set("headers", headers_table)?;
 		Ok(mlua::Value::Table(table))
 	}
 }
