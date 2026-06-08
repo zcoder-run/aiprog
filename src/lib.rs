@@ -9,7 +9,7 @@ mod error;
 mod script;
 
 pub use error::{Error, Result};
-pub use script::ScriptEngine;
+pub use script::{ScriptEngine, ScriptError, ScriptResult};
 
 pub mod registry;
 pub mod types;

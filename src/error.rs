@@ -45,6 +45,17 @@ impl From<crate::registry::AipRegistryError> for Error {
 
 // region:    --- Custom
 
+// region:    --- Conversions
+
+impl From<crate::script::ScriptError> for Error {
+	fn from(err: crate::script::ScriptError) -> Self {
+		Error::Custom(err.to_string())
+	}
+}
+
+// endregion: --- Conversions
+
+// region:    --- Custom
 impl Error {
 	pub fn custom(val: impl Into<String>) -> Self {
 		Self::Custom(val.into())

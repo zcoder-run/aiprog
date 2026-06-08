@@ -1,3 +1,4 @@
+use crate::ScriptError;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::any::{Any, TypeId};
@@ -163,14 +164,20 @@ impl std::error::Error for AipApiError {}
 
 // region:    --- Conversions
 
+impl From<ScriptError> for HandlerError {
+	fn from(err: ScriptError) -> Self {
+		HandlerError::new(err.to_string())
+	}
+}
+
 impl From<crate::Error> for HandlerError {
-    fn from(e: crate::Error) -> Self {
-        match e {
-            crate::Error::Handler(h) => h,
-            crate::Error::AipApi(api_err) => HandlerError::new(api_err),
-            other => HandlerError::new(other.to_string()),
-        }
-    }
+	fn from(e: crate::Error) -> Self {
+		match e {
+			crate::Error::Handler(h) => h,
+			crate::Error::AipApi(api_err) => HandlerError::new(api_err),
+			other => HandlerError::new(other.to_string()),
+		}
+	}
 }
 
 // endregion: --- Conversions

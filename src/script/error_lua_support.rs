@@ -1,5 +1,7 @@
 //! Lua Management implementaitons for the crate::Error
 
+// Deprecated: backward-compatibility shim. use crate::ScriptError methods.
+
 use crate::Error;
 use lazy_regex::regex;
 use std::borrow::Cow;
@@ -7,53 +9,9 @@ use std::sync::Arc;
 
 impl Error {
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Error {
-		let mut buff: Vec<String> = Vec::new();
-		for item in lua_error.chain() {
-			if let Some(lua_item) = item.downcast_ref::<mlua::Error>() {
-				let msg = lua_item.to_string();
-				let msg = if msg.contains("traceback") | msg.contains("syntax") {
-					process_stack_with_script(&msg, script)
-				} else {
-					msg
-				};
-				buff.push(format!("Lua error:\n{msg}"));
-			} else {
-				buff.push(format!("Other lua error:\n{item}"));
-			}
-		}
-		Error::custom(buff.join("\n"))
+		let script_err = crate::script::script_error::ScriptError::from_error_with_script(lua_error, script);
+		Error::from(script_err)
 	}
-}
-
-fn process_stack_with_script(stack: &str, script: &str) -> String {
-	let script_lines: Vec<&str> = script.lines().collect();
-	let mut buff: Vec<Cow<str>> = Vec::new();
-
-	let rx = regex!(r#"src/script/lua_engine\s*\.[^\n]*:(\d+):"#);
-
-	for line in stack.lines() {
-		if rx.is_match(line) {
-			// Replace all occurrences of the pattern with the extracted number
-			let replaced_line = rx.replace_all(line, |caps: &regex::Captures| {
-				if let Some(num) = caps.get(1).and_then(|m| m.as_str().parse::<usize>().ok()) {
-					if let Some(script_line) = script_lines.get(num - 1) {
-						let script_line = script_line.trim();
-						Cow::from(format!("At line {num} '{script_line}'"))
-					} else {
-						Cow::from(format!("Line({num})"))
-					}
-				} else {
-					Cow::from("")
-				}
-			});
-			buff.push(replaced_line);
-		} else {
-			// Add the original line if no match is found
-			buff.push(line.into());
-		}
-	}
-
-	buff.join("\n")
 }
 
 // region:    --- Froms

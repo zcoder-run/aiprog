@@ -18,9 +18,9 @@
 //! ---
 //!
 
-use crate::Result;
 use crate::registry::AipRegistry;
 use crate::script::LuaJsonExt;
+use crate::script::script_error;
 use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
 use crate::webc;
 use mlua::Lua;
@@ -74,7 +74,7 @@ pub struct AipWebGetParams {
 }
 
 impl AipFromLua for AipWebGetParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::script::script_error::ScriptResult<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("data")?;
 
@@ -255,6 +255,34 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<Ai
 
 // endregion: --- aip.web.get
 
+// region:    --- AipWebRResult
+
+impl AipToLua for AipWebGetResult {
+	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
+		let table = lua.create_table()?;
+
+		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;
+		table.set("data", data_lua)?;
+		table.set("success", self.success)?;
+		table.set("status", self.status)?;
+		table.set("url", self.url.as_str())?;
+		if let Some(content_type) = self.content_type {
+			table.set("content_type", content_type.as_str())?;
+		}
+		if let Some(error) = self.error {
+			table.set("error", error.as_str())?;
+		}
+		let headers_table = lua.create_table()?;
+		for (key, value) in self.headers.iter() {
+			headers_table.set(key.as_str(), value.as_str())?;
+		}
+		table.set("headers", headers_table)?;
+		Ok(mlua::Value::Table(table))
+	}
+}
+
+// endregion: --- AipWebRResult
+
 // region:    --- Support
 
 fn build_webc_client(params: &AipWebGetParams) -> core::result::Result<webc::WebClient, AipApiError> {
@@ -380,27 +408,3 @@ fn webc_error_to_aip(url: &str, err: webc::Error) -> AipApiError {
 mod tests;
 
 // endregion: --- Tests
-
-impl AipToLua for AipWebGetResult {
-	fn to_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		let table = lua.create_table()?;
-
-		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;
-		table.set("data", data_lua)?;
-		table.set("success", self.success)?;
-		table.set("status", self.status)?;
-		table.set("url", self.url.as_str())?;
-		if let Some(content_type) = self.content_type {
-			table.set("content_type", content_type.as_str())?;
-		}
-		if let Some(error) = self.error {
-			table.set("error", error.as_str())?;
-		}
-		let headers_table = lua.create_table()?;
-		for (key, value) in self.headers.iter() {
-			headers_table.set(key.as_str(), value.as_str())?;
-		}
-		table.set("headers", headers_table)?;
-		Ok(mlua::Value::Table(table))
-	}
-}
