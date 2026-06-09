@@ -1,5 +1,6 @@
+use crate::_test_support::lua_evals::process_lua_eval_result;
 use crate::registry::AipRegistry;
-use crate::script::{process_lua_eval_result, LuaJsonExt};
+use crate::script::LuaJsonExt;
 use crate::{Result, ScriptEngine};
 use mlua::{Lua, Table};
 use serde_json::Value;
