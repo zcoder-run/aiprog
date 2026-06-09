@@ -13,20 +13,20 @@ async fn test_script_lua_web_constants() -> Result<()> {
 	// Install the constants (must be done after the functions are installed)
 	modules::aip_web::install_constants(&engine)?;
 
-	// -- Exec
-	let script = r#"
-		local ua_aiprog = aip.web.UA_AIPROG
-		local ua_browser = aip.web.UA_BROWSER
-		return { ua_aiprog = ua_aiprog, ua_browser = ua_browser }
-	"#;
-	let res = _test_support::eval_script(&engine, script)?;
+		// -- Exec
+		let script = r#"
+			local ua_aiprog = aip.web.UA_AIPROG
+			local ua_browser = aip.web.UA_BROWSER
+			return { ua_aiprog = ua_aiprog, ua_browser = ua_browser }
+		"#;
+		let res = _test_support::eval_script(&engine, script)?;
 
-	// -- Check
-	assert_eq!(res["ua_aiprog"], "aiprog");
-	assert_eq!(
-		res["ua_browser"],
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-	);
+		// -- Check
+		assert_eq!(res["ua_aiprog"], "aiprog");
+		assert_eq!(
+			res["ua_browser"],
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+		);
 
 	Ok(())
 }

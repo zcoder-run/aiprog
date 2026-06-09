@@ -149,9 +149,9 @@ pub enum AipWebHeaderValue {
 	Many(Vec<String>),
 }
 
-/// Result of the `get` function.
+/// Result of a web request.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipWebGetResult {
+pub struct AipWebResult {
 	/// The response body as a string, or parsed JSON when `parse` is true and the response is JSON.
 	pub data: serde_json::Value,
 
@@ -176,7 +176,7 @@ pub struct AipWebGetResult {
 	pub error: Option<String>,
 }
 
-async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebGetResult> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebResult> {
 	let client = build_webc_client(&params)?;
 	let web_params = build_web_get_params(&params);
 	let url_clone = params.data.clone();
@@ -206,7 +206,7 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebGetR
 			} else {
 				Some(format!("HTTP request failed with status {}", status))
 			};
-			return Ok(AipWebGetResult {
+			return Ok(AipWebResult {
 				data: value,
 				success,
 				status,
@@ -244,7 +244,7 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebGetR
 		Some(format!("HTTP request failed with status {}", status))
 	};
 
-	Ok(AipWebGetResult {
+	Ok(AipWebResult {
 		data,
 		success,
 		status,
@@ -257,9 +257,9 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebGetR
 
 // endregion: --- aip.web.get
 
-// region:    --- AipWebRResult
+// region:    --- AipWebResult
 
-impl AipIntoLua for AipWebGetResult {
+impl AipIntoLua for AipWebResult {
 	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
 		let table = lua.create_table()?;
 
@@ -283,7 +283,7 @@ impl AipIntoLua for AipWebGetResult {
 	}
 }
 
-// endregion: --- AipWebRResult
+// endregion: --- AipWebResult
 
 // region:    --- Support
 
@@ -324,7 +324,7 @@ fn build_webc_client(params: &AipWebGetParams) -> AipApiResult<webc::WebClient> 
 	})
 }
 
-fn build_web_get_params(params: &AipWebGetParams) -> webc::WebGetParams {
+fn build_web_get_params(params: &AipWebGetParams) -> webc::WebParams {
 	let headers = params.headers.as_ref().map(|h| {
 		h.iter()
 			.map(|(name, value)| {
@@ -337,7 +337,7 @@ fn build_web_get_params(params: &AipWebGetParams) -> webc::WebGetParams {
 			.collect::<HashMap<String, webc::HeaderValue>>()
 	});
 
-	webc::WebGetParams {
+	webc::WebParams {
 		url: params.data.clone(),
 		user_agent: None,
 		headers,

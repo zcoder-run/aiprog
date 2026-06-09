@@ -30,8 +30,8 @@ pub enum Body {
 	Binary(Vec<u8>),
 }
 
-/// Parameters for a web_get request.
-pub struct WebGetParams {
+/// Parameters for a web request.
+pub struct WebParams {
 	pub url: String,
 	/// Per-request User-Agent override. `None` uses the client's default.
 	pub user_agent: Option<String>,
@@ -41,8 +41,8 @@ pub struct WebGetParams {
 	pub body_format: BodyFormat,
 }
 
-/// Response from a web_get call.
-pub struct WebGetResponse {
+/// Response from a web call.
+pub struct WebResponse {
 	/// The HTTP status code.
 	pub status: u16,
 	/// `true` when `status` is 2xx.
@@ -112,7 +112,7 @@ pub struct WebClient {
 }
 
 impl WebClient {
-	pub async fn web_get(&self, params: WebGetParams) -> Result<WebGetResponse> {
+	pub async fn web_get(&self, params: WebParams) -> Result<WebResponse> {
 		let mut request = self.inner.request(reqwest::Method::GET, &params.url);
 
 		// User-Agent override
@@ -184,7 +184,7 @@ impl WebClient {
 			}
 		};
 
-		Ok(WebGetResponse {
+		Ok(WebResponse {
 			status,
 			success,
 			url,
