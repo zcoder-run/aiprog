@@ -48,7 +48,7 @@ where
 	pub fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue {
 		let params = match P::from_lua(lua, params_value) {
 			Ok(p) => p,
-            Err(err) => return Box::pin(async move { Err(crate::script::HandlerError::from(err)) }),
+			Err(err) => return Box::pin(async move { Err(crate::script::HandlerError::from(err)) }),
 		};
 		let handler = self.handler.clone();
 		Box::pin(handler.call(lua.clone(), params))
@@ -106,8 +106,8 @@ where
 #[cfg(test)]
 mod tests {
 	use crate::impl_lua_serde_traits;
+	use crate::script::LuaJsonExt;
 	use crate::script::{AipApiError, IntoHandlerWrapper, handler_error_to_lua};
-use crate::script::LuaJsonExt;
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
@@ -140,15 +140,14 @@ use crate::script::LuaJsonExt;
 		// -- Setup & Fixtures
 		let wrapper = echo_sync.into_dyn();
 		let lua = mlua::Lua::new();
-	let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "hello" }))
-		.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "hello" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = wrapper.call(&lua, params_lua).await.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		let back_json =
-            value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json = value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, Some(json!({ "data": "hello" })));
 
 		Ok(())
@@ -159,15 +158,14 @@ use crate::script::LuaJsonExt;
 		// -- Setup & Fixtures
 		let wrapper = echo_async.into_dyn();
 		let lua = mlua::Lua::new();
-	let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "world" }))
-		.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "world" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = wrapper.call(&lua, params_lua).await.map_err(handler_error_to_lua)?;
 
 		// -- Check
-		let back_json =
-            value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json = value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, Some(json!({ "data": "world" })));
 
 		Ok(())
@@ -186,9 +184,11 @@ use crate::script::LuaJsonExt;
 
 		// -- Check
 		let herr = res.err().ok_or("should be an error")?;
-		// After refactoring, the error is a HandlerError containing a string message
-		// from the deserialization failure, rather than a typed AipApiError.
-		assert!(herr.get::<String>().is_some(), "expected error message from invalid params");
+		// After simplifying to an enum, invalid params produce a HandlerError::Script variant.
+		assert!(
+			matches!(herr, crate::script::HandlerError::Script(_)),
+			"Expected Script error, got {herr:?}"
+		);
 
 		Ok(())
 	}

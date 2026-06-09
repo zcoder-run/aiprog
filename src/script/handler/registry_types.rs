@@ -5,6 +5,7 @@ use mlua::{Lua, Value};
 use schemars::{JsonSchema, Schema, schema_for};
 use std::collections::HashMap;
 use std::fmt;
+use serde::Serialize;
 
 // region:    --- Registry Error
 
@@ -12,7 +13,7 @@ use std::fmt;
 ///
 /// The registry stays fully Lua-agnostic; conversion of these errors into
 /// `mlua::Error` is the responsibility of the Lua adapter layer.
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone, Serialize, derive_more::Display)]
 pub enum RegistryError {
 	// -- Path validation
 	#[display("Invalid path: {_0}")]
@@ -138,7 +139,7 @@ impl HandlerRegistry {
 	pub async fn call(&self, lua: Lua, name: &str, params_value: Value) -> core::result::Result<Value, HandlerError> {
 		match self.entries.get(name) {
 			Some(entry) => entry.wrapper.call(&lua, params_value).await,
-			None => Err(HandlerError::new(RegistryError::MethodUnknown(name.to_string()))),
+			None => Err(HandlerError::Registry(RegistryError::MethodUnknown(name.to_string()))),
 		}
 	}
 
@@ -282,8 +283,10 @@ use crate::script::LuaJsonExt;
 
 		// -- Check
 		let err = res.err().ok_or("should be an error")?;
-		let reg_err = err.get::<RegistryError>().ok_or("should hold RegistryError")?;
-		assert!(matches!(reg_err, RegistryError::MethodUnknown(_)));
+		assert!(
+			matches!(err, HandlerError::Registry(RegistryError::MethodUnknown(_))),
+			"Expected Registry error, got {err:?}"
+		);
 
 		Ok(())
 	}
@@ -318,9 +321,11 @@ use crate::script::LuaJsonExt;
 
 		// -- Check
 		let err = res.err().ok_or("should be an error")?;
-		// After refactoring, the error is a HandlerError containing a string message
-		// from the deserialization failure, rather than a typed AipApiError.
-		assert!(err.get::<String>().is_some(), "expected error message from invalid params");
+		// After simplifying to an enum, invalid params produce a HandlerError::Script variant.
+		assert!(
+			matches!(err, HandlerError::Script(_)),
+			"Expected Script error, got {err:?}"
+		);
 
 		Ok(())
 	}

@@ -188,7 +188,7 @@ impl_aip_handlers!();
 mod tests {
 	use crate::impl_lua_serde_traits;
 	use crate::script::LuaJsonExt;
-	use crate::script::{AipApiError, Handler};
+	use crate::script::{AipApiError, Handler, HandlerError};
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
@@ -269,7 +269,9 @@ mod tests {
 		let result = fail_sync.call(lua.clone(), params).await;
 		assert!(result.is_err());
 		let err = result.unwrap_err();
-		let api_err = err.get::<AipApiError>().ok_or("should hold AipApiError")?;
+		let HandlerError::AipApi(api_err) = err else {
+			return Err(format!("expected AipApiError, got {err:?}").into());
+		};
 		assert_eq!(api_err.code, "INTERNAL_ERROR");
 
 		Ok(())

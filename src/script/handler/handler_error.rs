@@ -1,84 +1,50 @@
-use crate::ScriptError;
-use serde::{Serialize, Serializer};
+use crate::script::{RegistryError, ScriptError};
+use serde::Serialize;
 use serde_json::Value;
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
 
-type AnyMap = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
-
-/// Normalized, Lua-agnostic handler error.
+/// Normalized, Lua‑agnostic handler error.
 ///
-/// Modeled on `rpc-router::HandlerError`, it can carry a typed application error
-/// through a type-erased holder so the boundary code can downcast and inspect the
-/// original typed error when needed. Conversion into `mlua::Error` is the
-/// responsibility of the Lua adapter layer, not this type.
-#[derive(Debug)]
-pub struct HandlerError {
-	holder: AnyMap,
-	type_name: &'static str,
+/// An enum carrying concrete error types used throughout the handler layer.
+/// This replaces the previous type‑erased container, making the error shape explicit.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", content = "value")]
+pub enum HandlerError {
+	/// Structured API error (code, message, optional details/cause).
+	AipApi(AipApiError),
+
+	/// Registry‑specific error (e.g., unknown method, duplicate path).
+	Registry(RegistryError),
+
+	/// Script‑level error from Lua operations or conversion failures.
+	Script(ScriptError),
+
+	/// Fallback variant for string errors.
+	Custom(String),
 }
 
-impl HandlerError {
-	pub fn new<T>(val: T) -> HandlerError
-	where
-		T: Any + Send + Sync,
-	{
-		let mut holder = AnyMap::with_capacity(1);
-		let type_name = std::any::type_name::<T>();
-		holder.insert(TypeId::of::<T>(), Box::new(val));
-		HandlerError { holder, type_name }
-	}
-}
-
-impl HandlerError {
-	/// Returns an option containing a reference if the error contained within this error
-	/// matches the requested type.
-	pub fn get<T: Any + Send + Sync>(&self) -> Option<&T> {
-		self.holder
-			.get(&TypeId::of::<T>())
-			.and_then(|boxed_any| boxed_any.downcast_ref::<T>())
-	}
-
-	/// Same as `get::<T>()` but removes the data so that it returns an owned value.
-	pub fn remove<T: Any + Send + Sync>(&mut self) -> Option<T> {
-		self.holder.remove(&TypeId::of::<T>()).and_then(|boxed_any| {
-			// Attempt to downcast the Box<dyn Any> into Box<T>. If successful, take the value out of the box.
-			(boxed_any as Box<dyn Any>).downcast::<T>().ok().map(|boxed| *boxed)
-		})
-	}
-
-	/// Returns the type name of the error held by this `HandlerError`.
-	pub fn type_name(&self) -> &'static str {
-		self.type_name
+impl core::fmt::Display for HandlerError {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		match self {
+			HandlerError::AipApi(e) => write!(f, "{e}"),
+			HandlerError::Registry(e) => write!(f, "{e}"),
+			HandlerError::Script(e) => write!(f, "{e}"),
+			HandlerError::Custom(s) => f.write_str(s),
+		}
 	}
 }
 
-// Implementing Serialize for HandlerError
-impl Serialize for HandlerError {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		// By default, serialization will only serialize an informative message regarding the type of error contained,
-		// as we do not have more information at this point.
-		serializer.serialize_str(&format!("HandlerError containing error '{}'", self.type_name))
-	}
-}
+impl std::error::Error for HandlerError {}
 
 // region:    --- IntoHandlerError
 
-/// A trait with a default implementation that converts any application error
-/// into a `HandlerError`. This allows the boundary code to query and extract
-/// the specified application error.
+/// Trait for converting an application error into a `HandlerError`.
 pub trait IntoHandlerError
 where
 	Self: Sized + Send + Sync + 'static,
 {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::new(self)
-	}
+	fn into_handler_error(self) -> HandlerError;
 }
 
 impl IntoHandlerError for HandlerError {
@@ -87,21 +53,39 @@ impl IntoHandlerError for HandlerError {
 	}
 }
 
+impl IntoHandlerError for AipApiError {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::AipApi(self)
+	}
+}
+
+impl IntoHandlerError for RegistryError {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::Registry(self)
+	}
+}
+
+impl IntoHandlerError for ScriptError {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::Script(self)
+	}
+}
+
 impl IntoHandlerError for String {
 	fn into_handler_error(self) -> HandlerError {
-		HandlerError::new(self)
+		HandlerError::Custom(self)
 	}
 }
 
 impl IntoHandlerError for &'static str {
 	fn into_handler_error(self) -> HandlerError {
-		HandlerError::new(self)
+		HandlerError::Custom(self.into())
 	}
 }
 
-impl IntoHandlerError for Value {
+impl IntoHandlerError for serde_json::Value {
 	fn into_handler_error(self) -> HandlerError {
-		HandlerError::new(self)
+		HandlerError::Custom(self.to_string())
 	}
 }
 
@@ -146,12 +130,6 @@ impl AipApiError {
 	}
 }
 
-impl IntoHandlerError for AipApiError {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::new(self)
-	}
-}
-
 impl core::fmt::Display for AipApiError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		write!(f, "[{}] {}", self.code, self.message)
@@ -162,11 +140,17 @@ impl std::error::Error for AipApiError {}
 
 // endregion: --- AipApiError
 
-// region:    --- Conversions
+// region:    --- From conversions
 
 impl From<ScriptError> for HandlerError {
 	fn from(err: ScriptError) -> Self {
-		HandlerError::new(err.to_string())
+		HandlerError::Script(err)
+	}
+}
+
+impl From<RegistryError> for HandlerError {
+	fn from(err: RegistryError) -> Self {
+		HandlerError::Registry(err)
 	}
 }
 
@@ -174,22 +158,15 @@ impl From<crate::Error> for HandlerError {
 	fn from(e: crate::Error) -> Self {
 		match e {
 			crate::Error::Handler(h) => h,
-			crate::Error::AipApi(api_err) => HandlerError::new(api_err),
-			other => HandlerError::new(other.to_string()),
+			crate::Error::AipApi(api_err) => HandlerError::AipApi(api_err),
+			other => HandlerError::Custom(other.to_string()),
 		}
 	}
 }
 
-// endregion: --- Conversions
+// endregion: --- From conversions
 
 // region:    --- Error Boilerplate
 
-impl core::fmt::Display for HandlerError {
-	fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
-		write!(fmt, "{self:?}")
-	}
-}
-
-impl std::error::Error for HandlerError {}
-
+// (already implemented above, keep for consistency)
 // endregion: --- Error Boilerplate

@@ -1,4 +1,5 @@
 use derive_more::{Display, From};
+use serde::Serialize;
 use lazy_regex::regex;
 
 use crate::script::HandlerError;
@@ -6,7 +7,7 @@ use std::borrow::Cow;
 
 pub type ScriptResult<T> = core::result::Result<T, ScriptError>;
 
-#[derive(Debug, Display, From)]
+#[derive(Debug, Clone, Serialize, Display, From)]
 #[display("{self:?}")]
 pub enum ScriptError {
 	#[from(String, &String, &str)]
@@ -28,17 +29,7 @@ impl ScriptError {
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Self {
 		let mut buff: Vec<String> = Vec::new();
 		for item in lua_error.chain() {
-			if let Some(lua_item) = item.downcast_ref::<mlua::Error>() {
-				let msg = lua_item.to_string();
-				let msg = if msg.contains("traceback") | msg.contains("syntax") {
-					process_stack_with_script(&msg, script)
-				} else {
-					msg
-				};
-				buff.push(format!("Lua error:\n{msg}"));
-			} else {
-				buff.push(format!("Other lua error:\n{item}"));
-			}
+			buff.push(process_stack_with_script(&item.to_string(), script));
 		}
 		ScriptError::custom(buff.join("\n"))
 	}

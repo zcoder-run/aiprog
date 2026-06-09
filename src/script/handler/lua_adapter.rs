@@ -17,16 +17,13 @@ use std::sync::Arc;
 /// message, and optional details/cause are surfaced. A `RegistryError` is
 /// surfaced with its display message. Otherwise, the error type name is used as
 /// a fallback.
-pub fn handler_error_to_lua(mut err: HandlerError) -> mlua::Error {
-	if let Some(api_err) = err.remove::<AipApiError>() {
-		return api_error_to_lua(api_err);
+pub fn handler_error_to_lua(err: HandlerError) -> mlua::Error {
+	match err {
+		HandlerError::AipApi(api_err) => api_error_to_lua(api_err),
+		HandlerError::Registry(reg_err) => mlua::Error::RuntimeError(reg_err.to_string()),
+		HandlerError::Script(script_err) => mlua::Error::RuntimeError(script_err.to_string()),
+		HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
 	}
-
-	if let Some(reg_err) = err.get::<RegistryError>() {
-		return mlua::Error::RuntimeError(reg_err.to_string());
-	}
-
-	mlua::Error::RuntimeError(format!("Handler error: {}", err.type_name()))
 }
 
 fn api_error_to_lua(api_err: AipApiError) -> mlua::Error {
