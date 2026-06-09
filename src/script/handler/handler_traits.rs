@@ -1,5 +1,5 @@
 use super::IntoHandlerError;
-use crate::script::{AipFromLua, AipToLua};
+use crate::script::{AipFromLua, AipIntoLua};
 use schemars::JsonSchema;
 
 // region:    --- AipParams
@@ -22,9 +22,9 @@ impl<T> AipParams for T where T: AipFromLua + JsonSchema + Send + Sync + 'static
 /// Any type used as a handler response must be serializable to a Lua value, have a
 /// JSON schema, and be thread-safe. The blanket implementation ensures any
 /// type satisfying the component bounds automatically qualifies.
-pub trait AipResponse: AipToLua + JsonSchema + Send + Sync + 'static {}
+pub trait AipResponse: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
-impl<T> AipResponse for T where T: AipToLua + JsonSchema + Send + Sync + 'static {}
+impl<T> AipResponse for T where T: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipResponse
 

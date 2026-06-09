@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::script::script_error;
-use crate::script::{AipFromLua, AipToLua, HandlerError, LuaJsonExt};
+use crate::script::{AipFromLua, AipIntoLua, HandlerError, LuaJsonExt};
 use mlua::{Lua, Value};
 
 /// Macro generating the `Handler` implementations for the supported handler
@@ -25,7 +25,7 @@ macro_rules! impl_aip_handlers {
 			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
 					match self(params) {
-						Ok(response) => response.to_lua(&lua).map_err($crate::script::HandlerError::from),
+						Ok(response) => response.into_lua(&lua).map_err($crate::script::HandlerError::from),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -46,7 +46,7 @@ macro_rules! impl_aip_handlers {
 			fn call(self, lua: mlua::Lua, params: P) -> Self::Future {
 				Box::pin(async move {
 					match self(params).await {
-						Ok(response) => response.to_lua(&lua).map_err($crate::script::HandlerError::from),
+						Ok(response) => response.into_lua(&lua).map_err($crate::script::HandlerError::from),
 						Err(err) => Err($crate::script::IntoHandlerError::into_handler_error(err)),
 					}
 				})
@@ -67,13 +67,13 @@ impl<A: AipFromLua> AipFromLua for (A,) {
 	}
 }
 
-impl<A: AipToLua> AipToLua for (A,) {
-	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
+impl<A: AipIntoLua> AipIntoLua for (A,) {
+	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(1, self.0.to_lua(lua)?)
+			.set(1, self.0.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		Ok(Value::Table(table))
 	}
@@ -90,16 +90,16 @@ impl<A: AipFromLua, B: AipFromLua> AipFromLua for (A, B) {
 	}
 }
 
-impl<A: AipToLua, B: AipToLua> AipToLua for (A, B) {
-	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
+impl<A: AipIntoLua, B: AipIntoLua> AipIntoLua for (A, B) {
+	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(1, self.0.to_lua(lua)?)
+			.set(1, self.0.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(2, self.1.to_lua(lua)?)
+			.set(2, self.1.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		Ok(Value::Table(table))
 	}
@@ -121,19 +121,19 @@ impl<A: AipFromLua, B: AipFromLua, C: AipFromLua> AipFromLua for (A, B, C) {
 	}
 }
 
-impl<A: AipToLua, B: AipToLua, C: AipToLua> AipToLua for (A, B, C) {
-	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
+impl<A: AipIntoLua, B: AipIntoLua, C: AipIntoLua> AipIntoLua for (A, B, C) {
+	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(1, self.0.to_lua(lua)?)
+			.set(1, self.0.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(2, self.1.to_lua(lua)?)
+			.set(2, self.1.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(3, self.2.to_lua(lua)?)
+			.set(3, self.2.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		Ok(Value::Table(table))
 	}
@@ -157,22 +157,22 @@ impl<A: AipFromLua, B: AipFromLua, C: AipFromLua, D: AipFromLua> AipFromLua for 
 	}
 }
 
-impl<A: AipToLua, B: AipToLua, C: AipToLua, D: AipToLua> AipToLua for (A, B, C, D) {
-	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
+impl<A: AipIntoLua, B: AipIntoLua, C: AipIntoLua, D: AipIntoLua> AipIntoLua for (A, B, C, D) {
+	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(1, self.0.to_lua(lua)?)
+			.set(1, self.0.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(2, self.1.to_lua(lua)?)
+			.set(2, self.1.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(3, self.2.to_lua(lua)?)
+			.set(3, self.2.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		table
-			.set(4, self.3.to_lua(lua)?)
+			.set(4, self.3.into_lua(lua)?)
 			.map_err(|e| script_error::ScriptError::custom(e.to_string()))?;
 		Ok(Value::Table(table))
 	}

@@ -1,8 +1,6 @@
 #![allow(unused)]
 
-use crate::script::{
-	AipError, AipParams, AipResponse, IntoHandlerError, handler_error_to_lua,
-};
+use crate::script::{AipError, AipParams, AipResponse, IntoHandlerError, handler_error_to_lua};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
 use serde::Serialize;
@@ -165,7 +163,7 @@ impl AipRegistry {
 
 			match handler.call_sync(params) {
 				Ok(response) => response
-					.to_lua(lua)
+					.into_lua(lua)
 					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
 				Err(err) => Err(handler_error_to_lua(err.into_handler_error())),
 			}
@@ -209,9 +207,7 @@ impl AipRegistry {
 					Ok(p) => p,
 					Err(e) => {
 						let err_msg = format!("Invalid params: {e}");
-						return Box::pin(async move {
-							Err(mlua::Error::RuntimeError(err_msg))
-						});
+						return Box::pin(async move { Err(mlua::Error::RuntimeError(err_msg)) });
 					}
 				};
 
@@ -282,4 +278,3 @@ fn validate_path(path: &str) -> core::result::Result<(), AipRegistryError> {
 mod tests;
 
 // endregion: --- Tests
-

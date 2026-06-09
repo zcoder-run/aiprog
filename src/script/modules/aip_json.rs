@@ -25,7 +25,7 @@
 use crate::Result;
 use crate::registry::AipRegistry;
 use crate::script::LuaJsonExt;
-use crate::script::{AipApiError, AipFromLua, AipToLua, HandlerRegistry, install_registry_on_table};
+use crate::script::{AipApiError, AipFromLua, AipIntoLua, HandlerRegistry, install_registry_on_table};
 use crate::support::jsons;
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
@@ -64,8 +64,8 @@ pub struct AipJsonParseResult {
 	pub data: serde_json::Value,
 }
 
-impl AipToLua for AipJsonParseResult {
-	fn to_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
+impl AipIntoLua for AipJsonParseResult {
+	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
@@ -128,8 +128,8 @@ pub struct AipJsonParseJsonlResult {
 	pub data: Vec<serde_json::Value>,
 }
 
-impl AipToLua for AipJsonParseJsonlResult {
-	fn to_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
+impl AipIntoLua for AipJsonParseJsonlResult {
+	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
@@ -204,8 +204,8 @@ pub struct AipJsonStringifyResult {
 	pub data: String,
 }
 
-impl AipToLua for AipJsonStringifyResult {
-	fn to_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
+impl AipIntoLua for AipJsonStringifyResult {
+	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
@@ -241,8 +241,8 @@ pub struct AipJsonStringifyPrettyResult {
 	pub data: String,
 }
 
-impl AipToLua for AipJsonStringifyPrettyResult {
-	fn to_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
+impl AipIntoLua for AipJsonStringifyPrettyResult {
+	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
 		let table = lua
 			.create_table()
 			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;

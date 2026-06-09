@@ -21,7 +21,7 @@
 use crate::registry::AipRegistry;
 use crate::script::LuaJsonExt;
 use crate::script::script_error;
-use crate::script::{AipApiError, AipFromLua, AipToLua, LuaExt, ScriptEngine};
+use crate::script::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use crate::webc;
 use mlua::Lua;
 use std::collections::HashMap;
@@ -257,8 +257,8 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<Ai
 
 // region:    --- AipWebRResult
 
-impl AipToLua for AipWebGetResult {
-	fn to_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
+impl AipIntoLua for AipWebGetResult {
+	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
 		let table = lua.create_table()?;
 
 		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;

@@ -1,11 +1,11 @@
 use super::{AipError, AipParams, AipResponse};
-use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use crate::script::LuaJsonExt;
+use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, Schema, schema_for};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
-use serde::Serialize;
 
 // region:    --- Registry Error
 
@@ -108,7 +108,7 @@ impl HandlerRegistry {
 	where
 		H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
 		P: AipParams + crate::script::AipFromLua,
-		R: AipResponse + crate::script::AipToLua,
+		R: AipResponse + crate::script::AipIntoLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Sync, handler.into_dyn())
@@ -126,7 +126,7 @@ impl HandlerRegistry {
 	where
 		H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
 		P: AipParams + crate::script::AipFromLua,
-		R: AipResponse + crate::script::AipToLua,
+		R: AipResponse + crate::script::AipIntoLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Async, handler.into_dyn())
@@ -203,7 +203,7 @@ mod tests {
 	use super::*;
 	use crate::impl_lua_serde_traits;
 	use crate::script::AipApiError;
-use crate::script::LuaJsonExt;
+	use crate::script::LuaJsonExt;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
@@ -236,15 +236,14 @@ use crate::script::LuaJsonExt;
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
-        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "hello" }))
-            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "hello" }))
+			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		let back_json =
-            value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let back_json = value.x_to_json_value().map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		assert_eq!(back_json, Some(json!({ "data": "hello" })));
 
 		Ok(())
@@ -256,14 +255,15 @@ use crate::script::LuaJsonExt;
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_async::<_, EchoParams, EchoResult, AipApiError>("echo", echo_async)?;
-        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "world" }))
+		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": "world" }))
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
 		let value = registry.call(lua.clone(), "echo", params_lua).await?;
 
 		// -- Check
-		let back_json = value.x_to_json_value()
+		let back_json = value
+			.x_to_json_value()
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
 			.ok_or_else(|| mlua::Error::RuntimeError("expected JSON value".to_string()))?;
 		assert_eq!(back_json, json!({ "data": "world" }));
@@ -313,7 +313,7 @@ use crate::script::LuaJsonExt;
 		let lua = mlua::Lua::new();
 		let mut registry = HandlerRegistry::new();
 		registry.append_sync::<_, EchoParams, EchoResult, AipApiError>("echo", echo_sync)?;
-        let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": 123 }))
+		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "data": 123 }))
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
 		// -- Exec
