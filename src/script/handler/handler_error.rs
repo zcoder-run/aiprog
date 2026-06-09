@@ -93,6 +93,8 @@ impl IntoHandlerError for serde_json::Value {
 
 // region:    --- AipApiError
 
+pub type AipApiResult<T> = core::result::Result<T, AipApiError>;
+
 /// The standard typed API error.
 ///
 /// Its primary contract is conversion into the normalized `HandlerError` via

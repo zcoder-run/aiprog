@@ -1,6 +1,6 @@
 use derive_more::{Display, From};
-use serde::Serialize;
 use lazy_regex::regex;
+use serde::Serialize;
 
 use crate::script::HandlerError;
 use std::borrow::Cow;

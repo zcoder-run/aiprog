@@ -1,6 +1,6 @@
 use super::{AipError, AipParams, AipResponse};
-use crate::script::LuaJsonExt;
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
+use crate::script::{HandlerResult, LuaJsonExt};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, Schema, schema_for};
 use serde::Serialize;
@@ -136,7 +136,7 @@ impl HandlerRegistry {
 	/// params argument, returning a Lua value response or a normalized `HandlerError`.
 	///
 	/// An unknown method yields a `HandlerError` carrying a `RegistryError`.
-	pub async fn call(&self, lua: Lua, name: &str, params_value: Value) -> core::result::Result<Value, HandlerError> {
+	pub async fn call(&self, lua: Lua, name: &str, params_value: Value) -> HandlerResult<Value> {
 		match self.entries.get(name) {
 			Some(entry) => entry.wrapper.call(&lua, params_value).await,
 			None => Err(HandlerError::Registry(RegistryError::MethodUnknown(name.to_string()))),

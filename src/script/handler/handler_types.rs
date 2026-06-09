@@ -1,12 +1,12 @@
 use super::{AipParams, AipResponse};
-use crate::script::HandlerError;
+use crate::script::{HandlerError, HandlerResult};
 use mlua::{Lua, Value};
 use std::future::Future;
 use std::pin::Pin;
 
 /// The pinned future returned by a handler call, resolving to a normalized
 /// response (`mlua::Value`) or a normalized `HandlerError`.
-pub type PinFutureValue = Pin<Box<dyn Future<Output = core::result::Result<Value, HandlerError>>>>;
+pub type PinFutureValue = Pin<Box<dyn Future<Output = HandlerResult<Value>>>>;
 
 /// The generic, Lua-agnostic handler trait, modeled on `rpc-router::Handler`.
 ///
@@ -31,7 +31,7 @@ where
 	R: crate::script::AipIntoLua + Send + Sync + 'static,
 {
 	/// The future type returned by calling this handler.
-	type Future: Future<Output = core::result::Result<Value, HandlerError>> + 'static;
+	type Future: Future<Output = HandlerResult<Value>> + 'static;
 
 	/// Call the handler with a Lua state and a pre-converted params value, and
 	/// return a future resolving to a Lua value response or a normalized error.

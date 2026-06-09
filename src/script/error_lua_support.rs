@@ -2,14 +2,14 @@
 
 // Deprecated: backward-compatibility shim. use crate::ScriptError methods.
 
-use crate::Error;
+use crate::{Error, ScriptError};
 use lazy_regex::regex;
 use std::borrow::Cow;
 use std::sync::Arc;
 
 impl Error {
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Error {
-		let script_err = crate::script::script_error::ScriptError::from_error_with_script(lua_error, script);
+		let script_err = ScriptError::from_error_with_script(lua_error, script);
 		Error::from(script_err)
 	}
 }

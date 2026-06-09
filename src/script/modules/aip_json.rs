@@ -22,11 +22,11 @@
 //! ---
 //!
 
-use crate::Result;
 use crate::registry::AipRegistry;
-use crate::script::LuaJsonExt;
 use crate::script::{AipApiError, AipFromLua, AipIntoLua, HandlerRegistry, install_registry_on_table};
+use crate::script::{AipApiResult, LuaExt};
 use crate::support::jsons;
+use crate::{Result, ScriptError, ScriptResult};
 use mlua::{Lua, Table};
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
@@ -38,7 +38,6 @@ pub fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 	registry.register_sync::<_, _, _, _>("aip.json.stringify_pretty", aip_json_stringify_pretty_handler)?;
 	Ok(())
 }
-
 // region:    --- aip.json.parse
 
 /// Parameters for the `parse` function.
@@ -50,9 +49,10 @@ pub struct AipJsonParseParams {
 }
 
 impl AipFromLua for AipJsonParseParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::script::script_error::ScriptResult<Self> {
+	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
-		let data = table.get("data").ok();
+		let data_val: mlua::Value = table.get("data")?;
+		let data = Option::<String>::from_lua(lua, data_val)?;
 		Ok(AipJsonParseParams { data })
 	}
 }
@@ -65,20 +65,15 @@ pub struct AipJsonParseResult {
 }
 
 impl AipIntoLua for AipJsonParseResult {
-	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-		let data_lua = mlua::Value::x_from_json_value(lua, self.data)
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-		table
-			.set("data", data_lua)
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		let data_lua = self.data.into_lua(lua)?;
+		table.set("data", data_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
 		Ok(mlua::Value::Table(table))
 	}
 }
 
-fn aip_json_parse_handler(params: AipJsonParseParams) -> core::result::Result<AipJsonParseResult, AipApiError> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseResult> {
 	let Some(content) = params.data else {
 		return Ok(AipJsonParseResult {
 			data: serde_json::Value::Null,
@@ -112,11 +107,10 @@ pub struct AipJsonParseJsonlParams {
 }
 
 impl AipFromLua for AipJsonParseJsonlParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::script::script_error::ScriptResult<Self> {
-		let table = value
-			.as_table()
-			.ok_or_else(|| crate::script::script_error::ScriptError::custom("Expected table"))?;
-		let data = table.get("data").ok();
+	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
+		let data_val: mlua::Value = table.get("data")?;
+		let data = Option::<String>::from_lua(lua, data_val)?;
 		Ok(AipJsonParseJsonlParams { data })
 	}
 }
@@ -129,32 +123,19 @@ pub struct AipJsonParseJsonlResult {
 }
 
 impl AipIntoLua for AipJsonParseJsonlResult {
-	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-
-		let mut data_vec = lua
-			.create_table()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		let mut data_vec = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
 		for (i, item) in self.data.into_iter().enumerate() {
-			let item_lua = mlua::Value::x_from_json_value(lua, item)
-				.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-			data_vec
-				.set(i + 1, item_lua)
-				.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
+			let item_lua = item.into_lua(lua)?;
+			data_vec.set(i + 1, item_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
 		}
-		table
-			.set("data", data_vec)
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
+		table.set("data", data_vec).map_err(|e| ScriptError::custom(e.to_string()))?;
 		Ok(mlua::Value::Table(table))
 	}
 }
 
-fn aip_json_parse_jsonl_handler(
-	params: AipJsonParseJsonlParams,
-) -> core::result::Result<AipJsonParseJsonlResult, AipApiError> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlResult> {
 	let Some(content) = params.data else {
 		return Ok(AipJsonParseJsonlResult { data: vec![] });
 	};
@@ -182,17 +163,14 @@ pub struct AipJsonStringifyParams {
 }
 
 impl AipFromLua for AipJsonStringifyParams {
-	fn from_lua(lua: &Lua, value: mlua::Value) -> crate::script::script_error::ScriptResult<Self> {
-		let table = value
-			.as_table()
-			.ok_or_else(|| crate::script::script_error::ScriptError::custom("Expected table"))?;
-		let data_val: mlua::Value = table
-			.get("data")
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-		let data = data_val
-			.x_to_json_value()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?
-			.unwrap_or(serde_json::Value::Null);
+	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
+		let data_val: mlua::Value = table.get("data").map_err(|e| ScriptError::custom(e.to_string()))?;
+		let data = if data_val.is_nil() || data_val.x_is_null() {
+			serde_json::Value::Null
+		} else {
+			serde_json::Value::from_lua(lua, data_val)?
+		};
 		Ok(AipJsonStringifyParams { data })
 	}
 }
@@ -205,20 +183,15 @@ pub struct AipJsonStringifyResult {
 }
 
 impl AipIntoLua for AipJsonStringifyResult {
-	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-		table
-			.set("data", self.data)
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		let data_lua = self.data.into_lua(lua)?;
+		table.set("data", data_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
 		Ok(mlua::Value::Table(table))
 	}
 }
 
-fn aip_json_stringify_handler(
-	params: AipJsonStringifyParams,
-) -> core::result::Result<AipJsonStringifyResult, AipApiError> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResult> {
 	match serde_json::to_string(&params.data) {
 		Ok(str) => Ok(AipJsonStringifyResult { data: str }),
 		Err(err) => Err(AipApiError {
@@ -242,20 +215,15 @@ pub struct AipJsonStringifyPrettyResult {
 }
 
 impl AipIntoLua for AipJsonStringifyPrettyResult {
-	fn into_lua(self, lua: &Lua) -> crate::script::script_error::ScriptResult<mlua::Value> {
-		let table = lua
-			.create_table()
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
-		table
-			.set("data", self.data)
-			.map_err(|e| crate::script::script_error::ScriptError::custom(e.to_string()))?;
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		let data_lua = self.data.into_lua(lua)?;
+		table.set("data", data_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
 		Ok(mlua::Value::Table(table))
 	}
 }
 
-fn aip_json_stringify_pretty_handler(
-	params: AipJsonStringifyParams,
-) -> core::result::Result<AipJsonStringifyPrettyResult, AipApiError> {
+fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyPrettyResult> {
 	match serde_json::to_string_pretty(&params.data) {
 		Ok(str) => Ok(AipJsonStringifyPrettyResult { data: str }),
 		Err(err) => Err(AipApiError {

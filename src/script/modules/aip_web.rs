@@ -18,7 +18,9 @@
 //! ---
 //!
 
+use crate::ScriptResult;
 use crate::registry::AipRegistry;
+use crate::script::AipApiResult;
 use crate::script::LuaJsonExt;
 use crate::script::script_error;
 use crate::script::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
@@ -74,7 +76,7 @@ pub struct AipWebGetParams {
 }
 
 impl AipFromLua for AipWebGetParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::script::script_error::ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("data")?;
 
@@ -174,7 +176,7 @@ pub struct AipWebGetResult {
 	pub error: Option<String>,
 }
 
-async fn aip_web_get_handler(params: AipWebGetParams) -> core::result::Result<AipWebGetResult, AipApiError> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebGetResult> {
 	let client = build_webc_client(&params)?;
 	let web_params = build_web_get_params(&params);
 	let url_clone = params.data.clone();
@@ -285,7 +287,7 @@ impl AipIntoLua for AipWebGetResult {
 
 // region:    --- Support
 
-fn build_webc_client(params: &AipWebGetParams) -> core::result::Result<webc::WebClient, AipApiError> {
+fn build_webc_client(params: &AipWebGetParams) -> AipApiResult<webc::WebClient> {
 	let mut builder = webc::WebClientBuilder::new();
 
 	if let Some(limit) = params.redirect_limit {

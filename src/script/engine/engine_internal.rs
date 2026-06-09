@@ -33,7 +33,7 @@ impl ScriptEngine {
 						let response_fut = handler(&lua, arg);
 						async move {
 							let response_json = response_fut.await?;
-						let response_lua = mlua::Value::x_from_json_value(&lua, response_json).map_err(|e| {
+							let response_lua = mlua::Value::x_from_json_value(&lua, response_json).map_err(|e| {
 								mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))
 							})?;
 							Ok::<Value, mlua::Error>(response_lua)

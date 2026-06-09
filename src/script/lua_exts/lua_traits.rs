@@ -197,6 +197,8 @@ impl AipIntoLua for serde_json::Value {
 
 #[cfg(test)]
 mod tests {
+	use crate::ScriptError;
+
 	use super::*;
 	use mlua::Lua;
 
@@ -337,7 +339,7 @@ mod tests {
 		let number_val = mlua::Value::Integer(1);
 		let err = String::from_lua(&l, number_val).unwrap_err();
 		let msg = match err {
-			crate::script::script_error::ScriptError::Custom(msg) => msg,
+			ScriptError::Custom(msg) => msg,
 		};
 		assert_eq!(msg, "expected string");
 	}
@@ -348,7 +350,7 @@ mod tests {
 		let str_val = mlua::Value::String(l.create_string("nope").unwrap());
 		let err = i64::from_lua(&l, str_val).unwrap_err();
 		let msg = match err {
-			crate::script::script_error::ScriptError::Custom(msg) => msg,
+			ScriptError::Custom(msg) => msg,
 		};
 		assert_eq!(msg, "expected integer");
 	}
