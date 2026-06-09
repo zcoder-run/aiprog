@@ -12,7 +12,7 @@ async fn test_script_lua_json_parse_simple() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}'
-            return aip.json.parse({ data = content })
+            return aip.json.parse({ text = content })
         "#;
 
 	// -- Exec
@@ -30,13 +30,13 @@ async fn test_script_lua_json_parse_roundtrip() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}'
-            local json_value = aip.json.parse({ data = content })
+            local json_value = aip.json.parse({ text = content })
             return aip.json.stringify(json_value)
         "#;
 
 	// -- Exec
 	let res = _test_support::eval_script(&engine, script)?;
-	let data = res.x_get_as::<&str>("data")?;
+	let data = res["text"].as_str().ok_or("Expected string result")?;
 
 	// -- Check
 	assert_contains!(data, r#""age":30"#);
@@ -53,7 +53,7 @@ async fn test_script_lua_json_parse_with_comment() -> Result<()> {
 						// Some comment
 						{"name": "John", "age": 30}
 					]]
-            return aip.json.parse({ data = content })
+            return aip.json.parse({ text = content })
         "#;
 
 	// -- Exec
@@ -86,7 +86,7 @@ async fn test_script_lua_json_parse_invalid() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local ok, err = pcall(aip.json.parse, { data = "{invalid_json}" })
+            local ok, err = pcall(aip.json.parse, { text = "{invalid_json}" })
             if ok then
                 return "should not reach here"
             else
@@ -111,7 +111,7 @@ async fn test_script_lua_json_parse_jsonl_simple() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}'
-            return aip.json.parse_jsonl({ data = content })
+            return aip.json.parse_jsonl({ text = content })
         "#;
 
 	// -- Exec
@@ -132,7 +132,7 @@ async fn test_script_lua_json_parse_jsonl_empty_lines() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
             local content = '{"id": 1}\n\n{"id": 2}\n   \n{"id": 3}'
-            return aip.json.parse_jsonl({ data = content })
+            return aip.json.parse_jsonl({ text = content })
         "#;
 
 	// -- Exec
@@ -169,7 +169,7 @@ async fn test_script_lua_json_parse_jsonl_invalid_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local ok, err = pcall(aip.json.parse_jsonl, { data = '{"id": 1}\n{invalid_json}\n{"id": 3}' })
+            local ok, err = pcall(aip.json.parse_jsonl, { text = '{"id": 1}\n{invalid_json}\n{"id": 3}' })
             if ok then
                 return "should not reach here"
             else
@@ -202,7 +202,7 @@ async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
 	// -- Exec
 	let res = _test_support::eval_script(&engine, script)?;
 	// -- Check
-	let result = res["data"].as_str().ok_or("Expected string result")?;
+	let result = res["text"].as_str().ok_or("Expected string result")?;
 	let parsed: serde_json::Value = serde_json::from_str(result)?;
 	assert_eq!(parsed["name"], "John");
 	assert_eq!(parsed["age"], 30);
@@ -232,7 +232,7 @@ async fn test_script_lua_json_stringify_pretty_complex() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check
-	let result = res["data"].as_str().ok_or("Expected string result")?;
+	let result = res["text"].as_str().ok_or("Expected string result")?;
 	let parsed: serde_json::Value = serde_json::from_str(result)?;
 	assert_eq!(parsed["name"], "John");
 	assert_eq!(parsed["age"], 30);
@@ -264,7 +264,7 @@ async fn test_script_lua_json_stringify_simple() -> Result<()> {
 	// -- Exec
 	let res = _test_support::eval_script(&engine, script)?;
 	// -- Check
-	let result = res["data"].as_str().ok_or("Expected string result")?;
+	let result = res["text"].as_str().ok_or("Expected string result")?;
 	assert_contains!(result, r#""name":"John""#);
 	assert_not_contains!(result, "\n");
 	assert_not_contains!(result, "  ");
@@ -276,7 +276,7 @@ async fn test_script_lua_json_parse_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local res = aip.json.parse({ data = '{"name": "John", "age": 30}' })
+            local res = aip.json.parse({ text = '{"name": "John", "age": 30}' })
             return res
         "#;
 
@@ -294,7 +294,7 @@ async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local ok, res = pcall(aip.json.parse, { data = '{"invalid' })
+            local ok, res = pcall(aip.json.parse, { text = '{"invalid' })
             if not ok then
                 return tostring(res)
             else
@@ -315,7 +315,7 @@ async fn test_script_lua_json_parse_jsonl_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local res = aip.json.parse_jsonl({ data = '{"name": "John"}\n{"name": "Jane"}' })
+            local res = aip.json.parse_jsonl({ text = '{"name": "John"}\n{"name": "Jane"}' })
             return res
         "#;
 
@@ -344,7 +344,7 @@ async fn test_script_lua_json_stringify_new_api() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check
-	let result_str = res["data"].as_str().ok_or("Expected string")?;
+	let result_str = res["text"].as_str().ok_or("Expected string")?;
 	assert_contains!(result_str, r#""name":"John""#);
 	Ok(())
 }
@@ -362,7 +362,7 @@ async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check
-	let result_str = res["data"].as_str().ok_or("Expected string")?;
+	let result_str = res["text"].as_str().ok_or("Expected string")?;
 	assert!(result_str.contains('\n'));
 	assert!(result_str.contains("  "));
 	Ok(())
@@ -389,7 +389,7 @@ async fn test_script_lua_json_chained_stringify_and_parse() -> Result<()> {
 	let script = r#"
         local obj = { name = "John", age = 30 }
         local stringified = aip.json.stringify({ data = obj })
-        local parsed = aip.json.parse({ data = stringified.data })
+        local parsed = aip.json.parse({ text = stringified.text })
         return parsed
     "#;
 
