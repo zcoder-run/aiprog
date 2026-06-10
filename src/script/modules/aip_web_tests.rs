@@ -4,7 +4,6 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tes
 
 use crate::_test_support;
 use crate::script::modules;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[tokio::test]
 async fn test_script_lua_web_constants() -> Result<()> {
@@ -37,19 +36,13 @@ async fn test_script_lua_web_get_simple() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
 
-	// Start a local test server
-	let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-	let addr = listener.local_addr()?;
-	let url = format!("http://{addr}/test");
-
-	let server_task = tokio::spawn(async move {
-		let (mut socket, _) = listener.accept().await?;
-		let mut buf = [0u8; 1024];
-		let _n = socket.read(&mut buf).await?;
-		let response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 17\r\nconnection: close\r\n\r\n{\"hello\":\"world\"}";
-		socket.write_all(response).await?;
-		socket.shutdown().await
-	});
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "application/json")
+		.body(r#"{"hello":"world"}"#)
+		.start()
+		.await?;
+	let url = server.path_url("/test");
 
 	// -- Exec
 	let lua = engine.lua();
@@ -66,7 +59,7 @@ async fn test_script_lua_web_get_simple() -> Result<()> {
 	let data_table = data.as_table().ok_or("Expected data table")?;
 	assert_eq!(data_table.get::<String>("hello")?, "world");
 
-	server_task.await??;
+	server.close().await?;
 
 	Ok(())
 }
@@ -77,22 +70,17 @@ async fn test_script_lua_web_post_json() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
 
-	// Start a local test server
-	let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-	let addr = listener.local_addr()?;
-	let url = format!("http://{addr}/test");
-
-	let server_task = tokio::spawn(async move {
-		let (mut socket, _) = listener.accept().await?;
-		let mut buf = [0u8; 2048];
-		let n = socket.read(&mut buf).await?;
-		let request = String::from_utf8_lossy(&buf[..n]);
-		assert!(request.contains("POST"), "Expected POST request");
-		assert!(request.contains(r#""key":"value""#), "Expected JSON body");
-		let response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 20\r\nconnection: close\r\n\r\n{\"result\":\"success\"}";
-		socket.write_all(response).await?;
-		socket.shutdown().await
-	});
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "application/json")
+		.body(r#"{"result":"success"}"#)
+		.validate(|snap| {
+			assert_eq!(snap.method, "POST", "Expected POST method");
+			assert!(snap.body.contains(r#""key":"value""#), "Expected JSON body");
+		})
+		.start()
+		.await?;
+	let url = server.path_url("/test");
 
 	// -- Exec
 	let lua = engine.lua();
@@ -111,7 +99,7 @@ async fn test_script_lua_web_post_json() -> Result<()> {
 	let data_table = data.as_table().ok_or("Expected data table")?;
 	assert_eq!(data_table.get::<String>("result")?, "success");
 
-	server_task.await??;
+	server.close().await?;
 
 	Ok(())
 }
@@ -122,21 +110,17 @@ async fn test_script_lua_web_post_body() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
 
-	let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-	let addr = listener.local_addr()?;
-	let url = format!("http://{addr}/test");
-
-	let server_task = tokio::spawn(async move {
-		let (mut socket, _) = listener.accept().await?;
-		let mut buf = [0u8; 2048];
-		let n = socket.read(&mut buf).await?;
-		let request = String::from_utf8_lossy(&buf[..n]);
-		assert!(request.contains("POST"), "Expected POST request");
-		assert!(request.contains("hello world body"), "Expected raw body in request");
-		let response = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\nconnection: close\r\n\r\nreceived";
-		socket.write_all(response).await?;
-		socket.shutdown().await
-	});
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "text/plain")
+		.body("received")
+		.validate(|snap| {
+			assert_eq!(snap.method, "POST", "Expected POST method");
+			assert!(snap.body.contains("hello world body"), "Expected raw body in request");
+		})
+		.start()
+		.await?;
+	let url = server.path_url("/test");
 
 	// -- Exec
 	let lua = engine.lua();
@@ -153,7 +137,7 @@ async fn test_script_lua_web_post_body() -> Result<()> {
 	let data: String = table.get("data")?;
 	assert_eq!(data, "received");
 
-	server_task.await??;
+	server.close().await?;
 
 	Ok(())
 }
@@ -164,10 +148,11 @@ async fn test_script_lua_web_post_error() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
 
-	let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-	let addr = listener.local_addr()?;
-	drop(listener); // close the port to force connection error
-	let url = format!("http://{addr}/test");
+	let server = _test_support::TestServerBuilder::new()
+		.start()
+		.await?;
+	let url = server.path_url("/test");
+	server.close().await?; // shut down the server to force a connection error
 
 	// -- Exec
 	let lua = engine.lua();
