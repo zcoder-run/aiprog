@@ -30,6 +30,13 @@ pub enum Body {
 	Binary(Vec<u8>),
 }
 
+/// Request body to send in a POST (or other) request.
+#[derive(Debug, Clone)]
+pub enum RequestBody {
+	Json(serde_json::Value),
+	Text(String),
+}
+
 /// Parameters for a web request.
 pub struct WebParams {
 	pub url: String,
@@ -37,6 +44,19 @@ pub struct WebParams {
 	pub user_agent: Option<String>,
 	/// Additional headers to merge with the client's defaults.
 	pub headers: Option<HashMap<String, HeaderValue>>,
+	/// Desired format for the response body. Defaults to `Text`.
+	pub body_format: BodyFormat,
+}
+
+/// Parameters for a POST web request.
+pub struct WebPostParams {
+	pub url: String,
+	/// Per-request User-Agent override. `None` uses the client's default.
+	pub user_agent: Option<String>,
+	/// Additional headers to merge with the client's defaults.
+	pub headers: Option<HashMap<String, HeaderValue>>,
+	/// Request body. `None` means no body is sent.
+	pub body: Option<RequestBody>,
 	/// Desired format for the response body. Defaults to `Text`.
 	pub body_format: BodyFormat,
 }
@@ -132,6 +152,100 @@ impl WebClient {
 							request = request.header(name.as_str(), v.clone());
 						}
 					}
+				}
+			}
+		}
+
+		let response = request.send().await.map_err(|e| Error::request_failed(e.to_string()))?;
+
+		// Collect headers
+		let mut resp_headers = HashMap::new();
+		for (name, value) in response.headers() {
+			let key = name.as_str().to_lowercase();
+			let val_str = value.to_str().unwrap_or("").to_string();
+			resp_headers
+				.entry(key)
+				.and_modify(|existing: &mut String| {
+					existing.push_str(", ");
+					existing.push_str(&val_str);
+				})
+				.or_insert(val_str);
+		}
+
+		let status = response.status().as_u16();
+		let url = response.url().to_string();
+		let content_type = response
+			.headers()
+			.get("content-type")
+			.and_then(|v| v.to_str().ok())
+			.unwrap_or("")
+			.to_string();
+
+		let success = (200..300).contains(&status);
+
+		// Determine body format
+		let body_format = params.body_format;
+
+		let body = match body_format {
+			BodyFormat::Text => {
+				let text = response.text().await.map_err(|e| Error::request_failed(e.to_string()))?;
+				Body::Text(text)
+			}
+			BodyFormat::Json => {
+				let value = response
+					.json::<serde_json::Value>()
+					.await
+					.map_err(|e| Error::body_parse_failed(format!("JSON parse error: {e}")))?;
+				Body::Json(value)
+			}
+			BodyFormat::Binary => {
+				let bytes = response.bytes().await.map_err(|e| Error::request_failed(e.to_string()))?;
+				Body::Binary(bytes.to_vec())
+			}
+		};
+
+		Ok(WebResponse {
+			status,
+			success,
+			url,
+			headers: resp_headers,
+			content_type,
+			body,
+		})
+	}
+
+	pub async fn web_post(&self, params: WebPostParams) -> Result<WebResponse> {
+		let mut request = self.inner.request(reqwest::Method::POST, &params.url);
+
+		// User-Agent override
+		if let Some(ua) = params.user_agent.as_ref() {
+			request = request.header("User-Agent", ua.clone());
+		}
+
+		// Additional headers
+		if let Some(headers) = params.headers.as_ref() {
+			for (name, value) in headers {
+				match value {
+					HeaderValue::Single(v) => {
+						request = request.header(name.as_str(), v.clone());
+					}
+					HeaderValue::Many(vals) => {
+						for v in vals {
+							request = request.header(name.as_str(), v.clone());
+						}
+					}
+				}
+			}
+		}
+
+		// Set body
+		if let Some(body) = &params.body {
+			match body {
+				RequestBody::Json(val) => {
+					request = request.json(val);
+				}
+				RequestBody::Text(text) => {
+					request = request.body(text.clone());
 				}
 			}
 		}

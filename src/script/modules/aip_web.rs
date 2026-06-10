@@ -9,6 +9,7 @@
 //! ### Functions
 //!
 //! - `aip.web.get(params: { data: string, user_agent?: string | boolean, headers?: table, redirect_limit?: number, parse?: boolean }) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
+//! - `aip.web.post(params: { data: string, json?: any, body?: string, user_agent?: string | boolean, headers?: table, redirect_limit?: number, parse?: boolean }) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
 //!
 //! ### Constants
 //!
@@ -34,6 +35,7 @@ const DEFAULT_UA_BROWSER: &str =
 
 pub fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 	registry.register_async::<_, _, _, _>("aip.web.get", aip_web_get_handler)?;
+	registry.register_async::<_, _, _, _>("aip.web.post", aip_web_post_handler)?;
 	Ok(())
 }
 
@@ -177,7 +179,11 @@ pub struct AipWebResult {
 }
 
 async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebResult> {
-	let client = build_webc_client(&params)?;
+	let client = build_webc_client(
+		params.user_agent.as_ref(),
+		params.headers.as_ref(),
+		params.redirect_limit,
+	)?;
 	let web_params = build_web_get_params(&params);
 	let url_clone = params.data.clone();
 
@@ -186,76 +192,156 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebResu
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-	let status = response.status;
-	let url = response.url.clone();
-	let headers = response.headers;
-	let content_type = if response.content_type.is_empty() {
-		None
-	} else {
-		Some(response.content_type.clone())
-	};
-
-	let should_parse = params.parse.unwrap_or(false) && content_type.as_deref().is_some_and(is_json_content_type);
-
-	let body_text = match response.body {
-		webc::Body::Text(text) => text,
-		webc::Body::Json(value) => {
-			let success = response.success;
-			let error = if success {
-				None
-			} else {
-				Some(format!("HTTP request failed with status {}", status))
-			};
-			return Ok(AipWebResult {
-				data: value,
-				success,
-				status,
-				url,
-				content_type,
-				headers,
-				error,
-			});
-		}
-		webc::Body::Binary(_) => {
-			return Err(webc_error_to_aip(
-				&url_clone,
-				webc::Error::custom("Unexpected binary body for text request"),
-			));
-		}
-	};
-
-	let data = if should_parse {
-		serde_json::from_str(&body_text).map_err(|err| {
-			aip_web_error(
-				"PARSE_FAILED",
-				format!("aip.web.get failed to parse JSON response for url: {}", params.data),
-				None,
-				Some(err.to_string()),
-			)
-		})?
-	} else {
-		serde_json::Value::String(body_text)
-	};
-
-	let success = response.success;
-	let error = if success {
-		None
-	} else {
-		Some(format!("HTTP request failed with status {}", status))
-	};
-
-	Ok(AipWebResult {
-		data,
-		success,
-		status,
-		url,
-		content_type,
-		headers,
-		error,
-	})
+	web_response_to_aip_result(response, params.parse.unwrap_or(false), &params.data)
 }
 
 // endregion: --- aip.web.get
+
+// region:    --- aip.web.post
+
+/// Parameters for the `post` function.
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct AipWebPostParams {
+	/// The URL to request.
+	pub data: String,
+
+	/// JSON payload to send as the request body (serialized). Takes precedence over `body`.
+	pub json: Option<serde_json::Value>,
+
+	/// Raw string body.
+	pub body: Option<String>,
+
+	/// User-Agent behavior. `true` uses `aipROG`, `false` disables the default, and a string is used as-is.
+	pub user_agent: Option<AipWebUserAgent>,
+
+	/// Request headers.
+	pub headers: Option<HashMap<String, AipWebHeaderValue>>,
+
+	/// Number of redirects to follow.
+	pub redirect_limit: Option<usize>,
+
+	/// If true, attempts to parse JSON response data when the Content-Type is JSON.
+	pub parse: Option<bool>,
+}
+
+impl AipFromLua for AipWebPostParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+		let table = value.as_table().ok_or("Expected table")?;
+		let data: String = table.get("data")?;
+
+		let json: Option<serde_json::Value> = table
+			.get::<mlua::Value>("json")
+			.ok()
+			.and_then(|v| -> Option<ScriptResult<serde_json::Value>> {
+				if v.is_nil() {
+					return None;
+				}
+				match v.x_to_json_value() {
+					Ok(Some(val)) => Some(Ok(val)),
+					Ok(None) => Some(Err("json value cannot be nil".into())),
+					Err(e) => Some(Err(format!("json conversion error: {e}").into())),
+				}
+			})
+			.transpose()?;
+
+		let body: Option<String> = table.get("body")?;
+
+		let user_agent: Option<AipWebUserAgent> = table.get::<mlua::Value>("user_agent").ok().and_then(|v| match v {
+			mlua::Value::Boolean(b) => Some(AipWebUserAgent::Bool(b)),
+			mlua::Value::String(s) => Some(AipWebUserAgent::String(s.to_string_lossy().to_string())),
+			_ => None,
+		});
+
+		let headers: Option<HashMap<String, AipWebHeaderValue>> =
+			table.get::<mlua::Value>("headers").ok().and_then(|v| {
+				if v.x_is_null() {
+					return None;
+				}
+				let t = v.as_table()?;
+				let mut map = HashMap::new();
+				for pair in t.pairs::<String, mlua::Value>() {
+					let (key, val) = pair.ok()?;
+					let header_val = match val {
+						mlua::Value::String(s) => AipWebHeaderValue::Single(s.to_string_lossy().to_string()),
+						mlua::Value::Table(arr) => {
+							let mut vec = Vec::new();
+							for i in 1..=arr.len().unwrap_or(0) {
+								if let Ok(s) = arr.get::<String>(i) {
+									vec.push(s);
+								}
+							}
+							if vec.is_empty() {
+								return None;
+							}
+							AipWebHeaderValue::Many(vec)
+						}
+						_ => return None,
+					};
+					map.insert(key, header_val);
+				}
+				Some(map)
+			});
+
+		let redirect_limit: Option<usize> = table
+			.get::<mlua::Value>("redirect_limit")
+			.ok()
+			.and_then(|v| v.as_integer().map(|n| n as usize));
+
+		let parse: Option<bool> = table.get::<mlua::Value>("parse").ok().and_then(|v| v.as_boolean());
+
+		Ok(AipWebPostParams {
+			data,
+			json,
+			body,
+			user_agent,
+			headers,
+			redirect_limit,
+			parse,
+		})
+	}
+}
+
+async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebResult> {
+	let client = build_webc_client(
+		params.user_agent.as_ref(),
+		params.headers.as_ref(),
+		params.redirect_limit,
+	)?;
+
+	let body = match params.json {
+		Some(json_val) => Some(webc::RequestBody::Json(json_val)),
+		None => params.body.map(webc::RequestBody::Text),
+	};
+
+	let post_params = webc::WebPostParams {
+		url: params.data.clone(),
+		user_agent: None,
+		headers: params.headers.map(|h| {
+			h.into_iter()
+				.map(|(name, value)| {
+					let header_value = match value {
+						AipWebHeaderValue::Single(v) => webc::HeaderValue::Single(v),
+						AipWebHeaderValue::Many(vals) => webc::HeaderValue::Many(vals),
+					};
+					(name, header_value)
+				})
+				.collect()
+		}),
+		body,
+		body_format: webc::BodyFormat::Text,
+	};
+
+	let url_clone = params.data.clone();
+
+	let response = client
+		.web_post(post_params)
+		.await
+		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
+
+	web_response_to_aip_result(response, params.parse.unwrap_or(false), &params.data)
+}
+
+// endregion: --- aip.web.post
 
 // region:    --- AipWebResult
 
@@ -287,16 +373,20 @@ impl AipIntoLua for AipWebResult {
 
 // region:    --- Support
 
-fn build_webc_client(params: &AipWebGetParams) -> AipApiResult<webc::WebClient> {
+fn build_webc_client(
+	user_agent: Option<&AipWebUserAgent>,
+	headers: Option<&HashMap<String, AipWebHeaderValue>>,
+	redirect_limit: Option<usize>,
+) -> AipApiResult<webc::WebClient> {
 	let mut builder = webc::WebClientBuilder::new();
 
-	if let Some(limit) = params.redirect_limit {
+	if let Some(limit) = redirect_limit {
 		builder = builder.with_redirect_limit(limit);
 	}
 
-	let has_user_agent_header = params.headers.as_ref().is_some_and(has_user_agent_header);
+	let has_user_agent_header = headers.map(has_user_agent_header).unwrap_or(false);
 
-	match &params.user_agent {
+	match user_agent {
 		Some(AipWebUserAgent::Bool(true)) => {
 			builder = builder.with_default_user_agent(DEFAULT_UA_AIPROG);
 		}
@@ -317,10 +407,80 @@ fn build_webc_client(params: &AipWebGetParams) -> AipApiResult<webc::WebClient> 
 	builder.build().map_err(|err| {
 		aip_web_error(
 			"CLIENT_BUILD_FAILED",
-			"aip.web.get failed to build HTTP client",
+			"Failed to build HTTP client",
 			None,
 			Some(err.to_string()),
 		)
+	})
+}
+
+fn web_response_to_aip_result(response: webc::WebResponse, parse: bool, error_url: &str) -> AipApiResult<AipWebResult> {
+	let status = response.status;
+	let url = response.url.clone();
+	let headers = response.headers;
+	let content_type = if response.content_type.is_empty() {
+		None
+	} else {
+		Some(response.content_type.clone())
+	};
+
+	let should_parse = parse && content_type.as_deref().is_some_and(is_json_content_type);
+
+	let body_text = match response.body {
+		webc::Body::Text(text) => text,
+		webc::Body::Json(value) => {
+			let success = response.success;
+			let error = if success {
+				None
+			} else {
+				Some(format!("HTTP request failed with status {}", status))
+			};
+			return Ok(AipWebResult {
+				data: value,
+				success,
+				status,
+				url,
+				content_type,
+				headers,
+				error,
+			});
+		}
+		webc::Body::Binary(_) => {
+			return Err(webc_error_to_aip(
+				error_url,
+				webc::Error::custom("Unexpected binary body for text request"),
+			));
+		}
+	};
+
+	let data = if should_parse {
+		serde_json::from_str(&body_text).map_err(|err| {
+			aip_web_error(
+				"PARSE_FAILED",
+				format!("Failed to parse JSON response for url: {error_url}"),
+				None,
+				Some(err.to_string()),
+			)
+		})?
+	} else {
+		serde_json::Value::String(body_text)
+	};
+
+	let success = response.success;
+	let error = if success {
+		None
+	} else {
+		Some(format!("HTTP request failed with status {}", status))
+	};
+
+	Ok(AipWebResult {
+		data,
+		success,
+		status,
+		url,
+		content_type,
+		headers,
+		error,
 	})
 }
 
