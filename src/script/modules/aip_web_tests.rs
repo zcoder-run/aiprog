@@ -12,20 +12,20 @@ async fn test_script_lua_web_constants() -> Result<()> {
 	// Install the constants (must be done after the functions are installed)
 	modules::aip_web::install_constants(&engine)?;
 
-		// -- Exec
-		let script = r#"
+	// -- Exec
+	let script = r#"
 			local ua_aiprog = aip.web.UA_AIPROG
 			local ua_browser = aip.web.UA_BROWSER
 			return { ua_aiprog = ua_aiprog, ua_browser = ua_browser }
 		"#;
-		let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script)?;
 
-		// -- Check
-		assert_eq!(res["ua_aiprog"], "aiprog");
-		assert_eq!(
-			res["ua_browser"],
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-		);
+	// -- Check
+	assert_eq!(res["ua_aiprog"], "aiprog");
+	assert_eq!(
+		res["ua_browser"],
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+	);
 
 	Ok(())
 }
@@ -84,9 +84,7 @@ async fn test_script_lua_web_post_json() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(
-		r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }}, parse = true }}"#,
-	);
+	let script = format!(r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }}, parse = true }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
@@ -124,9 +122,7 @@ async fn test_script_lua_web_post_body() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(
-		r#"return aip.web.post{{ data = "{url}", body = "hello world body" }}"#,
-	);
+	let script = format!(r#"return aip.web.post{{ data = "{url}", body = "hello world body" }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
@@ -148,17 +144,13 @@ async fn test_script_lua_web_post_error() -> Result<()> {
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
 
-	let server = _test_support::TestServerBuilder::new()
-		.start()
-		.await?;
+	let server = _test_support::TestServerBuilder::new().start().await?;
 	let url = server.path_url("/test");
 	server.close().await?; // shut down the server to force a connection error
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(
-		r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }} }}"#,
-	);
+	let script = format!(r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }} }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let result: mlua::Result<mlua::Value> = func.call_async(()).await;
 

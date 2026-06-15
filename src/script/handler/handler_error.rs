@@ -168,6 +168,15 @@ impl From<crate::Error> for HandlerError {
 
 // endregion: --- From conversions
 
+impl From<crate::Error> for AipApiError {
+	fn from(e: crate::Error) -> Self {
+		match e {
+			crate::Error::AipApi(api_err) => api_err,
+			other => AipApiError::new("INTERNAL_ERROR", other.to_string()),
+		}
+	}
+}
+
 // region:    --- Error Boilerplate
 
 // (already implemented above, keep for consistency)

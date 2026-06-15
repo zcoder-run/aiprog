@@ -3,12 +3,13 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-use simple_fs::{SPath, read_to_string, list_files, ListOptions};
 use crate::Result;
-use crate::script::{AipApiError, ScriptResult};
+use crate::script::{AipApiError, AipApiResult, ScriptResult};
 use mlua::{Lua, Value};
+use simple_fs::{ListOptions, SPath, list_files, read_to_string};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
+use glob::Pattern;
 
 // region:    --- FileContext
 
@@ -58,11 +59,7 @@ impl FileContext {
 ///
 /// Patterns starting with `!` are treated as exclusion patterns.
 /// Returns the full, normalized `SPath` for each matched file.
-pub fn list_files_matching(
-	globs: &[String],
-	base_dir: Option<&str>,
-	ctx: &FileContext,
-) -> crate::Result<Vec<SPath>> {
+pub fn list_files_matching(globs: &[String], base_dir: Option<&str>, ctx: &FileContext) -> crate::Result<Vec<SPath>> {
 	// Separate include and exclude patterns.
 	let mut include_strs: Vec<&str> = Vec::new();
 	let mut exclude_strs: Vec<&str> = Vec::new();
@@ -88,9 +85,7 @@ pub fn list_files_matching(
 
 	let dir = ctx.resolve(base_dir.unwrap_or("."), None)?;
 
-	let opts = ListOptions::default()
-		.with_relative_glob()
-		.with_exclude_globs(&exclude_strs);
+	let opts = ListOptions::default().with_relative_glob().with_exclude_globs(&exclude_strs);
 
 	let mut files = list_files(&dir, Some(&include_strs), Some(opts))
 		.map_err(|e| crate::Error::cc("File listing failed", e.to_string()))?;
@@ -106,8 +101,7 @@ pub fn list_files_matching(
 
 /// Read the entire content of a file as a String.
 pub fn read_file_content(path: &SPath) -> crate::Result<String> {
-	read_to_string(path)
-		.map_err(|e| crate::Error::cc("Failed to read file", e.to_string()))
+	read_to_string(path).map_err(|e| crate::Error::cc("Failed to read file", e.to_string()))
 }
 
 // endregion: --- File I/O helpers
@@ -125,18 +119,9 @@ pub fn file_info_from_meta(
 	workspace_root: &SPath,
 	absolute: bool,
 ) -> crate::Result<FileInfo> {
-	let name = path
-		.file_name()
-		.unwrap_or_default()
-		.to_string();
-	let stem = path
-		.file_stem()
-		.unwrap_or_default()
-		.to_string();
-	let ext = path
-		.extension()
-		.unwrap_or_default()
-		.to_string();
+	let name = path.file_name().unwrap_or_default().to_string();
+	let stem = path.file_stem().unwrap_or_default().to_string();
+	let ext = path.extension().unwrap_or_default().to_string();
 
 	let (size, ctime, mtime) = if with_meta {
 		let meta = path
@@ -156,10 +141,7 @@ pub fn file_info_from_meta(
 			.as_str()
 			.to_string()
 	} else {
-		path.diff(workspace_root)
-			.unwrap_or_else(|| path.clone())
-			.as_str()
-			.to_string()
+		path.diff(workspace_root).unwrap_or_else(|| path.clone()).as_str().to_string()
 	};
 
 	Ok(FileInfo {
@@ -244,6 +226,32 @@ pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> ScriptResult<Value> 
 /// Create an `AipApiError` with the given error code and message.
 pub fn aip_file_error(code: impl Into<String>, message: &str) -> AipApiError {
 	AipApiError::new(code, message.to_string())
+}
+
+/// Validate that the given glob patterns are well-formed.
+///
+/// This function checks each pattern (including exclude patterns after
+/// stripping the `!` prefix) using the `glob` crate. If any pattern is
+/// invalid, an `AipApiError` with code `INVALID_GLOB` is returned.
+pub fn validate_glob_patterns(globs: &[String]) -> AipApiResult<()> {
+	for g in globs {
+		let trimmed = g.trim();
+		if trimmed.is_empty() {
+			continue;
+		}
+		let pattern_str = if let Some(ex) = trimmed.strip_prefix('!') {
+			ex
+		} else {
+			trimmed
+		};
+		if let Err(e) = glob::Pattern::new(pattern_str) {
+			return Err(aip_file_error(
+				"INVALID_GLOB",
+				&format!("Invalid glob pattern: '{}': {}", pattern_str, e),
+			));
+		}
+	}
+	Ok(())
 }
 
 // endregion: --- Error helpers

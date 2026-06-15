@@ -6,10 +6,10 @@
 //! When write functions are specified, they will follow the same aip API
 //! scheme as the read functions.
 
-use crate::registry::AipRegistry;
 use crate::Result;
+use crate::registry::AipRegistry;
 
-use super::file_types::FileContext;
+use super::support::FileContext;
 
 /// Register write-related handlers (currently none).
 ///

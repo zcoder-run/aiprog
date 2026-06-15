@@ -46,20 +46,20 @@ impl TestServer {
 			let _ = tx.send(());
 		}
 		if let Some(handle) = self.handle.take() {
-			handle
-				.await
-				.map_err(|e| Error::cc("TestServer task panicked", e))?;
+			handle.await.map_err(|e| Error::cc("TestServer task panicked", e))?;
 		}
 		Ok(())
 	}
 }
+
+pub type TestValidator = Box<dyn Fn(&RequestSnapshot) + Send + Sync + 'static>;
 
 /// Builder for `TestServer`.
 pub struct TestServerBuilder {
 	status: u16,
 	headers: Vec<(String, String)>,
 	body: Vec<u8>,
-	validator: Option<Box<dyn Fn(&RequestSnapshot) + Send + Sync + 'static>>,
+	validator: Option<TestValidator>,
 }
 
 impl TestServerBuilder {
@@ -130,7 +130,7 @@ async fn run_server(
 	status: u16,
 	headers: Vec<(String, String)>,
 	body: Vec<u8>,
-	validator: Option<Box<dyn Fn(&RequestSnapshot) + Send + Sync + 'static>>,
+	validator: Option<TestValidator>,
 ) {
 	loop {
 		select! {
@@ -186,22 +186,13 @@ async fn handle_connection(
 	// Build and write the response.
 	let mut response = Vec::new();
 	// Status line
-	response.extend_from_slice(
-		format!("HTTP/1.1 {status} OK\r\n")
-			.as_bytes(),
-	);
+	response.extend_from_slice(format!("HTTP/1.1 {status} OK\r\n").as_bytes());
 	// Headers
 	for (name, value) in headers {
-		response.extend_from_slice(
-			format!("{name}: {value}\r\n")
-				.as_bytes(),
-		);
+		response.extend_from_slice(format!("{name}: {value}\r\n").as_bytes());
 	}
 	// Content-Length
-	response.extend_from_slice(
-		format!("Content-Length: {}\r\n", body.len())
-			.as_bytes(),
-	);
+	response.extend_from_slice(format!("Content-Length: {}\r\n", body.len()).as_bytes());
 	response.extend_from_slice(b"\r\n");
 	// Body
 	response.extend_from_slice(body);
@@ -221,20 +212,13 @@ fn parse_request(buf: &[u8]) -> Result<RequestSnapshot> {
 	let headers_bytes = &buf[..headers_end];
 	let body_bytes = &buf[headers_end + 4..];
 
-	let headers_str = std::str::from_utf8(headers_bytes)
-		.map_err(|_| Error::custom("Non-UTF8 request headers"))?;
+	let headers_str = std::str::from_utf8(headers_bytes).map_err(|_| Error::custom("Non-UTF8 request headers"))?;
 
 	let mut lines = headers_str.lines();
-	let request_line = lines
-		.next()
-		.ok_or_else(|| Error::custom("Empty request"))?;
+	let request_line = lines.next().ok_or_else(|| Error::custom("Empty request"))?;
 	let mut parts = request_line.split_whitespace();
-	let method = parts
-		.next()
-		.ok_or_else(|| Error::custom("Missing method"))?;
-	let path = parts
-		.next()
-		.ok_or_else(|| Error::custom("Missing path"))?;
+	let method = parts.next().ok_or_else(|| Error::custom("Missing method"))?;
+	let path = parts.next().ok_or_else(|| Error::custom("Missing path"))?;
 
 	let mut headers = HashMap::new();
 	for line in lines {
@@ -242,10 +226,7 @@ fn parse_request(buf: &[u8]) -> Result<RequestSnapshot> {
 			break;
 		}
 		if let Some((name, value)) = line.split_once(':') {
-			headers.insert(
-				name.trim().to_ascii_lowercase(),
-				value.trim().to_string(),
-			);
+			headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_string());
 		}
 	}
 

@@ -4,7 +4,9 @@ use crate::script::{AipApiError, AipApiResult, AipFromLua, AipIntoLua, LuaExt, L
 use mlua::{Lua, Value};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
-use super::support::{self, FileContext, aip_file_error, list_files_matching, file_info_from_meta};
+use super::support::{
+	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
+};
 use crate::script::HandlerRegistry;
 
 // region:    --- AipFileReadParams
@@ -82,7 +84,7 @@ impl AipFromLua for AipFileListParams {
 			.as_table()
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
 
-		let globs = lua_value_to_file_globs(&table, "globs")?;
+		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
 		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
 		let with_meta: Option<bool> = table.get::<Value>("with_meta").ok().and_then(|v| v.as_boolean());
@@ -110,7 +112,7 @@ impl AipIntoLua for AipFileListResult {
 		let table = lua.create_table()?;
 		let mut data_table = lua.create_table()?;
 		for (i, info) in self.data.into_iter().enumerate() {
-		let info_lua = support::file_info_into_lua(info, lua)?;
+			let info_lua = support::file_info_into_lua(info, lua)?;
 			data_table.set(i + 1, info_lua)?;
 		}
 		table.set("data", data_table)?;
@@ -136,7 +138,7 @@ impl AipFromLua for AipFileListReadParams {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
-		let globs = lua_value_to_file_globs(&table, "globs")?;
+		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
 		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
 		Ok(AipFileListReadParams {
@@ -161,7 +163,7 @@ impl AipIntoLua for AipFileListReadResult {
 		let table = lua.create_table()?;
 		let mut data_table = lua.create_table()?;
 		for (i, record) in self.data.into_iter().enumerate() {
-		let record_lua = support::file_record_into_lua(record, lua)?;
+			let record_lua = support::file_record_into_lua(record, lua)?;
 			data_table.set(i + 1, record_lua)?;
 		}
 		table.set("data", data_table)?;
@@ -269,7 +271,7 @@ impl AipFromLua for AipFileFirstParams {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
-		let globs = lua_value_to_file_globs(&table, "globs")?;
+		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
 		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
 		Ok(AipFileFirstParams {
@@ -318,7 +320,7 @@ impl AipFromLua for AipFileStatsParams {
 		let table = value
 			.as_table()
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
-		let globs = lua_value_to_optional_file_globs(&table, "globs")?;
+		let globs = lua_value_to_optional_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
 		Ok(AipFileStatsParams { globs, base_dir })
 	}
@@ -361,8 +363,7 @@ fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> AipApi
 		));
 	}
 
-	let content = support::read_file_content(&resolved)
-		.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
+	let content = support::read_file_content(&resolved).map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 	let info = file_info_from_meta(&resolved, true, ctx.workspace_root(), false)
 		.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
@@ -373,14 +374,11 @@ fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> AipApi
 
 fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> AipApiResult<AipFileListResult> {
 	let globs = params.globs.into_vec();
+	validate_glob_patterns(&globs)?;
 	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = list_files_matching(
-		&globs,
-		params.base_dir.as_deref(),
-		ctx,
-	)?;
+	let paths = list_files_matching(&globs, params.base_dir.as_deref(), ctx)?;
 
 	let mut infos: Vec<FileInfo> = Vec::new();
 	for p in paths {
@@ -394,13 +392,10 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> AipApi
 
 fn aip_file_list_read_handler(params: AipFileListReadParams, ctx: &FileContext) -> AipApiResult<AipFileListReadResult> {
 	let globs = params.globs.into_vec();
+	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = list_files_matching(
-		&globs,
-		params.base_dir.as_deref(),
-		ctx,
-	)?;
+	let paths = list_files_matching(&globs, params.base_dir.as_deref(), ctx)?;
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
@@ -443,29 +438,35 @@ fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> Ai
 
 fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> AipApiResult<AipFileFirstResult> {
 	let globs = params.globs.into_vec();
+	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let mut paths = list_files_matching(
-		&globs,
-		params.base_dir.as_deref(),
-		ctx,
-	)?;
+	let paths = list_files_matching(&globs, params.base_dir.as_deref(), ctx)?;
 
-	let data = if let Some(first) = paths.pop() {
-		Some(file_info_from_meta(&first, true, ctx.workspace_root(), absolute)
-			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?)
-	} else {
-		None
-	};
+	let data = paths
+		.into_iter()
+		.next()
+		.map(|first| {
+			file_info_from_meta(&first, true, ctx.workspace_root(), absolute)
+				.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))
+		})
+		.transpose()?;
 
 	Ok(AipFileFirstResult { data })
 }
 
 fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> AipApiResult<AipFileStatsResult> {
 	let globs = match params.globs {
-		Some(g) => g.into_vec(),
+		Some(g) => {
+			let v = g.into_vec();
+			if v.is_empty() {
+				return Ok(AipFileStatsResult { data: None });
+			}
+			v
+		}
 		None => return Ok(AipFileStatsResult { data: None }),
 	};
+	validate_glob_patterns(&globs)?;
 
 	let paths = list_files_matching(&globs, params.base_dir.as_deref(), ctx)?;
 
@@ -581,7 +582,10 @@ pub fn register_read(registry: &mut crate::registry::AipRegistry, ctx: FileConte
 fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> ScriptResult<FileGlobs> {
 	let val: Value = table.get(key)?;
 	if val.is_string() {
-		let s: String = val.as_string_lossy();
+		let mlua_str = val
+			.as_string()
+			.ok_or_else(|| crate::script::ScriptError::custom("Expected string value"))?;
+		let s: String = mlua_str.to_string_lossy();
 		Ok(FileGlobs::Single(s))
 	} else if let Some(arr) = val.as_table() {
 		let mut vec = Vec::new();
@@ -608,13 +612,13 @@ fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> ScriptRes
 
 // endregion: --- Support: Lua value helpers
 
-
 // region:    --- Tests
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::script::{HandlerRegistry, LuaJsonExt};
+	use crate::registry::AipRegistry;
+	use crate::script::LuaJsonExt;
 	use serde_json::json;
 	use tempfile::TempDir;
 
@@ -629,10 +633,10 @@ mod tests {
 		let lua = mlua::Lua::new();
 
 		// Build FileContext using SPath
-		let workspace = simple_fs::SPath::from_std_path(tmp.path())
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+		let workspace =
+			simple_fs::SPath::from_std_path(tmp.path()).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		let ctx = FileContext::new(workspace);
-		let mut registry = crate::script::HandlerRegistry::new();
+		let mut registry = AipRegistry::default();
 
 		// Register the single handler directly via the registry (for unit test)
 		super::register_read(&mut registry, ctx)?;

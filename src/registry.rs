@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::script::LuaJsonExt;
 use crate::script::{AipError, AipParams, AipResponse, IntoHandlerError, handler_error_to_lua};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
@@ -244,6 +245,24 @@ impl AipRegistry {
 				kind: entry.kind,
 			})
 			.collect()
+	}
+
+	pub(crate) async fn call(&self, lua: Lua, path: &str, value: Value) -> mlua::Result<Value> {
+		let entry = self
+			.entries
+			.iter()
+			.find(|e| e.path == path)
+			.ok_or_else(|| mlua::Error::RuntimeError(format!("Handler not found: {path}")))?;
+
+		match &entry.handler {
+			AipHandlerClosure::Sync(handler) => handler(&lua, value),
+			AipHandlerClosure::Async(handler) => {
+				let json_value = handler(&lua, value).await?;
+				// Convert serde_json::Value back to Lua Value.
+				Value::x_from_json_value(&lua, json_value)
+					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert JSON to Lua: {e}")))
+			}
+		}
 	}
 }
 

@@ -69,6 +69,7 @@ hex = "0.4" # Added for hex encoding
 # -- Files
 simple-fs = { version = "0.12.1", features = ["with-json"]}
 size = "0.5.0"
+glob = "0.3"
 # -- HTML & XML
 html-escape = "0.2"
 html-helpers = { version = "0.1.0" }
@@ -84,4 +85,5 @@ schemars = "1.2.1"
 
 [dev-dependencies]
 assertables = "10"
+tempfile = "3"
 
