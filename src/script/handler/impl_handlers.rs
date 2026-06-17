@@ -186,30 +186,24 @@ impl_aip_handlers!();
 
 #[cfg(test)]
 mod tests {
-	use crate::impl_lua_serde_traits;
 	use crate::script::LuaJsonExt;
 	use crate::script::{AipApiError, Handler, HandlerError};
+	use aiprog_macros::{AipFromLua, AipIntoLua, AipParams, AipResponse};
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
 
 	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema, AipFromLua, AipIntoLua, AipParams)]
 	struct EchoParams {
 		data: String,
 	}
 
-	#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema, AipFromLua, AipIntoLua, AipResponse)]
 	struct EchoResult {
 		data: String,
 	}
-
-	impl_lua_serde_traits!(EchoParams);
-	impl_lua_serde_traits!(EchoResult);
-
-	impl crate::script::AipParams for EchoParams {}
-	impl crate::script::AipResponse for EchoResult {}
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })

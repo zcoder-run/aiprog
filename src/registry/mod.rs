@@ -7,8 +7,8 @@ mod registry_types;
 pub(crate) use registry_internal::{AipHandlerClosure, RegistryEntry};
 mod support;
 
-pub use registry_types::*;
 pub use registry_impl::AipRegistry;
+pub use registry_types::*;
 // endregion: --- Modules
 
 // region:    --- Tests
