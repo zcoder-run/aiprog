@@ -11,8 +11,6 @@ use schemars::JsonSchema;
 /// type satisfying the component bounds automatically qualifies.
 pub trait AipParams: AipFromLua + JsonSchema + Send + Sync + 'static {}
 
-impl<T> AipParams for T where T: AipFromLua + JsonSchema + Send + Sync + 'static {}
-
 // endregion: --- AipParams
 
 // region:    --- AipResponse
@@ -23,8 +21,6 @@ impl<T> AipParams for T where T: AipFromLua + JsonSchema + Send + Sync + 'static
 /// JSON schema, and be thread-safe. The blanket implementation ensures any
 /// type satisfying the component bounds automatically qualifies.
 pub trait AipResponse: AipIntoLua + JsonSchema + Send + Sync + 'static {}
-
-impl<T> AipResponse for T where T: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipResponse
 
@@ -37,7 +33,5 @@ impl<T> AipResponse for T where T: AipIntoLua + JsonSchema + Send + Sync + 'stat
 /// implementation ensures any type satisfying the component bounds
 /// automatically qualifies.
 pub trait AipError: IntoHandlerError + JsonSchema + Send + 'static {}
-
-impl<T> AipError for T where T: IntoHandlerError + JsonSchema + Send + 'static {}
 
 // endregion: --- AipError

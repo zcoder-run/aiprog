@@ -29,6 +29,8 @@ impl AipFromLua for AipFileReadParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileReadParams {}
+
 // endregion: --- AipFileReadParams
 
 // region:    --- AipFileReadResult
@@ -46,6 +48,8 @@ impl AipIntoLua for AipFileReadResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileReadResult {}
 
 // endregion: --- AipFileReadResult
 
@@ -98,6 +102,8 @@ impl AipFromLua for AipFileListParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileListParams {}
+
 // endregion: --- AipFileListParams
 
 // region:    --- AipFileListResult
@@ -119,6 +125,8 @@ impl AipIntoLua for AipFileListResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileListResult {}
 
 // endregion: --- AipFileListResult
 
@@ -149,6 +157,8 @@ impl AipFromLua for AipFileListReadParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileListReadParams {}
+
 // endregion: --- AipFileListReadParams
 
 // region:    --- AipFileListReadResult
@@ -170,6 +180,8 @@ impl AipIntoLua for AipFileListReadResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileListReadResult {}
 
 // endregion: --- AipFileListReadResult
 
@@ -193,6 +205,8 @@ impl AipFromLua for AipFileInfoParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileInfoParams {}
+
 // endregion: --- AipFileInfoParams
 
 // region:    --- AipFileInfoResult
@@ -213,6 +227,8 @@ impl AipIntoLua for AipFileInfoResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileInfoResult {}
 
 // endregion: --- AipFileInfoResult
 
@@ -236,6 +252,8 @@ impl AipFromLua for AipFileExistsParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileExistsParams {}
+
 // endregion: --- AipFileExistsParams
 
 // region:    --- AipFileExistsResult
@@ -252,6 +270,8 @@ impl AipIntoLua for AipFileExistsResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileExistsResult {}
 
 // endregion: --- AipFileExistsResult
 
@@ -282,6 +302,8 @@ impl AipFromLua for AipFileFirstParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileFirstParams {}
+
 // endregion: --- AipFileFirstParams
 
 // region:    --- AipFileFirstResult
@@ -302,6 +324,8 @@ impl AipIntoLua for AipFileFirstResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileFirstResult {}
 
 // endregion: --- AipFileFirstResult
 
@@ -326,6 +350,8 @@ impl AipFromLua for AipFileStatsParams {
 	}
 }
 
+impl crate::script::AipParams for AipFileStatsParams {}
+
 // endregion: --- AipFileStatsParams
 
 // region:    --- AipFileStatsResult
@@ -346,6 +372,8 @@ impl AipIntoLua for AipFileStatsResult {
 		Ok(Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipFileStatsResult {}
 
 // endregion: --- AipFileStatsResult
 

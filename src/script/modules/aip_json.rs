@@ -57,6 +57,8 @@ impl AipFromLua for AipJsonParseParams {
 	}
 }
 
+impl crate::script::AipParams for AipJsonParseParams {}
+
 /// Result of the `parse` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseResult {
@@ -72,6 +74,8 @@ impl AipIntoLua for AipJsonParseResult {
 		Ok(mlua::Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipJsonParseResult {}
 
 fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseResult> {
 	let Some(content) = params.text else {
@@ -115,6 +119,8 @@ impl AipFromLua for AipJsonParseJsonlParams {
 	}
 }
 
+impl crate::script::AipParams for AipJsonParseJsonlParams {}
+
 /// Result of the `parse_ndjson` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseJsonlResult {
@@ -134,6 +140,8 @@ impl AipIntoLua for AipJsonParseJsonlResult {
 		Ok(mlua::Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipJsonParseJsonlResult {}
 
 fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlResult> {
 	let Some(content) = params.text else {
@@ -175,6 +183,8 @@ impl AipFromLua for AipJsonStringifyParams {
 	}
 }
 
+impl crate::script::AipParams for AipJsonStringifyParams {}
+
 /// Result of the `stringify` function.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyResult {
@@ -190,6 +200,8 @@ impl AipIntoLua for AipJsonStringifyResult {
 		Ok(mlua::Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipJsonStringifyResult {}
 
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResult> {
 	match serde_json::to_string(&params.data) {
@@ -222,6 +234,8 @@ impl AipIntoLua for AipJsonStringifyPrettyResult {
 		Ok(mlua::Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipJsonStringifyPrettyResult {}
 
 fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyPrettyResult> {
 	match serde_json::to_string_pretty(&params.data) {

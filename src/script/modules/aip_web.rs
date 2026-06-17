@@ -135,6 +135,8 @@ impl AipFromLua for AipWebGetParams {
 	}
 }
 
+impl crate::script::AipParams for AipWebGetParams {}
+
 /// User-Agent option for the `get` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
@@ -301,6 +303,8 @@ impl AipFromLua for AipWebPostParams {
 	}
 }
 
+impl crate::script::AipParams for AipWebPostParams {}
+
 async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebResult> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
@@ -368,6 +372,8 @@ impl AipIntoLua for AipWebResult {
 		Ok(mlua::Value::Table(table))
 	}
 }
+
+impl crate::script::AipResponse for AipWebResult {}
 
 // endregion: --- AipWebResult
 

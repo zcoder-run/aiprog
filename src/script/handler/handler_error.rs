@@ -139,6 +139,7 @@ impl core::fmt::Display for AipApiError {
 }
 
 impl std::error::Error for AipApiError {}
+impl crate::script::AipError for AipApiError {}
 
 // endregion: --- AipApiError
 

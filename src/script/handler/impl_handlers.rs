@@ -208,6 +208,9 @@ mod tests {
 	impl_lua_serde_traits!(EchoParams);
 	impl_lua_serde_traits!(EchoResult);
 
+	impl crate::script::AipParams for EchoParams {}
+	impl crate::script::AipResponse for EchoResult {}
+
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })
 	}

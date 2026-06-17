@@ -21,6 +21,9 @@ struct TestResponse {
 impl_lua_serde_traits!(TestParams);
 impl_lua_serde_traits!(TestResponse);
 
+impl crate::script::AipParams for TestParams {}
+impl crate::script::AipResponse for TestResponse {}
+
 fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 	Ok(TestResponse { data: params.data })
 }
