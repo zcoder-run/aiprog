@@ -1,4 +1,4 @@
-use crate::script::{AipApiError, HandlerError, HandlerRegistry, RegistryError};
+use crate::script::{AipApiError, HandlerError, HandlerRegistry};
 use mlua::{Function, Lua, MultiValue, Table, Value};
 use std::sync::Arc;
 
@@ -51,6 +51,7 @@ fn api_error_to_lua(api_err: AipApiError) -> mlua::Error {
 /// - converts any normalized handler error into an `mlua::Error`.
 ///
 /// This replaces the per-function `mlua` glue with a single shared adapter.
+#[allow(dead_code)]
 pub fn install_registry_on_table(lua: &Lua, table: &Table, registry: HandlerRegistry) -> mlua::Result<()> {
 	let registry = Arc::new(registry);
 
@@ -65,6 +66,7 @@ pub fn install_registry_on_table(lua: &Lua, table: &Table, registry: HandlerRegi
 }
 
 /// Build a single Lua async function bound to a registry entry by `name`.
+#[allow(dead_code)]
 fn make_registry_function(lua: &Lua, registry: Arc<HandlerRegistry>, name: String) -> mlua::Result<Function> {
 	lua.create_async_function(move |lua: Lua, args: MultiValue| {
 		let registry = registry.clone();

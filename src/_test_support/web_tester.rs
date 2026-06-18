@@ -11,6 +11,7 @@ use crate::{Error, Result};
 
 /// Snapshot of a single HTTP request, for use in validator closures.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RequestSnapshot {
 	pub method: String,
 	pub path: String,
@@ -81,7 +82,7 @@ impl TestServerBuilder {
 		self.headers.push((name.into(), value.into()));
 		self
 	}
-
+#[allow(dead_code)]
 	pub fn body_bytes(mut self, data: impl Into<Vec<u8>>) -> Self {
 		self.body = data.into();
 		self

@@ -1,6 +1,5 @@
 use crate::script::{RegistryError, ScriptError};
 use serde::Serialize;
-use serde_json::Value;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
 

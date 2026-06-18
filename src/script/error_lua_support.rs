@@ -3,8 +3,6 @@
 // Deprecated: backward-compatibility shim. use crate::ScriptError methods.
 
 use crate::{Error, ScriptError};
-use lazy_regex::regex;
-use std::borrow::Cow;
 use std::sync::Arc;
 
 impl Error {

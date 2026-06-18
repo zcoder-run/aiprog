@@ -1,5 +1,7 @@
 //! String utils
 
+#![allow(dead_code)]
+
 use crate::{Error, Result};
 use aho_corasick::AhoCorasick;
 use derive_more::derive::Display;

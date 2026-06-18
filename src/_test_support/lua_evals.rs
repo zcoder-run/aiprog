@@ -3,6 +3,7 @@ use mlua::{Lua, Value};
 
 /// Process correctly the lua eval result
 /// (Used by the lua engine eval, and test)
+#[allow(dead_code)]
 pub fn process_lua_eval_result(_lua: &Lua, res: mlua::Result<Value>, script: &str) -> ScriptResult<Value> {
 	let res = match res {
 		Ok(res) => res,

@@ -33,6 +33,7 @@ pub fn parse_jsonc_to_serde_value(content: &str) -> Result<Option<serde_json::Va
 }
 
 /// Read & parse a json or jsonc/trailing-commas
+#[allow(dead_code)]
 pub fn load_json_to_serde_value(file: &SPath) -> Result<Option<serde_json::Value>> {
 	let content = simple_fs::read_to_string(file)?;
 
@@ -52,6 +53,7 @@ pub fn load_json_to_serde_value(file: &SPath) -> Result<Option<serde_json::Value
 /// # Returns
 ///
 /// Returns `Ok(Vec<Value>)` on success, or an `Error` if serialization fails.
+#[allow(dead_code)]
 pub fn into_values<T: serde::Serialize>(vals: Vec<T>) -> Result<Vec<Value>> {
 	let inputs: Vec<Value> = vals
 		.into_iter()

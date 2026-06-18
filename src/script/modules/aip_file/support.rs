@@ -3,14 +3,12 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-use crate::Result;
+
 use crate::script::{AipApiError, AipApiResult, ScriptResult};
 use mlua::{Lua, Value};
 use simple_fs::{ListOptions, SPath, list_files, read_to_string};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
-use glob::Pattern;
-
 // region:    --- FileContext
 
 /// Holds the workspace root for path resolution.

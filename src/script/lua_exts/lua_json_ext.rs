@@ -45,6 +45,7 @@ use mlua::{Lua, LuaSerdeExt as _, Table, Value};
 ///
 /// Implementors automatically get `LuaExt` query helpers (e.g., `x_as_list`, `x_get_string`)
 /// because of the `: LuaExt` supertrait bound.
+#[allow(dead_code)]
 pub trait LuaJsonExt: LuaExt {
 	/// Convert a `serde_json::Value` into a `mlua::Value`.
 	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> ScriptResult<Value>;

@@ -3,6 +3,8 @@
 //! This implementation concatenates all consecutive lines starting with the prefix into a block.
 //! Lines that do not start with the prefix are collected as extruded content.
 
+#![allow(dead_code)]
+
 use crate::types::Extrude;
 
 /// Options for configuring the LineBlockIter.

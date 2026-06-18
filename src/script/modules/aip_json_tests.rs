@@ -4,7 +4,6 @@ use crate::_test_support;
 use crate::script::modules;
 use assertables::{assert_contains, assert_not_contains};
 use serde_json::json;
-use value_ext::JsonValueExt;
 
 #[tokio::test]
 async fn test_script_lua_json_parse_simple() -> Result<()> {

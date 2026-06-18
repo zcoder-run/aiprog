@@ -30,6 +30,7 @@ use mlua::Lua;
 use std::collections::HashMap;
 
 const DEFAULT_UA_AIPROG: &str = "aiprog";
+#[allow(dead_code)]
 const DEFAULT_UA_BROWSER: &str =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -54,6 +55,7 @@ fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 ///
 /// This must be called **after** the handler has been registered and the engine
 /// has populated the `aip.web` table.
+#[allow(dead_code)]
 pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
 	let lua = engine.lua();
 	engine.set_value_at_path(

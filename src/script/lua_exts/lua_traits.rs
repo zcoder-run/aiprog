@@ -1,7 +1,6 @@
 use crate::ScriptResult;
 use crate::script::LuaExt as _;
-// Re-export for convenience
-pub use mlua::Value as LuaValue;
+
 use mlua::{Lua, Value};
 use std::collections::HashMap;
 

@@ -1,8 +1,8 @@
 use super::*;
 use crate::impl_lua_serde_traits;
-use crate::registry::{AipRegistry, AipRegistryError};
+use crate::registry::AipRegistry;
 use crate::script::AipApiError;
-use mlua::{Lua, Value};
+use mlua::Value;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,7 @@ async fn test_async_handler(params: TestParams) -> core::result::Result<TestResp
 	Ok(TestResponse { data: params.data })
 }
 
-fn test_error_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
+fn test_error_handler(_params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 	Err(AipApiError {
 		code: "TEST_ERROR".into(),
 		message: "forced test error".into(),

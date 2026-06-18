@@ -1,5 +1,8 @@
+
+#![allow(dead_code)]
+
 use super::{AipParams, AipResponse};
-use crate::script::{Handler, HandlerError, LuaJsonExt, PinFutureValue, handler_error_to_lua};
+use crate::script::{Handler, PinFutureValue};
 use mlua::{Lua, Value};
 use std::marker::PhantomData;
 

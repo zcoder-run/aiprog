@@ -3,6 +3,7 @@ use mlua::{BorrowedStr, Table, Value};
 /// Convenient Lua Value extension
 ///
 /// TODO: Will need to handle the case where the found value is not of correct type. Probably should return `Result<Option<>>`
+#[allow(dead_code)]
 pub trait LuaExt {
 	/// return true if NULL, Nil, or None (for Option<Value>)
 	fn x_is_null(&self) -> bool;
@@ -156,6 +157,7 @@ impl LuaExt for Table {
 }
 
 /// Extract the sequence part of a Lua table (keys 1..N contiguous, stops at first nil).
+#[allow(dead_code)]
 fn table_as_list(table: &Table) -> Vec<Value> {
 	table.sequence_values().filter_map(|v| v.ok()).collect()
 }

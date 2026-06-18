@@ -1,7 +1,7 @@
 use crate::registry::{AipFnKind, AipHandlerClosure, AipRegistry};
 use crate::script::LuaJsonExt;
 use crate::{Result, ScriptEngine};
-use mlua::{Function, Lua, LuaSerdeExt, MultiValue, Value};
+use mlua::{Function, Lua, MultiValue, Value};
 
 impl ScriptEngine {
 	pub(super) fn register(&self, registry: AipRegistry) -> Result<()> {

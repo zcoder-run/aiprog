@@ -1,11 +1,11 @@
 use crate::_test_support::lua_evals::process_lua_eval_result;
-use crate::registry::AipRegistry;
 use crate::script::LuaJsonExt;
-use crate::{Result, ScriptEngine};
+use crate::Result;
 use mlua::{Lua, Table};
 use serde_json::Value;
 
 /// Sets up a Lua instance with both functions registered under `aip.` aip_name.
+#[allow(dead_code)]
 pub async fn setup_lua<F>(init_fn: F, sub_module: &str) -> Result<Lua>
 where
 	F: FnOnce(&Lua) -> Result<Table>,
@@ -45,6 +45,7 @@ pub fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<se
 	engine.exec(code)
 }
 
+#[allow(dead_code)]
 pub fn eval_lua(lua: &Lua, code: &str) -> Result<Value> {
 	let res = lua.load(code).eval::<mlua::Value>();
 	let res_lua_value = process_lua_eval_result(lua, res, code)?;

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::Result;
 use genai::chat::Usage;
 use num_format::ToFormattedString;

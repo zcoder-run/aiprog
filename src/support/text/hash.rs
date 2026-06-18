@@ -2,6 +2,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose;
 use blake3::Hasher;
 
+#[allow(dead_code)]
 pub fn blake3_b64u(parts: &[&str]) -> String {
 	let mut hasher = Hasher::new();
 

@@ -1,14 +1,12 @@
-use crate::Result;
+
 use crate::script::script_error::ScriptResult;
-use crate::script::{AipApiError, AipApiResult, AipFromLua, AipIntoLua, LuaExt, LuaJsonExt};
+use crate::script::{AipApiResult, AipFromLua, AipIntoLua, LuaExt};
 use mlua::{Lua, Value};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
 	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
-use crate::script::HandlerRegistry;
-
 /// Register all read-related handlers into the given `AipRegistry`.
 ///
 /// This function captures the provided `FileContext` and wraps each handler so
@@ -180,7 +178,7 @@ pub struct AipFileListResult {
 impl AipIntoLua for AipFileListResult {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
 		let table = lua.create_table()?;
-		let mut data_table = lua.create_table()?;
+        let data_table = lua.create_table()?;
 		for (i, info) in self.data.into_iter().enumerate() {
 			let info_lua = support::file_info_into_lua(info, lua)?;
 			data_table.set(i + 1, info_lua)?;
@@ -235,7 +233,7 @@ pub struct AipFileListReadResult {
 impl AipIntoLua for AipFileListReadResult {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
 		let table = lua.create_table()?;
-		let mut data_table = lua.create_table()?;
+        let data_table = lua.create_table()?;
 		for (i, record) in self.data.into_iter().enumerate() {
 			let record_lua = support::file_record_into_lua(record, lua)?;
 			data_table.set(i + 1, record_lua)?;

@@ -1,8 +1,8 @@
 use super::{AipError, AipParams, AipResponse};
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
-use crate::script::{HandlerResult, LuaJsonExt};
+use crate::script::HandlerResult;
 use mlua::{Lua, Value};
-use schemars::{JsonSchema, Schema, schema_for};
+use schemars::{Schema, schema_for};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
@@ -40,6 +40,7 @@ impl std::error::Error for RegistryError {}
 /// path is uniform (async future) regardless of kind, since the handler trait
 /// always returns a future.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum HandlerKind {
 	Sync,
 	Async,
@@ -48,6 +49,7 @@ pub enum HandlerKind {
 /// Public, cloneable metadata describing a registered function, suitable for
 /// documentation and tooling.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RegisteredFn {
 	pub name: String,
 	pub kind: HandlerKind,
@@ -62,6 +64,7 @@ pub struct RegisteredFn {
 
 /// Internal per-function registry entry, holding the boxed type-erased handler
 /// wrapper along with its schema metadata.
+#[allow(dead_code)]
 struct RegistryEntry {
 	name: &'static str,
 	kind: HandlerKind,
@@ -83,6 +86,7 @@ struct RegistryEntry {
 /// and a call API that invokes a handler by name with `mlua::Value` params.
 /// The registry never observes `mlua` types directly (the wrapper trait does).
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct HandlerRegistry {
 	entries: HashMap<&'static str, RegistryEntry>,
 }
@@ -94,7 +98,7 @@ impl fmt::Debug for HandlerRegistry {
 			.finish()
 	}
 }
-
+#[allow(dead_code)]
 impl HandlerRegistry {
 	pub fn new() -> Self {
 		Self::default()
@@ -187,6 +191,7 @@ impl HandlerRegistry {
 	}
 }
 
+#[allow(dead_code)]
 fn validate_name(name: &str) -> core::result::Result<(), RegistryError> {
 	if name.is_empty() {
 		return Err(RegistryError::InvalidPath("Name must not be empty".into()));
