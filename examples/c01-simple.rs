@@ -5,10 +5,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let result = lua_engine.exec(
 		r#"
+		local extra_text = '{"param_1": "value-1"}'
+		local extra = aip.json.parse({text = extra_text}).data
+
 		return {
 			message = "Hello from Lua",
 			count = 3,
-			ok = true
+			ok = true,
+			extra = extra,
 		}
 		"#,
 	)?;
