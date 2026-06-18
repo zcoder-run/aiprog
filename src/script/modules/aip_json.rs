@@ -23,21 +23,33 @@
 //!
 
 use crate::registry::AipRegistry;
-use crate::script::{AipApiError, AipFromLua, AipIntoLua, HandlerRegistry, install_registry_on_table};
+use crate::script::{AipApiError, AipFromLua, AipIntoLua};
 use crate::script::{AipApiResult, LuaExt};
 use crate::support::jsons;
-use crate::{Result, ScriptError, ScriptResult};
-use mlua::{Lua, Table};
+use crate::{ScriptError, ScriptResult};
+use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
-pub fn register(registry: &mut AipRegistry) -> crate::Result<()> {
+/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::default();
+	register(&mut registry)?;
+	Ok(registry)
+}
+
+fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 	registry.register_sync::<_, _, _, _>("aip.json.parse", aip_json_parse_handler)?;
 	registry.register_sync::<_, _, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
 	registry.register_sync::<_, _, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
 	registry.register_sync::<_, _, _, _>("aip.json.stringify_pretty", aip_json_stringify_pretty_handler)?;
 	Ok(())
 }
+
 // region:    --- aip.json.parse
 
 /// Parameters for the `parse` function.
@@ -131,7 +143,7 @@ pub struct AipJsonParseJsonlResult {
 impl AipIntoLua for AipJsonParseJsonlResult {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
 		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		let mut data_vec = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		let data_vec = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
 		for (i, item) in self.data.into_iter().enumerate() {
 			let item_lua = item.into_lua(lua)?;
 			data_vec.set(i + 1, item_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
@@ -250,21 +262,6 @@ fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiRe
 }
 
 // endregion: --- aip.json.stringify_pretty
-
-// region:    --- aip.json init_registry
-
-/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
-///
-/// This is the recommended way to obtain a registry for this module.
-/// Use [`register`](register) if you need to add the handlers into an
-/// existing registry.
-pub fn init_registry() -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::default();
-	register(&mut registry)?;
-	Ok(registry)
-}
-
-// endregion: --- aip.json init_registry
 
 // region:    --- Tests
 

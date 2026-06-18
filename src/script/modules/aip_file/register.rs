@@ -6,11 +6,22 @@ use super::file_read;
 use super::file_write;
 use super::support::FileContext;
 
+/// Build and return an [`AipRegistry`] containing all `aip.file` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry(file_ctx: Option<FileContext>) -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::default();
+	register(&mut registry, file_ctx)?;
+	Ok(registry)
+}
+
 /// Register all `aip.file` handlers (read and write) into the given `AipRegistry`.
 ///
 /// If no `FileContext` is provided, a default one using the current directory
 /// will be created.
-pub fn register(registry: &mut AipRegistry, file_ctx: Option<FileContext>) -> Result<()> {
+fn register(registry: &mut AipRegistry, file_ctx: Option<FileContext>) -> Result<()> {
 	let ctx = match file_ctx {
 		Some(ctx) => ctx,
 		None => {
@@ -27,18 +38,3 @@ pub fn register(registry: &mut AipRegistry, file_ctx: Option<FileContext>) -> Re
 
 	Ok(())
 }
-
-// region:    --- aip_file init_registry
-
-/// Build and return an [`AipRegistry`] containing all `aip.file` handlers.
-///
-/// This is the recommended way to obtain a registry for this module.
-/// Use [`register`](register) if you need to add the handlers into an
-/// existing registry.
-pub fn init_registry(file_ctx: Option<FileContext>) -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::default();
-	register(&mut registry, file_ctx)?;
-	Ok(registry)
-}
-
-// endregion: --- aip_file init_registry

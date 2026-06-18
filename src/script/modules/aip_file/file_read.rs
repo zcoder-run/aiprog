@@ -9,6 +9,70 @@ use super::support::{
 };
 use crate::script::HandlerRegistry;
 
+/// Register all read-related handlers into the given `AipRegistry`.
+///
+/// This function captures the provided `FileContext` and wraps each handler so
+/// that it receives the context automatically.
+pub fn register_read(registry: &mut crate::registry::AipRegistry, ctx: FileContext) -> crate::Result<()> {
+	// -- aip.file.read
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.read", move |p: AipFileReadParams| {
+			aip_file_read_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.list
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.list", move |p: AipFileListParams| {
+			aip_file_list_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.list_read
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.list_read", move |p: AipFileListReadParams| {
+			aip_file_list_read_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.info
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.info", move |p: AipFileInfoParams| {
+			aip_file_info_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.exists
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.exists", move |p: AipFileExistsParams| {
+			aip_file_exists_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.first
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.first", move |p: AipFileFirstParams| {
+			aip_file_first_handler(p, &ctx)
+		})?;
+	}
+
+	// -- aip.file.stats
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _, _>("aip.file.stats", move |p: AipFileStatsParams| {
+			aip_file_stats_handler(p, &ctx)
+		})?;
+	}
+
+	Ok(())
+}
+
 // region:    --- AipFileReadParams
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -536,74 +600,6 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> AipA
 }
 
 // endregion: --- Handler functions
-
-// region:    --- Registration
-
-/// Register all read-related handlers into the given `AipRegistry`.
-///
-/// This function captures the provided `FileContext` and wraps each handler so
-/// that it receives the context automatically.
-pub fn register_read(registry: &mut crate::registry::AipRegistry, ctx: FileContext) -> crate::Result<()> {
-	// -- aip.file.read
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.read", move |p: AipFileReadParams| {
-			aip_file_read_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.list
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.list", move |p: AipFileListParams| {
-			aip_file_list_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.list_read
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.list_read", move |p: AipFileListReadParams| {
-			aip_file_list_read_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.info
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.info", move |p: AipFileInfoParams| {
-			aip_file_info_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.exists
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.exists", move |p: AipFileExistsParams| {
-			aip_file_exists_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.first
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.first", move |p: AipFileFirstParams| {
-			aip_file_first_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.stats
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.stats", move |p: AipFileStatsParams| {
-			aip_file_stats_handler(p, &ctx)
-		})?;
-	}
-
-	Ok(())
-}
-
-// endregion: --- Registration
 
 // region:    --- Support: Lua value helpers
 
