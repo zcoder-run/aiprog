@@ -56,6 +56,22 @@ pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
 	Ok(())
 }
 
+// region:    --- aip.web init_registry
+
+/// Build and return an [`AipRegistry`] containing all `aip.web` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::default();
+	register(&mut registry)?;
+	Ok(registry)
+}
+
+// endregion: --- aip.web init_registry
+
+
 // region:    --- aip.web.get
 
 /// Parameters for the `get` function.

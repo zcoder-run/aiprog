@@ -27,3 +27,18 @@ pub fn register(registry: &mut AipRegistry, file_ctx: Option<FileContext>) -> Re
 
 	Ok(())
 }
+
+// region:    --- aip_file init_registry
+
+/// Build and return an [`AipRegistry`] containing all `aip.file` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry(file_ctx: Option<FileContext>) -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::default();
+	register(&mut registry, file_ctx)?;
+	Ok(registry)
+}
+
+// endregion: --- aip_file init_registry

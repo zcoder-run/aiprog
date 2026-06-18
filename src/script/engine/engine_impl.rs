@@ -17,12 +17,14 @@ impl ScriptEngine {
 	pub fn new() -> Result<Self> {
 		let engine = Self { lua: Lua::new() };
 		engine.init_native_is()?;
+		let registry = crate::script::modules::init_registry()?;
+		engine.register(registry)?;
 		Ok(engine)
 	}
 
 	pub fn from_registry(registry: AipRegistry) -> Result<Self> {
-		let engine = Self::new()?;
-
+		let engine = Self { lua: Lua::new() };
+		engine.init_native_is()?;
 		engine.register(registry)?;
 		Ok(engine)
 	}

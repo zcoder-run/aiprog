@@ -73,6 +73,8 @@ pub enum AipFnKind {
 
 // region:    --- Registry Error
 
+pub type AipRegistryResult<T> = core::result::Result<T, AipRegistryError>;
+
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum AipRegistryError {
 	// -- Path validation

@@ -251,6 +251,21 @@ fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiRe
 
 // endregion: --- aip.json.stringify_pretty
 
+// region:    --- aip.json init_registry
+
+/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::default();
+	register(&mut registry)?;
+	Ok(registry)
+}
+
+// endregion: --- aip.json init_registry
+
 // region:    --- Tests
 
 #[cfg(test)]

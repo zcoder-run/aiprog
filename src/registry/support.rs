@@ -1,6 +1,8 @@
+use crate::registry::AipRegistryResult;
+
 use super::registry_types::AipRegistryError;
 
-pub(super) fn validate_path(path: &str) -> core::result::Result<(), AipRegistryError> {
+pub(super) fn validate_path(path: &str) -> AipRegistryResult<()> {
 	if path.is_empty() {
 		return Err(AipRegistryError::InvalidPath("Path must not be empty".into()));
 	}

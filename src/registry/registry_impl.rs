@@ -26,7 +26,7 @@ pub struct AipRegistry {
 }
 
 impl AipRegistry {
-	pub fn register_sync<P, R, E, H>(&mut self, path: &str, handler: H) -> core::result::Result<(), AipRegistryError>
+	pub fn register_sync<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
 		R: AipResponse,
@@ -67,7 +67,7 @@ impl AipRegistry {
 		Ok(())
 	}
 
-	pub fn register_async<P, R, E, H>(&mut self, path: &str, handler: H) -> core::result::Result<(), AipRegistryError>
+	pub fn register_async<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
 		R: AipResponse + serde::Serialize,
@@ -116,6 +116,22 @@ impl AipRegistry {
 			error_schema,
 		});
 
+		Ok(())
+	}
+
+	/// Merge all entries from `other` into `self`, consuming `other`.
+	///
+	/// # Errors
+	/// Returns [`AipRegistryError::DuplicatePath`] if any path from `other`
+	/// already exists in `self`.
+	pub fn merge(&mut self, other: AipRegistry) -> AipRegistryResult<()> {
+		for entry in &other.entries {
+			if self.registered_paths.contains(&entry.path) {
+				return Err(AipRegistryError::DuplicatePath(entry.path.clone()));
+			}
+		}
+		self.registered_paths.extend(other.registered_paths);
+		self.entries.extend(other.entries);
 		Ok(())
 	}
 

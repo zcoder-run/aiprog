@@ -139,4 +139,42 @@ fn test_registry_schema_metadata() -> Result<()> {
 
 // endregion: --- Schema metadata
 
+// region:    --- Merge
+
+#[test]
+fn test_registry_merge_success() -> Result<()> {
+	let mut reg1 = AipRegistry::default();
+	reg1.register_sync("test.parse", test_sync_handler)?;
+
+	let mut reg2 = AipRegistry::default();
+	reg2.register_async("test.fetch", test_async_handler)?;
+
+	// merge
+	reg1.merge(reg2)?;
+
+	let fns = reg1.list_registered_fns();
+	assert_eq!(fns.len(), 2);
+	assert!(fns.iter().any(|f| f.path == "test.parse"));
+	assert!(fns.iter().any(|f| f.path == "test.fetch"));
+
+	Ok(())
+}
+
+#[test]
+fn test_registry_merge_duplicate() -> Result<()> {
+	let mut reg1 = AipRegistry::default();
+	reg1.register_sync("test.parse", test_sync_handler)?;
+
+	let mut reg2 = AipRegistry::default();
+	reg2.register_sync("test.parse", test_sync_handler)?;
+
+	let result = reg1.merge(reg2);
+	assert!(result.is_err());
+	assert!(matches!(result.unwrap_err(), AipRegistryError::DuplicatePath(_)));
+
+	Ok(())
+}
+
+// endregion: --- Merge
+
 // endregion: --- Tests

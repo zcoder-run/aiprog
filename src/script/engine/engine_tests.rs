@@ -260,3 +260,33 @@ async fn test_script_engine_async_error_conversion() -> Result<()> {
 }
 
 // endregion: --- Async handler error conversion
+
+// region:    --- Built-in modules integration
+
+#[test]
+fn test_script_engine_new_builtin_modules() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = ScriptEngine::new()?;
+	let lua = engine.lua();
+
+	// -- Exec & Check
+
+	// check aip.json module
+	assert!(lua.load("return type(aip.json) == 'table'").eval::<bool>()?);
+
+	assert!(lua.load("return type(aip.json.parse) == 'function'").eval::<bool>()?);
+
+	// check aip.web module
+	assert!(lua.load("return type(aip.web) == 'table'").eval::<bool>()?);
+
+	assert!(lua.load("return type(aip.web.get) == 'function'").eval::<bool>()?);
+
+	// check aip.file module
+	assert!(lua.load("return type(aip.file) == 'table'").eval::<bool>()?);
+
+	assert!(lua.load("return type(aip.file.read) == 'function'").eval::<bool>()?);
+
+	Ok(())
+}
+
+// endregion: --- Built-in modules integration
