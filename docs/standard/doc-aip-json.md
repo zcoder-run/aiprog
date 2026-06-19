@@ -12,15 +12,16 @@ The `aip.json` module provides functions to parse and serialize JSON content. By
 Parses a JSONC string (JSON with optional comments and trailing commas) into a Lua value.
 
 - **`text`** (optional, string) — The JSONC string to parse. When absent or `nil`, the result data is `null`.
+ - **`text`** (optional, string) — The JSONC string to parse. When absent or `nil`, the result is `nil`.
 
-Returns an [`AipJsonParseResult`](#aipjsonparseresult) table.
+ Returns the parsed Lua value directly. The value can be any JSON type, including `nil` for JSON null.
 
-**Example:**
+ **Example:**
 
-```lua
-local res = aip.json.parse({ text = '{"name": "John", "age": 30}' })
--- res.data.name == "John"
-```
+ ```lua
+ local res = aip.json.parse({ text = '{"name": "John", "age": 30}' })
+ -- res.name == "John"
+ ```
 
 ## aip.json.parse_jsonl(params: AipJsonParseJsonlParams)
 
@@ -28,14 +29,14 @@ Parses an NDJSON (newline-delimited JSON) string. Empty lines are silently skipp
 
 - **`text`** (optional, string) — The NDJSON string to parse. When absent or `nil`, returns an empty list.
 
-Returns an [`AipJsonParseJsonlResult`](#aipjsonparsejsonlresult) table.
+ Returns a Lua array (list) of parsed values directly.
 
-**Example:**
+ **Example:**
 
-```lua
-local res = aip.json.parse_jsonl({ text = '{"name": "John"}\n{"name": "Jane"}' })
--- res.data is an array with two objects
-```
+ ```lua
+ local res = aip.json.parse_jsonl({ text = '{"name": "John"}\n{"name": "Jane"}' })
+ -- res is an array with two objects
+ ```
 
 ## aip.json.stringify(params: AipJsonStringifyParams)
 
@@ -43,14 +44,14 @@ Serializes a Lua value (table, array, primitive) into a single-line JSON string.
 
 - **`data`** (any) — The value to stringify.
 
-Returns an [`AipJsonStringifyResult`](#aipjsonstringifyresult) table.
+ Returns a compact JSON string.
 
-**Example:**
+ **Example:**
 
-```lua
-local res = aip.json.stringify({ data = { name = "John", age = 30 } })
--- res.text contains '{"name":"John","age":30}'
-```
+ ```lua
+ local res = aip.json.stringify({ data = { name = "John", age = 30 } })
+ -- res contains '{"name":"John","age":30}'
+ ```
 
 ## aip.json.stringify_pretty(params: AipJsonStringifyParams)
 
@@ -58,14 +59,14 @@ Serializes a Lua value into a multi-line, indented JSON string.
 
 - **`data`** (any) — The value to stringify.
 
-Returns an [`AipJsonStringifyPrettyResult`](#aipjsonstringifyprettyresult) table.
+ Returns a pretty-printed JSON string.
 
-**Example:**
+ **Example:**
 
-```lua
-local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
--- res.text contains a prettified JSON string with newlines and indentation
-```
+ ```lua
+ local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
+ -- res contains a prettified JSON string with newlines and indentation
+ ```
 
 ## Common Types
 
@@ -78,13 +79,12 @@ interface AipJsonParseParams {
 }
 ```
 
-### AipJsonParseResult
+### AipJsonParseResponse
+
+The parsed JSON value returned directly to Lua.
 
 ```typescript
-interface AipJsonParseResult {
-  /** The parsed value; can be any JSON type including null. */
-  data: any;
-}
+type AipJsonParseResponse = any;
 ```
 
 ### AipJsonParseJsonlParams
@@ -96,13 +96,12 @@ interface AipJsonParseJsonlParams {
 }
 ```
 
-### AipJsonParseJsonlResult
+### AipJsonParseJsonlResponse
+
+The array of parsed values returned directly to Lua.
 
 ```typescript
-interface AipJsonParseJsonlResult {
-  /** Array of parsed values, one per line. */
-  data: any[];
-}
+type AipJsonParseJsonlResponse = any[];
 ```
 
 ### AipJsonStringifyParams
@@ -116,20 +115,18 @@ interface AipJsonStringifyParams {
 }
 ```
 
-### AipJsonStringifyResult
+### AipJsonStringifyResponse
+
+The compact JSON string returned directly to Lua.
 
 ```typescript
-interface AipJsonStringifyResult {
-  /** Compact JSON string. */
-  text: string;
-}
+type AipJsonStringifyResponse = string;
 ```
 
-### AipJsonStringifyPrettyResult
+### AipJsonStringifyPrettyResponse
+
+The pretty-printed JSON string returned directly to Lua.
 
 ```typescript
-interface AipJsonStringifyPrettyResult {
-  /** Pretty-printed JSON string. */
-  text: string;
-}
+type AipJsonStringifyPrettyResponse = string;
 ```

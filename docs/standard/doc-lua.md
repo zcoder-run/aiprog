@@ -1,0 +1,112 @@
+# Lua AIP Extensions
+
+This document describes the built-in Lua extensions provided by the AIP runtime.  
+They are available globally in every Lua script executed by the engine.
+
+## Null Sentinel
+
+AIP exposes a special **null sentinel** value to represent explicit `null` as distinct from Lua's `nil`.  
+This sentinel is bound to three global variables:
+
+- `null`
+- `NULL`
+- `Null`
+
+All three point to the same sentinel (`mlua::Value::NULL`).  
+Use them interchangeably.
+
+**Example:**
+
+```lua
+local val = null
+print(is_null(val))  --> true
+```
+
+## Global Helper Functions
+
+The following functions are available in the global scope.
+
+### `is_null(value)`
+
+Returns `true` if `value` is the null sentinel or Lua `nil`.
+
+```lua
+is_null(null)       --> true
+is_null(nil)        --> true
+is_null(42)         --> false
+```
+
+### `is_not_null(value)`
+
+Returns `true` if `value` is **not** the null sentinel and **not** Lua `nil`.
+
+```lua
+is_not_null(nil)    --> false
+is_not_null(null)   --> false
+is_not_null("hi")   --> true
+```
+
+### `nil_if_null(value)`
+
+Returns `nil` if `value` is the null sentinel; otherwise returns `value` unchanged.
+
+```lua
+nil_if_null(null)   --> nil
+nil_if_null("text") --> "text"
+```
+
+### `value_or(value, default)`
+
+Returns `value` if it is not `nil` and not the null sentinel; otherwise returns `default`.
+
+```lua
+value_or(nil, "fallback")  --> "fallback"
+value_or(null, 0)          --> 0
+value_or("ok", "fallback") --> "ok"
+```
+
+### `is_table(value)`
+
+Returns `true` if `value` is a Lua table (and not nil or the null sentinel).
+
+```lua
+is_table({})        --> true
+is_table(nil)       --> false
+is_table(null)      --> false
+```
+
+### `is_list(value)`
+
+Returns `true` if `value` is a Lua table and has an integer key `1` (i.e., it behaves like a sequential list).
+
+```lua
+is_list({10, 20})   --> true
+is_list({a=1})      --> false
+```
+
+### `is_object(value)`
+
+Returns `true` if `value` is a Lua table and does **not** have an integer key `1` (i.e., it behaves like a dictionary).
+
+```lua
+is_object({a=1})    --> true
+is_object({10, 20}) --> false
+```
+
+## Module Extensions
+
+Beyond the global helpers, AIP provides higher-level modules installed under the `aip` namespace:
+
+- **`aip.json`** – JSON parsing and stringification.  
+  See `doc-aip-json.md`.
+- **`aip.web`** – HTTP client (`get`, `post`).  
+  See `doc-aip-web.md`.
+
+Each module follows the [aip API scheme](dev/specs/spec-aiprog-api-scheme.md): functions accept a single table of named parameters and return either a direct value or a result table with a `data` field.
+
+## Rust-side Extensions (Internal)
+
+The crate also provides Rust helper traits (`LuaExt`, `LuaJsonExt`) for extracting values from Lua tables and converting between JSON and Lua.  
+These traits are not directly accessible from Lua scripts; they are used internally by the `aip.*` modules and other native code.
+
+For reference, see the implementation in `src/script/lua_exts/`.

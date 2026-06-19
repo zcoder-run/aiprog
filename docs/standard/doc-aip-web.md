@@ -22,6 +22,17 @@ local res = aip.web.get({ data = "https://httpbin.org/json", parse = true })
 -- res.data contains the parsed JSON object
 ```
 
+### Errors
+
+The function may raise a Lua error containing an `AipApiError` with one of the following error codes:
+
+- `CLIENT_BUILD_FAILED` — Failed to build the HTTP client.
+- `REQUEST_FAILED` — The HTTP request failed (e.g., network error, DNS resolution failure).
+- `PARSE_FAILED` — Failed to parse the response body as JSON (when `parse` is `true`).
+
+Non-success HTTP status codes (4xx, 5xx) are not raised as errors; they are returned as a successful result with `success` set to `false` and an `error` field describing the status.
+
+
 ## aip.web.post(params: AipWebPostParams)
 
 Performs an HTTP POST request.
@@ -44,6 +55,17 @@ local res = aip.web.post({
     json = { key = "value" },
 })
 ```
+
+### Errors
+
+The function may raise a Lua error containing an `AipApiError` with one of the following error codes:
+
+- `CLIENT_BUILD_FAILED` — Failed to build the HTTP client.
+- `REQUEST_FAILED` — The HTTP request failed (e.g., network error, DNS resolution failure).
+- `PARSE_FAILED` — Failed to parse the response body as JSON (when `parse` is `true`).
+
+Non-success HTTP status codes (4xx, 5xx) are not raised as errors; they are returned as a successful result with `success` set to `false` and an `error` field describing the status.
+
 
 ## Constants
 
