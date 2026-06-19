@@ -8,7 +8,9 @@ Provide a consistent, self-documenting Lua API surface where:
 
 - Every function lives under a `aip.<module>.<function>` path.
 - Each function accepts a single table argument carrying typed parameters.
-- Each function returns a table with a mandatory `data` field and optional metadata.
+ Each function returns a Lua value appropriate for its result:
+   - Simple results (e.g., a parsed JSON value, a string, a number) are returned directly as the native Lua type.
+   - Structured results that carry metadata (e.g., HTTP response details) are returned as a Lua table with a `data` field and optional metadata.
 - Errors are raised as structured Lua errors (or returned as part of the result) with an error code and message.
 - TypeScript-style type definitions accompany the implementation so that autocompletion and documentation tools can leverage them.
 
@@ -49,42 +51,59 @@ interface AipJsonParseParams {
 
 In Rust, the Params struct is deserialized manually from the Lua table via the `AipFromLua` trait; the trait implementation maps table keys to Rust fields.
 
+
 ### Return Type and Data Wrapping
 
-Each function returns a single Lua table. The table always contains a `data` key holding the primary payload (the operation’s result). Additional metadata may be placed at the top level of the same table.
+Each handler returns an `AipApiResult<T>` where `T` is the response type. The response type determines how the value is rendered in Lua.
 
-Naming convention:
+#### Structured responses (table with `data` field)
 
-- `Aip<Module><Function>Result` — e.g., `AipJsonParseResult`, `AipWebResult`.
-- A Result type may be shared across multiple functions when the return shape is identical (e.g., `AipWebResult` for both `get` and `post`).
+When additional metadata must accompany the result (e.g., HTTP status code, headers), the response type is a named struct with fields. The struct implements `AipIntoLua` (typically via `#[derive(AipIntoLua)]`, which uses serde to convert to a Lua table). The resulting Lua table always contains a `data` key holding the primary payload, along with any other defined fields.
 
-The `data` field can be any Lua value (nil, string, number, table). When the operation would logically return nothing, `data` is set to `nil` (Lua) or `null` (JSON). The Rust implementation uses `serde_json::Value` as the backing type and converts it to Lua via `AipIntoLua`.
+Naming convention: `Aip<Module><Function>Result` or `Aip<Module>Result` when shared (e.g., `AipWebResult`).
 
 Example:
 
-```typescript
-interface AipJsonParseResult {
-  /** The parsed JSON value, or null for empty input. */
-  data: any;
-}
-
-interface AipWebResult {
-  /** Response body as string or parsed JSON object. */
-  data: any;
-  /** True for 2xx status codes. */
-  success: boolean;
-  /** HTTP status code. */
-  status: number;
-  /** Final URL after redirects. */
-  url: string;
-  /** Content-Type header, if present. */
-  content_type?: string;
-  /** Response headers (lower-case keys). */
-  headers: { [key: string]: string };
-  /** Error description when success is false. */
-  error?: string;
+```rust
+struct AipWebResult {
+    data: serde_json::Value,
+    success: bool,
+    status: u16,
+    // ...
 }
 ```
+
+In Lua, the caller receives:
+
+```lua
+local res = aip.web.get({ url = "..." })
+print(res.data, res.status)
+```
+
+#### Single‑value responses (raw value)
+
+For functions whose natural result is a single value with no needed metadata, the response type is a newtype wrapper (single‑field tuple struct) around the value type. The wrapper implements `AipIntoLua` by delegating directly to the inner type's conversion; the Lua caller receives the value itself, not a table.
+
+Naming convention: `Aip<Module><Function>Response`.
+
+Example:
+
+```rust
+/// Response type for `aip.json.parse`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
+pub struct AipJsonParseResponse(pub serde_json::Value);
+```
+
+In Lua:
+
+```lua
+local val = aip.json.parse({ text = "..." })
+-- val is the Lua representation of the JSON (table, string, …)
+```
+
+The `#[derive(AipIntoLua)]` macro detects single‑field tuple structs and generates a direct delegation `self.0.into_lua(lua)`, bypassing the serde round‑trip. For structs with multiple fields, the existing serde‑based table conversion is used.
+
+> **Note**: Inner types must implement `AipIntoLua`. Standard library types (`serde_json::Value`, `String`, primitive numbers, `Vec<T>` where `T: AipIntoLua`) already do so.
 
 ### Error Handling
 
@@ -118,21 +137,22 @@ All types follow the naming schema:
 Aip<Module><Function><Role>
 ```
 
-Where `<Role>` is one of `Params`, `Result` (or `Error` in the future).
+Where `<Role>` is one of `Params`, `Response`, `Result`, or `Error`.
 
 Examples:
 
 - `AipJsonParseParams`
-- `AipJsonParseResult`
+- `AipJsonParseResponse`
+- `AipJsonStringifyResponse`
 - `AipWebGetParams`
 - `AipWebResult`
 
-When a type is reused, the name may drop the function part (e.g., `AipWebResult` instead of `AipWebGetResult`). This is acceptable as long as the reuse is clearly documented.
+When a type is reused, the name may drop the function part (e.g., `AipWebResult` instead of `AipWebGetResult`). Single‑value responses use the `Response` suffix; structured results with metadata use the `Result` suffix. This is clearly documented per function.
 
 ## Design Considerations
 
 - **Single table argument**: Lua functions that accept many positional arguments can become hard to read. Using a single named-parameter table makes the API explicit and future-proof, as new optional fields can be added without breaking callers.
-- **`data` as the primary payload**: By consistently wrapping the result payload in `data`, consumers can always access the core result with the same access pattern (`res.data`). Metadata fields reside at the same level, avoiding nesting.
+ **Return value shape**: Functions that produce a single value without additional metadata return that value directly, so callers can use it without unwrapping. Functions that need to provide metadata alongside the result use a table with a `data` field and additional fields, keeping the primary result accessible via `res.data`. This balances simplicity for common cases with clarity for more complex results.
 - **Shared types**: When two functions have identical inputs or outputs, sharing the type reduces duplication and keeps the API consistent. The naming convention should still suggest the primary use or module.
  **Error representation**: The unified `AipApiError` type with string error codes provides a simple yet sufficient differentiation mechanism. Lua scripts can inspect the `code` field to handle specific errors. This avoids the complexity of multiple error types while remaining extensible through new code strings.
 - **TypeScript documentation**: TypeScript interfaces provide a familiar, tool-friendly way to document the API shape without tying it to a particular language. They are used in the standard documentation (e.g., `doc-aip-json.md`).

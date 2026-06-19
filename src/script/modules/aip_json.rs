@@ -16,6 +16,7 @@
 //!
 //! - `aip.json.parse(params: { text?: string }) -> { data: any }`
 //! - `aip.json.parse_jsonl(params: { text?: string }) -> { data: any[] }`
+//! - `aip.json.parse_jsonl(params: { text?: string }) -> any[]`
 //! - `aip.json.stringify(params: { data: any }) -> { text: string }`
 //! - `aip.json.stringify_pretty(params: { data: any }) -> { text: string }`
 //!
@@ -30,6 +31,48 @@ use crate::{ScriptError, ScriptResult};
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
+
+use aiprog_macros::AipIntoLua;
+use aiprog_macros::AipResponse;
+
+// region:    --- Response Types (new single-value returns)
+
+/// Response type for `aip.json.parse`.
+///
+/// The parsed JSON value is returned directly to Lua without a wrapper table.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
+pub struct AipJsonParseResponse(pub serde_json::Value);
+
+/// Response type for `aip.json.stringify`.
+///
+/// The serialized JSON string is returned directly to Lua as a Lua string,
+/// without a wrapper table.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
+pub struct AipJsonStringifyResponse(pub String);
+
+/// Response type for `aip.json.stringify_pretty`.
+///
+/// The pretty-printed JSON string is returned directly to Lua as a Lua string,
+/// without a wrapper table.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
+pub struct AipJsonStringifyPrettyResponse(pub String);
+
+/// Response type for `aip.json.parse_jsonl`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipResponse)]
+pub struct AipJsonParseJsonlResponse(pub Vec<serde_json::Value>);
+
+impl AipIntoLua for AipJsonParseJsonlResponse {
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+		let seq = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+		for (i, item) in self.0.into_iter().enumerate() {
+			let item_lua = item.into_lua(lua)?;
+			seq.set(i + 1, item_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
+		}
+		Ok(mlua::Value::Table(seq))
+	}
+}
+
+// endregion: --- Response Types
 
 /// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
 ///
@@ -71,36 +114,14 @@ impl AipFromLua for AipJsonParseParams {
 
 impl crate::script::AipParams for AipJsonParseParams {}
 
-/// Result of the `parse` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseResult {
-	/// The parsed JSON value.
-	pub data: serde_json::Value,
-}
-
-impl AipIntoLua for AipJsonParseResult {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
-		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		let data_lua = self.data.into_lua(lua)?;
-		table.set("data", data_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
-		Ok(mlua::Value::Table(table))
-	}
-}
-
-impl crate::script::AipResponse for AipJsonParseResult {}
-
-fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseResult> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseResponse> {
 	let Some(content) = params.text else {
-		return Ok(AipJsonParseResult {
-			data: serde_json::Value::Null,
-		});
+		return Ok(AipJsonParseResponse(serde_json::Value::Null));
 	};
 
 	match jsons::parse_jsonc_to_serde_value(&content) {
-		Ok(Some(json_val)) => Ok(AipJsonParseResult { data: json_val }),
-		Ok(None) => Ok(AipJsonParseResult {
-			data: serde_json::Value::Null,
-		}),
+		Ok(Some(json_val)) => Ok(AipJsonParseResponse(json_val)),
+		Ok(None) => Ok(AipJsonParseResponse(serde_json::Value::Null)),
 		Err(err) => Err(AipApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse failed. {err}"),
@@ -133,35 +154,13 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl crate::script::AipParams for AipJsonParseJsonlParams {}
 
-/// Result of the `parse_ndjson` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseJsonlResult {
-	/// The parsed list of JSON values.
-	pub data: Vec<serde_json::Value>,
-}
-
-impl AipIntoLua for AipJsonParseJsonlResult {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
-		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		let data_vec = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		for (i, item) in self.data.into_iter().enumerate() {
-			let item_lua = item.into_lua(lua)?;
-			data_vec.set(i + 1, item_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
-		}
-		table.set("data", data_vec).map_err(|e| ScriptError::custom(e.to_string()))?;
-		Ok(mlua::Value::Table(table))
-	}
-}
-
-impl crate::script::AipResponse for AipJsonParseJsonlResult {}
-
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlResult> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlResponse> {
 	let Some(content) = params.text else {
-		return Ok(AipJsonParseJsonlResult { data: vec![] });
+		return Ok(AipJsonParseJsonlResponse(vec![]));
 	};
 	let reader = BufReader::new(content.as_bytes());
 	match parse_ndjson_from_reader(reader) {
-		Ok(values) => Ok(AipJsonParseJsonlResult { data: values }),
+		Ok(values) => Ok(AipJsonParseJsonlResponse(values)),
 		Err(err) => Err(AipApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse_jsonl failed. {err}"),
@@ -197,27 +196,9 @@ impl AipFromLua for AipJsonStringifyParams {
 
 impl crate::script::AipParams for AipJsonStringifyParams {}
 
-/// Result of the `stringify` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyResult {
-	/// The stringified JSON string.
-	pub text: String,
-}
-
-impl AipIntoLua for AipJsonStringifyResult {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
-		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		let text_lua = self.text.into_lua(lua)?;
-		table.set("text", text_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
-		Ok(mlua::Value::Table(table))
-	}
-}
-
-impl crate::script::AipResponse for AipJsonStringifyResult {}
-
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResult> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResponse> {
 	match serde_json::to_string(&params.data) {
-		Ok(str) => Ok(AipJsonStringifyResult { text: str }),
+		Ok(str) => Ok(AipJsonStringifyResponse(str)),
 		Err(err) => Err(AipApiError {
 			code: "STRINGIFY_FAILED".to_string(),
 			message: format!("aip.json.stringify fail to stringify. {err}"),
@@ -231,27 +212,9 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<Ai
 
 // region:    --- aip.json.stringify_pretty
 
-/// Result of the `stringify_pretty` function.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyPrettyResult {
-	/// The pretty-stringified JSON string.
-	pub text: String,
-}
-
-impl AipIntoLua for AipJsonStringifyPrettyResult {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
-		let table = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
-		let text_lua = self.text.into_lua(lua)?;
-		table.set("text", text_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
-		Ok(mlua::Value::Table(table))
-	}
-}
-
-impl crate::script::AipResponse for AipJsonStringifyPrettyResult {}
-
-fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyPrettyResult> {
+fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyPrettyResponse> {
 	match serde_json::to_string_pretty(&params.data) {
-		Ok(str) => Ok(AipJsonStringifyPrettyResult { text: str }),
+		Ok(str) => Ok(AipJsonStringifyPrettyResponse(str)),
 		Err(err) => Err(AipApiError {
 			code: "STRINGIFY_FAILED".to_string(),
 			message: format!("aip.json.stringify_pretty fail to stringify. {err}"),

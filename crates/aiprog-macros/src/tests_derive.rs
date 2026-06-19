@@ -26,7 +26,7 @@ struct TestParams {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, AipFromLua, AipIntoLua)]
-struct GenericWrapper<T> {
+struct NamedWrapper<T> {
     inner: T,
 }
 
@@ -69,12 +69,29 @@ fn test_roundtrip_option_none() -> Result<()> {
 #[test]
 fn test_roundtrip_generic() -> Result<()> {
     let lua = Lua::new();
-    let original = GenericWrapper { inner: 123i64 };
+    let original = NamedWrapper { inner: 123i64 };
     let lua_val = original.into_lua(&lua)?;
-    let back: GenericWrapper<i64> = GenericWrapper::from_lua(&lua, lua_val)?;
+    let back: NamedWrapper<i64> = NamedWrapper::from_lua(&lua, lua_val)?;
     assert_eq!(back, original);
     Ok(())
 }
+
+// region:    --- Single-field tuple delegation test
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, AipIntoLua)]
+struct SingleFieldWrapper(i64);
+
+#[test]
+fn test_single_field_tuple_into_lua_delegates_directly() -> Result<()> {
+    let lua = Lua::new();
+    let original = SingleFieldWrapper(42);
+    let lua_val = original.into_lua(&lua)?;
+    // Delegation should produce the inner i64 directly, not a Lua table wrapping it.
+    assert_eq!(lua_val, aiprog::mlua::Value::Integer(42));
+    Ok(())
+}
+
+// endregion: --- Single-field tuple delegation test
 
 // endregion: --- Roundtrip tests
 
