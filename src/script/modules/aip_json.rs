@@ -104,10 +104,9 @@ pub struct AipJsonParseParams {
 }
 
 impl AipFromLua for AipJsonParseParams {
-	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
-		let text_val: mlua::Value = table.get("text")?;
-		let text = Option::<String>::from_lua(lua, text_val)?;
+		let text = table.x_get_string("text");
 		Ok(AipJsonParseParams { text })
 	}
 }
@@ -144,10 +143,9 @@ pub struct AipJsonParseJsonlParams {
 }
 
 impl AipFromLua for AipJsonParseJsonlParams {
-	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
 		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
-		let text_val: mlua::Value = table.get("text")?;
-		let text = Option::<String>::from_lua(lua, text_val)?;
+		let text = table.x_get_string("text");
 		Ok(AipJsonParseJsonlParams { text })
 	}
 }

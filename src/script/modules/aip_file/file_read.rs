@@ -1,12 +1,11 @@
-
-use crate::script::script_error::ScriptResult;
-use crate::script::{AipApiResult, AipFromLua, AipIntoLua, LuaExt};
-use mlua::{Lua, Value};
-
 use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
 	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
+use crate::script::script_error::ScriptResult;
+use crate::script::{AipApiResult, AipFromLua, AipIntoLua, LuaExt};
+use mlua::{Lua, Value};
+
 /// Register all read-related handlers into the given `AipRegistry`.
 ///
 /// This function captures the provided `FileContext` and wraps each handler so
@@ -152,8 +151,8 @@ impl AipFromLua for AipFileListParams {
 
 		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
-		let with_meta: Option<bool> = table.get::<Value>("with_meta").ok().and_then(|v| v.as_boolean());
+		let absolute: Option<bool> = table.x_get_bool("absolute");
+		let with_meta: Option<bool> = table.x_get_bool("with_meta");
 
 		Ok(AipFileListParams {
 			globs,
@@ -178,7 +177,7 @@ pub struct AipFileListResult {
 impl AipIntoLua for AipFileListResult {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
 		let table = lua.create_table()?;
-        let data_table = lua.create_table()?;
+		let data_table = lua.create_table()?;
 		for (i, info) in self.data.into_iter().enumerate() {
 			let info_lua = support::file_info_into_lua(info, lua)?;
 			data_table.set(i + 1, info_lua)?;
@@ -210,7 +209,8 @@ impl AipFromLua for AipFileListReadParams {
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
 		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
+		let absolute: Option<bool> = table.x_get_bool("absolute");
+
 		Ok(AipFileListReadParams {
 			globs,
 			base_dir,
@@ -233,7 +233,7 @@ pub struct AipFileListReadResult {
 impl AipIntoLua for AipFileListReadResult {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
 		let table = lua.create_table()?;
-        let data_table = lua.create_table()?;
+		let data_table = lua.create_table()?;
 		for (i, record) in self.data.into_iter().enumerate() {
 			let record_lua = support::file_record_into_lua(record, lua)?;
 			data_table.set(i + 1, record_lua)?;
@@ -355,7 +355,8 @@ impl AipFromLua for AipFileFirstParams {
 			.ok_or_else(|| crate::script::ScriptError::custom("Expected table"))?;
 		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.get::<Value>("absolute").ok().and_then(|v| v.as_boolean());
+		let absolute: Option<bool> = table.x_get_bool("absolute");
+
 		Ok(AipFileFirstParams {
 			globs,
 			base_dir,
@@ -603,17 +604,15 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> AipA
 
 fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> ScriptResult<FileGlobs> {
 	let val: Value = table.get(key)?;
-	if val.is_string() {
-		let mlua_str = val
-			.as_string()
-			.ok_or_else(|| crate::script::ScriptError::custom("Expected string value"))?;
-		let s: String = mlua_str.to_string_lossy();
-		Ok(FileGlobs::Single(s))
-	} else if let Some(arr) = val.as_table() {
+	if let Some(s) = val.x_as_lua_str() {
+		Ok(FileGlobs::Single(s.to_string()))
+	} else if let Some(list) = val.x_as_list() {
 		let mut vec = Vec::new();
-		for i in 1..=arr.len().unwrap_or(0) {
-			let item: String = arr.get(i)?;
-			vec.push(item);
+		for v in &list {
+			let s = v
+				.x_as_lua_str()
+				.ok_or_else(|| crate::script::ScriptError::custom("globs entry must be a string"))?;
+			vec.push(s.to_string());
 		}
 		if vec.is_empty() {
 			return Err(crate::script::ScriptError::custom("globs must not be empty"));

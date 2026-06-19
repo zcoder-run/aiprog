@@ -95,10 +95,12 @@ impl AipFromLua for AipWebGetParams {
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("data")?;
 
-		let user_agent: Option<AipWebUserAgent> = table.get::<mlua::Value>("user_agent").ok().and_then(|v| match v {
-			mlua::Value::Boolean(b) => Some(AipWebUserAgent::Bool(b)),
-			mlua::Value::String(s) => Some(AipWebUserAgent::String(s.to_string_lossy().to_string())),
-			_ => None,
+		let user_agent = table.x_get_value("user_agent").and_then(|v| {
+			if let Some(b) = v.x_as_bool() {
+				Some(AipWebUserAgent::Bool(b))
+			} else {
+				v.x_as_lua_str().map(|s| AipWebUserAgent::String(s.to_string()))
+			}
 		});
 
 		let headers: Option<HashMap<String, AipWebHeaderValue>> =
@@ -131,12 +133,9 @@ impl AipFromLua for AipWebGetParams {
 				Some(map)
 			});
 
-		let redirect_limit: Option<usize> = table
-			.get::<mlua::Value>("redirect_limit")
-			.ok()
-			.and_then(|v| v.as_integer().map(|n| n as usize));
+		let redirect_limit: Option<usize> = table.x_get_i64("redirect_limit").map(|n| n as usize);
 
-		let parse: Option<bool> = table.get::<mlua::Value>("parse").ok().and_then(|v| v.as_boolean());
+		let parse: Option<bool> = table.x_get_bool("parse");
 
 		Ok(AipWebGetParams {
 			data,
@@ -261,10 +260,12 @@ impl AipFromLua for AipWebPostParams {
 
 		let body: Option<String> = table.get("body")?;
 
-		let user_agent: Option<AipWebUserAgent> = table.get::<mlua::Value>("user_agent").ok().and_then(|v| match v {
-			mlua::Value::Boolean(b) => Some(AipWebUserAgent::Bool(b)),
-			mlua::Value::String(s) => Some(AipWebUserAgent::String(s.to_string_lossy().to_string())),
-			_ => None,
+		let user_agent = table.x_get_value("user_agent").and_then(|v| {
+			if let Some(b) = v.x_as_bool() {
+				Some(AipWebUserAgent::Bool(b))
+			} else {
+				v.x_as_lua_str().map(|s| AipWebUserAgent::String(s.to_string()))
+			}
 		});
 
 		let headers: Option<HashMap<String, AipWebHeaderValue>> =
@@ -297,12 +298,9 @@ impl AipFromLua for AipWebPostParams {
 				Some(map)
 			});
 
-		let redirect_limit: Option<usize> = table
-			.get::<mlua::Value>("redirect_limit")
-			.ok()
-			.and_then(|v| v.as_integer().map(|n| n as usize));
+		let redirect_limit: Option<usize> = table.x_get_i64("redirect_limit").map(|n| n as usize);
 
-		let parse: Option<bool> = table.get::<mlua::Value>("parse").ok().and_then(|v| v.as_boolean());
+		let parse: Option<bool> = table.x_get_bool("parse");
 
 		Ok(AipWebPostParams {
 			data,

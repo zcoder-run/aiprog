@@ -1,6 +1,6 @@
 use super::{AipError, AipParams, AipResponse};
-use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use crate::script::HandlerResult;
+use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use mlua::{Lua, Value};
 use schemars::{Schema, schema_for};
 use serde::Serialize;

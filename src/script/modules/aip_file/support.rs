@@ -3,7 +3,6 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-
 use crate::script::{AipApiError, AipApiResult, ScriptResult};
 use mlua::{Lua, Value};
 use simple_fs::{ListOptions, SPath, list_files, read_to_string};

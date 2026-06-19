@@ -1,6 +1,6 @@
+use crate::script::script_error;
 use crate::script::{AipFromLua, AipIntoLua};
 use mlua::{Lua, Value};
-use crate::script::script_error;
 
 /// Macro generating the `Handler` implementations for the supported handler
 /// signatures: a single typed params argument, in both sync and async forms.

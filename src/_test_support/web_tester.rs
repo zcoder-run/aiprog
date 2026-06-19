@@ -82,7 +82,7 @@ impl TestServerBuilder {
 		self.headers.push((name.into(), value.into()));
 		self
 	}
-#[allow(dead_code)]
+	#[allow(dead_code)]
 	pub fn body_bytes(mut self, data: impl Into<Vec<u8>>) -> Self {
 		self.body = data.into();
 		self

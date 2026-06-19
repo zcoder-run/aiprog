@@ -22,6 +22,7 @@ pub trait LuaExt {
     fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>>;
     fn x_as_i64(&self) -> Option<i64>;
     fn x_as_f64(&self) -> Option<f64>;
+    fn x_as_bool(&self) -> Option<bool>;
     fn x_to_string(&self) -> Option<String>;
     fn x_get_value(&self, key: &str) -> Option<Value>;
     fn x_get_string(&self, key: &str) -> Option<String>;
@@ -47,9 +48,7 @@ These methods first attempt to access the table by `key`, then attempt the appro
 ### Direct value accessors
 
 - `x_as_lua_str(&self) → Option<BorrowedStr>`: borrows the value as a Lua string.
-- `x_as_i64(&self) → Option<i64>`: interprets the value as an integer, rounding floats.
-- `x_as_f64(&self) → Option<f64>`: interprets the value as a float.
-- `x_to_string(&self) → Option<String>`: converts the value to an owned string.
+- `x_as_bool(&self) → Option<bool>`: interprets the value as a boolean.
 - `x_is_null(&self) → bool`: returns true if the value is `Value::Null` or `Value::Nil`.
 - `x_as_list(&self) → Option<Vec<Value>>`: extracts the sequential part of a table (1..n contiguous, stops at first nil).
 

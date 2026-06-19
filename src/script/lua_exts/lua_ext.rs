@@ -13,6 +13,7 @@ pub trait LuaExt {
 	/// Note: Will round if floating number
 	fn x_as_i64(&self) -> Option<i64>;
 	fn x_as_f64(&self) -> Option<f64>;
+	fn x_as_bool(&self) -> Option<bool>;
 
 	fn x_to_string(&self) -> Option<String>;
 
@@ -56,6 +57,9 @@ impl LuaExt for Value {
 			Value::Number(num) => Some(*num),
 			_ => None,
 		}
+	}
+	fn x_as_bool(&self) -> Option<bool> {
+		self.as_boolean()
 	}
 
 	fn x_to_string(&self) -> Option<String> {
@@ -115,6 +119,9 @@ impl LuaExt for Table {
 		None
 	}
 	fn x_as_f64(&self) -> Option<f64> {
+		None
+	}
+	fn x_as_bool(&self) -> Option<bool> {
 		None
 	}
 
