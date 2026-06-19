@@ -6,7 +6,7 @@ mod modules;
 mod script_error;
 
 // crate only
-pub(crate) use handler::*;
+pub use handler::*;
 
 // public
 mod engine;

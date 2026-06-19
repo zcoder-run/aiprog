@@ -7,7 +7,7 @@ mod _test_support;
 mod support;
 
 mod error;
-mod script;
+pub mod script;
 
 pub use error::{Error, Result};
 pub use script::{ScriptEngine, ScriptError, ScriptResult};
