@@ -39,6 +39,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_with = { version = "3", features = ["macros"] }
 jsonc-parser = { version = "0.32", features = ["serde"]}
+schemars = "1.2.1"
 value-ext = "0.1.2"
 toml = "1"
 serde_yaml_ng = "0.10"
@@ -78,11 +79,10 @@ html-helpers = { version = "0.1.0" }
 htmd = "0.5"
 url = "2.5.7"
 quick-xml = "0.40"
-# -- Error
+# -- Others
 derive_more = { version = "2", features = ["display", "from"] }
 time = { version = "0.3.44", features = ["formatting", "local-offset"]}
 time-tz = {version = "2.0.0", features = ["system"]}
-schemars = "1.2.1"
 
 [dev-dependencies]
 assertables = "10"

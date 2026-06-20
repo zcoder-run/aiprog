@@ -50,13 +50,6 @@ pub struct AipJsonParseResponse(pub serde_json::Value);
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
 pub struct AipJsonStringifyResponse(pub String);
 
-/// Response type for `aip.json.stringify_pretty`.
-///
-/// The pretty-printed JSON string is returned directly to Lua as a Lua string,
-/// without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
-pub struct AipJsonStringifyPrettyResponse(pub String);
-
 /// Response type for `aip.json.parse_jsonl`.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipResponse)]
 pub struct AipJsonParseJsonlResponse(pub Vec<serde_json::Value>);
@@ -89,7 +82,6 @@ fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 	registry.register_sync::<_, _, _, _>("aip.json.parse", aip_json_parse_handler)?;
 	registry.register_sync::<_, _, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
 	registry.register_sync::<_, _, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
-	registry.register_sync::<_, _, _, _>("aip.json.stringify_pretty", aip_json_stringify_pretty_handler)?;
 	Ok(())
 }
 
@@ -173,29 +165,42 @@ fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult
 // region:    --- aip.json.stringify
 
 /// Parameters for the `stringify` and `stringify_pretty` functions.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyParams {
 	/// The value to serialize to JSON.
 	pub data: serde_json::Value,
+
+	/// Tell to format the json
+	pub pretty: Option<bool>,
 }
 
 impl AipFromLua for AipJsonStringifyParams {
 	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
 		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
-		let data_val: mlua::Value = table.get("data").map_err(|e| ScriptError::custom(e.to_string()))?;
+
+		let data_val: mlua::Value = table.get("data").map_err(|e| e.to_string())?;
 		let data = if data_val.is_nil() || data_val.x_is_null() {
 			serde_json::Value::Null
 		} else {
 			serde_json::Value::from_lua(lua, data_val)?
 		};
-		Ok(AipJsonStringifyParams { data })
+
+		let pretty = table.x_get_bool("pretty");
+
+		Ok(AipJsonStringifyParams { data, pretty })
 	}
 }
 
 impl crate::script::AipParams for AipJsonStringifyParams {}
 
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResponse> {
-	match serde_json::to_string(&params.data) {
+	let res = if params.pretty.unwrap_or_default() {
+		serde_json::to_string_pretty(&params.data)
+	} else {
+		serde_json::to_string(&params.data)
+	};
+
+	match res {
 		Ok(str) => Ok(AipJsonStringifyResponse(str)),
 		Err(err) => Err(AipApiError {
 			code: "STRINGIFY_FAILED".to_string(),
@@ -207,22 +212,6 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<Ai
 }
 
 // endregion: --- aip.json.stringify
-
-// region:    --- aip.json.stringify_pretty
-
-fn aip_json_stringify_pretty_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyPrettyResponse> {
-	match serde_json::to_string_pretty(&params.data) {
-		Ok(str) => Ok(AipJsonStringifyPrettyResponse(str)),
-		Err(err) => Err(AipApiError {
-			code: "STRINGIFY_FAILED".to_string(),
-			message: format!("aip.json.stringify_pretty fail to stringify. {err}"),
-			details: None,
-			cause: None,
-		}),
-	}
-}
-
-// endregion: --- aip.json.stringify_pretty
 
 // region:    --- Tests
 

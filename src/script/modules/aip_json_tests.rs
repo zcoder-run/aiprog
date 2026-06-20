@@ -195,7 +195,7 @@ async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
                 name = "John",
                 age = 30
             }
-            return aip.json.stringify_pretty({ data = obj })
+            return aip.json.stringify({ data = obj, pretty = true })
         "#;
 
 	// -- Exec
@@ -224,7 +224,7 @@ async fn test_script_lua_json_stringify_pretty_complex() -> Result<()> {
                 },
                 hobbies = {"reading", "gaming"}
             }
-            return aip.json.stringify_pretty({ data = obj })
+            return aip.json.stringify({ data = obj, pretty = true })
         "#;
 
 	// -- Exec
@@ -353,7 +353,7 @@ async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
-            local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
+            local res = aip.json.stringify({ data = { name = "John", age = 30 }, pretty = true })
             return res
         "#;
 
