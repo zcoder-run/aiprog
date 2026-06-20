@@ -38,6 +38,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	println!("{}", result.x_pretty()?);
 
+	// -- print doc
+
+	let doc = script_engine.generate_doc()?;
+
+	println!("\n=== Doc:\n{doc}");
+
 	Ok(())
 }
 
