@@ -4,8 +4,9 @@ use crate::{Result, ScriptEngine};
 use mlua::{Function, Lua, MultiValue, Value};
 
 impl ScriptEngine {
-	pub(super) fn register(&self, registry: AipRegistry) -> Result<()> {
+	pub(super) fn register(&mut self, registry: AipRegistry) -> Result<()> {
 		let lua = &self.lua;
+		self.registered_fns = registry.list_registered_fns();
 
 		for entry in registry.entries {
 			let func = match entry.kind {

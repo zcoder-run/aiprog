@@ -1,5 +1,6 @@
 // region:    --- Modules
 
+mod engine_doc;
 mod engine_impl;
 mod engine_internal;
 

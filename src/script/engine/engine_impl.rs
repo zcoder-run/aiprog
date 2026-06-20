@@ -1,9 +1,11 @@
 use crate::Result;
+use crate::registry::AipRegisteredFn;
 use crate::registry::AipRegistry;
 use mlua::{Lua, LuaSerdeExt};
 
 pub struct ScriptEngine {
 	pub(super) lua: Lua,
+	pub(super) registered_fns: Vec<AipRegisteredFn>,
 }
 
 impl core::fmt::Debug for ScriptEngine {
@@ -15,7 +17,10 @@ impl core::fmt::Debug for ScriptEngine {
 impl ScriptEngine {
 	/// Create a new script engine with default settings
 	pub fn new() -> Result<Self> {
-		let engine = Self { lua: Lua::new() };
+		let mut engine = Self {
+			lua: Lua::new(),
+			registered_fns: Vec::new(),
+		};
 		engine.init_native_is()?;
 		let registry = crate::script::modules::init_registry()?;
 		engine.register(registry)?;
@@ -23,7 +28,10 @@ impl ScriptEngine {
 	}
 
 	pub fn from_registry(registry: AipRegistry) -> Result<Self> {
-		let engine = Self { lua: Lua::new() };
+		let mut engine = Self {
+			lua: Lua::new(),
+			registered_fns: Vec::new(),
+		};
 		engine.init_native_is()?;
 		engine.register(registry)?;
 		Ok(engine)
