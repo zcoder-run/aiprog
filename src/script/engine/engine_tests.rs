@@ -46,7 +46,7 @@ fn test_error_handler(_params: TestParams) -> core::result::Result<TestResponse,
 #[test]
 fn test_script_engine_nested_table_creation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.test.my_func", test_sync_handler)?;
 
 	// -- Exec
@@ -78,7 +78,7 @@ fn test_script_engine_existing_compatible_table() -> Result<()> {
 		lua.globals().set("aip", aip)?;
 	}
 
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
@@ -110,7 +110,7 @@ fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 		aip_table.set("existing", 42)?;
 	}
 
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
 
 	// -- Exec
@@ -146,7 +146,7 @@ fn test_script_engine_leaf_conflict() -> Result<()> {
 		lua.globals().set("aip", aip)?;
 	}
 
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.conflict.my_func", test_sync_handler)?;
 
 	// -- Exec
@@ -167,7 +167,7 @@ fn test_script_engine_leaf_conflict() -> Result<()> {
 #[test]
 fn test_script_engine_sync_invocation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.test.echo", test_sync_handler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
@@ -188,7 +188,7 @@ fn test_script_engine_sync_invocation() -> Result<()> {
 #[test]
 fn test_script_engine_sync_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("aip.test.fail", test_error_handler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
@@ -212,7 +212,7 @@ fn test_script_engine_sync_error_conversion() -> Result<()> {
 #[tokio::test]
 async fn test_script_engine_async_invocation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_async("aip.test.echo_async", test_async_handler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
@@ -246,7 +246,7 @@ async fn test_script_engine_async_error_conversion() -> Result<()> {
 		})
 	}
 
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_async("aip.test.fail_async", async_error_handler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
@@ -302,40 +302,44 @@ fn test_script_engine_new_builtin_modules() -> Result<()> {
 
 #[test]
 fn test_generate_doc_content() -> Result<()> {
-    let mut registry = AipRegistry::default();
-    registry.register_sync("aip.test.echo", test_sync_handler)?;
-    registry.register_async("aip.test.echo_async", test_async_handler)?;
-    let engine = ScriptEngine::from_registry(registry)?;
+	let mut registry = AipRegistry::from_empty();
+	registry.register_sync("aip.test.echo", test_sync_handler)?;
+	registry.register_async("aip.test.echo_async", test_async_handler)?;
+	let engine = ScriptEngine::from_registry(registry)?;
 
-    let doc = engine.generate_doc()?;
+	let doc = engine.generate_doc()?;
 
-    // Check for expected sections
-    assert!(doc.contains("## `aip.test.echo` (sync)"));
-    assert!(doc.contains("## `aip.test.echo_async` (async)"));
-    assert!(doc.contains("### Parameters schema"));
-    assert!(doc.contains("### Response schema"));
-    assert!(doc.contains("### Error schema"));
+	// Check for expected sections
+	assert!(doc.contains("## `aip.test.echo` (sync)"));
+	assert!(doc.contains("## `aip.test.echo_async` (async)"));
+	assert!(doc.contains("### Parameters schema"));
+	assert!(doc.contains("### Response schema"));
+	assert!(doc.contains("### Error schema"));
 
-    // Verify JSON blocks contain valid JSON
-    let mut json_block_count = 0;
-    let mut remaining = doc.as_str();
-    while let Some(start) = remaining.find("```json") {
-        let after_open = &remaining[start + "```json".len()..];
-        let after_open = after_open.trim_start_matches(|c: char| c.is_whitespace());
-        if let Some(end) = after_open.find("```") {
-            let json_str = &after_open[..end].trim_end();
-            serde_json::from_str::<serde_json::Value>(json_str)?;
-            json_block_count += 1;
-            remaining = &after_open[end + 3..];
-        } else {
-            break;
-        }
-    }
-    // There should be at least 3 blocks per handler (params, response, error)
-    // with 2 handlers, that's 6 blocks minimum
-    assert!(json_block_count >= 6, "Expected at least 6 JSON blocks, found {}", json_block_count);
+	// Verify JSON blocks contain valid JSON
+	let mut json_block_count = 0;
+	let mut remaining = doc.as_str();
+	while let Some(start) = remaining.find("```json") {
+		let after_open = &remaining[start + "```json".len()..];
+		let after_open = after_open.trim_start_matches(|c: char| c.is_whitespace());
+		if let Some(end) = after_open.find("```") {
+			let json_str = &after_open[..end].trim_end();
+			serde_json::from_str::<serde_json::Value>(json_str)?;
+			json_block_count += 1;
+			remaining = &after_open[end + 3..];
+		} else {
+			break;
+		}
+	}
+	// There should be at least 3 blocks per handler (params, response, error)
+	// with 2 handlers, that's 6 blocks minimum
+	assert!(
+		json_block_count >= 6,
+		"Expected at least 6 JSON blocks, found {}",
+		json_block_count
+	);
 
-    Ok(())
+	Ok(())
 }
 
 // endregion: --- generate_doc test

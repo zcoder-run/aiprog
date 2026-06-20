@@ -36,7 +36,7 @@ pub fn setup_script_engine<F>(register_fn: F) -> crate::Result<crate::ScriptEngi
 where
 	F: FnOnce(&mut crate::registry::AipRegistry) -> crate::Result<()>,
 {
-	let mut registry = crate::registry::AipRegistry::default();
+	let mut registry = crate::registry::AipRegistry::from_empty();
 	register_fn(&mut registry)?;
 	crate::ScriptEngine::from_registry(registry)
 }

@@ -37,7 +37,7 @@ async fn test_async_handler(params: TestParams) -> core::result::Result<TestResp
 #[test]
 fn test_registry_register_sync_success() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 
 	// -- Exec
 	registry.register_sync("test.parse", test_sync_handler)?;
@@ -58,7 +58,7 @@ fn test_registry_register_sync_success() -> Result<()> {
 #[test]
 fn test_registry_register_async_success() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 
 	// -- Exec
 	registry.register_async("test.fetch", test_async_handler)?;
@@ -79,7 +79,7 @@ fn test_registry_register_async_success() -> Result<()> {
 #[test]
 fn test_registry_duplicate_path_rejection() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	registry.register_sync("test.parse", test_sync_handler)?;
 
 	// -- Exec
@@ -100,7 +100,7 @@ fn test_registry_duplicate_path_rejection() -> Result<()> {
 #[test]
 fn test_registry_invalid_paths() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 
 	// -- Exec & Check
 	assert!(registry.register_sync("", test_sync_handler).is_err());
@@ -119,7 +119,7 @@ fn test_registry_invalid_paths() -> Result<()> {
 #[test]
 fn test_registry_schema_metadata() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 
 	// -- Exec
 	registry.register_sync("test.parse", test_sync_handler)?;
@@ -143,10 +143,10 @@ fn test_registry_schema_metadata() -> Result<()> {
 
 #[test]
 fn test_registry_merge_success() -> Result<()> {
-	let mut reg1 = AipRegistry::default();
+	let mut reg1 = AipRegistry::from_empty();
 	reg1.register_sync("test.parse", test_sync_handler)?;
 
-	let mut reg2 = AipRegistry::default();
+	let mut reg2 = AipRegistry::from_empty();
 	reg2.register_async("test.fetch", test_async_handler)?;
 
 	// merge
@@ -162,10 +162,10 @@ fn test_registry_merge_success() -> Result<()> {
 
 #[test]
 fn test_registry_merge_duplicate() -> Result<()> {
-	let mut reg1 = AipRegistry::default();
+	let mut reg1 = AipRegistry::from_empty();
 	reg1.register_sync("test.parse", test_sync_handler)?;
 
-	let mut reg2 = AipRegistry::default();
+	let mut reg2 = AipRegistry::from_empty();
 	reg2.register_sync("test.parse", test_sync_handler)?;
 
 	let result = reg1.merge(reg2);

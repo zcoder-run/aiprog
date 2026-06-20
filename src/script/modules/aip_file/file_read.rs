@@ -657,7 +657,7 @@ mod tests {
 		let workspace =
 			simple_fs::SPath::from_std_path(tmp.path()).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 		let ctx = FileContext::new(workspace);
-		let mut registry = AipRegistry::default();
+		let mut registry = AipRegistry::from_empty();
 
 		// Register the single handler directly via the registry (for unit test)
 		super::register_read(&mut registry, ctx)?;

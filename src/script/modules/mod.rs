@@ -14,7 +14,7 @@ mod aip_web;
 ///
 /// The `aip.file` module uses a default `FileContext` (current directory).
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	let mut combined = AipRegistry::default();
+	let mut combined = AipRegistry::from_empty();
 
 	let json_registry = aip_json::init_registry()?;
 	combined.merge(json_registry)?;

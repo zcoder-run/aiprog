@@ -12,7 +12,7 @@ use super::support::FileContext;
 /// Use [`register`](register) if you need to add the handlers into an
 /// existing registry.
 pub fn init_registry(file_ctx: Option<FileContext>) -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_empty();
 	register(&mut registry, file_ctx)?;
 	Ok(registry)
 }

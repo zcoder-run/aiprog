@@ -9,9 +9,11 @@ use value_ext::JsonValueExt as _;
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, AipFromLua, AipParams)]
 struct GreetingParams {
+	/// Name of to be greeted
 	name: String,
 }
 
+/// The greeting
 #[derive(Debug, Deserialize, Serialize, JsonSchema, AipIntoLua, AipResponse)]
 struct GreetingResult(String);
 
@@ -24,7 +26,7 @@ fn custom_greetings(params: GreetingParams) -> core::result::Result<GreetingResu
 // region:    --- Main
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let mut registry = AipRegistry::default();
+	let mut registry = AipRegistry::from_aip_modules()?;
 	registry.register_sync("custom.greeting", custom_greetings)?;
 
 	let script_engine = ScriptEngine::from_registry(registry)?;

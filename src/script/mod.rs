@@ -5,6 +5,8 @@ mod handler;
 mod modules;
 mod script_error;
 
+pub mod registry;
+
 // crate only
 pub use handler::*;
 

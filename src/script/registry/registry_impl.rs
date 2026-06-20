@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::Result;
 use crate::script::LuaJsonExt;
 use crate::script::{AipError, AipParams, AipResponse, IntoHandlerError, handler_error_to_lua};
 use mlua::{Lua, Value};
@@ -19,10 +20,22 @@ use super::support::validate_path;
 
 use std::collections::HashSet;
 
-#[derive(Default)]
 pub struct AipRegistry {
 	pub(crate) entries: Vec<RegistryEntry>,
 	registered_paths: HashSet<String>,
+}
+
+impl AipRegistry {
+	pub fn from_empty() -> AipRegistry {
+		AipRegistry {
+			entries: Default::default(),
+			registered_paths: Default::default(),
+		}
+	}
+
+	pub fn from_aip_modules() -> Result<AipRegistry> {
+		crate::script::modules::init_registry()
+	}
 }
 
 impl AipRegistry {

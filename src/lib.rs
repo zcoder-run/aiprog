@@ -12,7 +12,6 @@ pub mod script;
 pub use error::{Error, Result};
 pub use script::{ScriptEngine, ScriptError, ScriptResult};
 
-pub mod registry;
 pub mod types;
 pub mod webc;
 
@@ -20,5 +19,9 @@ pub mod webc;
 pub use aiprog_macros::{AipError, AipFromLua, AipIntoLua, AipParams, AipResponse};
 pub use mlua;
 pub use serde_json;
+
+pub mod registry {
+	pub use crate::script::registry::*;
+}
 
 // endregion: --- Modules
