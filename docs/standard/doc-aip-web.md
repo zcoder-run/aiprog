@@ -13,7 +13,7 @@ Performs an HTTP GET request.
 - **`redirect_limit`** (optional, integer) — Maximum number of redirects to follow.
 - **`parse`** (optional, boolean) — When `true` and the response Content-Type is JSON, the body is parsed into a Lua table.
 
-Returns an [`AipWebResult`](#aipwebresult) table.
+Returns an [`AipWebOutput`](#aipweboutput) table.
 
 **Example:**
 
@@ -45,7 +45,7 @@ Performs an HTTP POST request.
 - **`redirect_limit`** (optional, integer)
 - **`parse`** (optional, boolean)
 
-Returns an [`AipWebResult`](#aipwebresult) table.
+Returns an [`AipWebOutput`](#aipweboutput) table.
 
 **Example:**
 
@@ -111,12 +111,12 @@ interface AipWebPostParams {
 }
 ```
 
-### AipWebResult
+### AipWebOutput
 
 Return value for both `get` and `post`.
 
 ```typescript
-interface AipWebResult {
+interface AipWebOutput {
   /** Response body: string, or parsed JSON object when `parse` was true and Content-Type is JSON. */
   data: any;
   /** True when status is 2xx. */

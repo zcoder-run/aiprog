@@ -9,7 +9,7 @@ pub fn aip_into_lua_derive(input: TokenStream) -> TokenStream {
 	let is_single_field_tuple = is_single_field_tuple(&input.data);
 
 	let generics = if is_single_field_tuple {
-		add_trait_bound(input.generics, syn::parse_quote!(::aiprog::script::AipIntoLua))
+		add_trait_bound(input.generics, syn::parse_quote!(::aiprog::AipIntoLua))
 	} else {
 		add_trait_bound(input.generics, syn::parse_quote!(::serde::Serialize))
 	};
@@ -17,22 +17,22 @@ pub fn aip_into_lua_derive(input: TokenStream) -> TokenStream {
 
 	let body = if is_single_field_tuple {
 		quote! {
-			fn into_lua(self, lua: &::aiprog::mlua::Lua) -> ::aiprog::script::ScriptResult<::aiprog::mlua::Value> {
+			fn into_lua(self, lua: &::aiprog::mlua::Lua) -> ::aiprog::ScriptResult<::aiprog::mlua::Value> {
 				self.0.into_lua(lua)
 			}
 		}
 	} else {
 		quote! {
-			fn into_lua(self, lua: &::aiprog::mlua::Lua) -> ::aiprog::script::ScriptResult<::aiprog::mlua::Value> {
+			fn into_lua(self, lua: &::aiprog::mlua::Lua) -> ::aiprog::ScriptResult<::aiprog::mlua::Value> {
 				let serde_value = ::aiprog::serde_json::to_value(self)
 					.map_err(|e| ::aiprog::ScriptError::custom(e.to_string()))?;
-				<::aiprog::mlua::Value as ::aiprog::script::LuaJsonExt>::x_from_json_value(lua, serde_value)
+				<::aiprog::mlua::Value as ::aiprog::LuaJsonExt>::x_from_json_value(lua, serde_value)
 			}
 		}
 	};
 
 	let expanded = quote! {
-		impl #impl_generics ::aiprog::script::AipIntoLua for #ident #ty_generics #where_clause {
+		impl #impl_generics ::aiprog::AipIntoLua for #ident #ty_generics #where_clause {
 			#body
 		}
 	};

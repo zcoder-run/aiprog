@@ -4,7 +4,7 @@ mod aip_error;
 mod aip_from_lua;
 mod aip_into_lua;
 mod aip_params;
-mod aip_response;
+mod aip_output;
 
 #[proc_macro_derive(AipFromLua)]
 pub fn aip_from_lua_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -21,9 +21,9 @@ pub fn aip_params_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 	aip_params::aip_params_derive(input)
 }
 
-#[proc_macro_derive(AipResponse)]
-pub fn aip_response_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	aip_response::aip_response_derive(input)
+#[proc_macro_derive(AipOutput)]
+pub fn aip_output_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	aip_output::aip_output_derive(input)
 }
 
 #[proc_macro_derive(AipError)]

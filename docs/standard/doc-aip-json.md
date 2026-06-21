@@ -80,11 +80,12 @@ interface AipJsonParseParams {
 ```
 
 ### AipJsonParseResponse
+### AipJsonParseOutput
 
 The parsed JSON value returned directly to Lua.
 
 ```typescript
-type AipJsonParseResponse = any;
+type AipJsonParseOutput = any;
 ```
 
 ### AipJsonParseJsonlParams
@@ -96,12 +97,12 @@ interface AipJsonParseJsonlParams {
 }
 ```
 
-### AipJsonParseJsonlResponse
+### AipJsonParseJsonlOutput
 
 The array of parsed values returned directly to Lua.
 
 ```typescript
-type AipJsonParseJsonlResponse = any[];
+type AipJsonParseJsonlOutput = any[];
 ```
 
 ### AipJsonStringifyParams
@@ -115,18 +116,18 @@ interface AipJsonStringifyParams {
 }
 ```
 
-### AipJsonStringifyResponse
+### AipJsonStringifyOutput
 
 The compact JSON string returned directly to Lua.
 
 ```typescript
-type AipJsonStringifyResponse = string;
+type AipJsonStringifyOutput = string;
 ```
 
-### AipJsonStringifyPrettyResponse
+### AipJsonStringifyPrettyOutput
 
 The pretty-printed JSON string returned directly to Lua.
 
 ```typescript
-type AipJsonStringifyPrettyResponse = string;
+type AipJsonStringifyPrettyOutput = string;
 ```

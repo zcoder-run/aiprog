@@ -2,7 +2,7 @@
 
 use crate::Result;
 use crate::script::LuaJsonExt;
-use crate::script::{AipError, AipParams, AipResponse, IntoHandlerError, handler_error_to_lua};
+use crate::script::{AipError, AipParams, AipOutput, IntoHandlerError, handler_error_to_lua};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
 use serde::Serialize;
@@ -42,7 +42,7 @@ impl AipRegistry {
 	pub fn register_sync<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
-		R: AipResponse,
+		R: AipOutput,
 		E: AipError,
 		H: AipSyncFnWrapper<P, R, E>,
 	{
@@ -83,7 +83,7 @@ impl AipRegistry {
 	pub fn register_async<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
-		R: AipResponse + serde::Serialize,
+		R: AipOutput + serde::Serialize,
 		E: AipError,
 		H: AipAsyncFnWrapper<P, R, E>,
 	{

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::{AipParams, AipResponse};
+use super::{AipParams, AipOutput};
 use crate::script::{Handler, PinFutureValue};
 use mlua::{Lua, Value};
 use std::marker::PhantomData;
@@ -40,7 +40,7 @@ impl<H, P, R, M> HandlerWrapper<H, P, R, M>
 where
 	H: Handler<P, R, M> + Send + Sync + 'static,
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	M: Send + Sync + 'static,
 {
 	/// Convert the Lua value to typed params, then call the wrapped handler.
@@ -70,7 +70,7 @@ impl<H, P, R, M> HandlerWrapperTrait for HandlerWrapper<H, P, R, M>
 where
 	H: Handler<P, R, M> + Send + Sync + 'static,
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	M: Send + Sync + 'static,
 {
 	fn call(&self, lua: &Lua, params_value: Value) -> PinFutureValue {
@@ -83,7 +83,7 @@ where
 pub trait IntoHandlerWrapper<P, R, M>: Handler<P, R, M>
 where
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	M: Send + Sync + 'static,
 {
 	fn into_dyn(self) -> Box<dyn HandlerWrapperTrait>
@@ -98,7 +98,7 @@ impl<H, P, R, M> IntoHandlerWrapper<P, R, M> for H
 where
 	H: Handler<P, R, M> + Clone + Send + Sync + 'static,
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	M: Send + Sync + 'static,
 {
 }
@@ -130,7 +130,7 @@ mod tests {
 	impl_lua_serde_traits!(EchoResult);
 
 	impl crate::script::AipParams for EchoParams {}
-	impl crate::script::AipResponse for EchoResult {}
+	impl crate::script::AipOutput for EchoResult {}
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })

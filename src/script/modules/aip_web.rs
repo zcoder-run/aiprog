@@ -165,9 +165,9 @@ pub enum AipWebHeaderValue {
 	Many(Vec<String>),
 }
 
-/// Result of a web request.
+/// Output of a web request.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipWebResult {
+pub struct AipWebOutput {
 	/// The response body as a string, or parsed JSON when `parse` is true and the response is JSON.
 	pub data: serde_json::Value,
 
@@ -192,7 +192,7 @@ pub struct AipWebResult {
 	pub error: Option<String>,
 }
 
-async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebResult> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -206,7 +206,7 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebResu
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-	web_response_to_aip_result(response, params.parse.unwrap_or(false), &params.data)
+    web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
 }
 
 // endregion: --- aip.web.get
@@ -316,7 +316,7 @@ impl AipFromLua for AipWebPostParams {
 
 impl crate::script::AipParams for AipWebPostParams {}
 
-async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebResult> {
+async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -353,14 +353,14 @@ async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebRe
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-	web_response_to_aip_result(response, params.parse.unwrap_or(false), &params.data)
+	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
 }
 
 // endregion: --- aip.web.post
 
-// region:    --- AipWebResult
+// region:    --- AipWebOutput
 
-impl AipIntoLua for AipWebResult {
+impl AipIntoLua for AipWebOutput {
 	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
 		let table = lua.create_table()?;
 
@@ -384,9 +384,9 @@ impl AipIntoLua for AipWebResult {
 	}
 }
 
-impl crate::script::AipResponse for AipWebResult {}
+impl crate::script::AipOutput for AipWebOutput {}
 
-// endregion: --- AipWebResult
+// endregion: --- AipWebOutput
 
 // region:    --- Support
 
@@ -431,7 +431,8 @@ fn build_webc_client(
 	})
 }
 
-fn web_response_to_aip_result(response: webc::WebResponse, parse: bool, error_url: &str) -> AipApiResult<AipWebResult> {
+fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> AipApiResult<AipWebOutput> {
+
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;
@@ -452,7 +453,7 @@ fn web_response_to_aip_result(response: webc::WebResponse, parse: bool, error_ur
 			} else {
 				Some(format!("HTTP request failed with status {}", status))
 			};
-			return Ok(AipWebResult {
+            return Ok(AipWebOutput {
 				data: value,
 				success,
 				status,
@@ -490,7 +491,7 @@ fn web_response_to_aip_result(response: webc::WebResponse, parse: bool, error_ur
 		Some(format!("HTTP request failed with status {}", status))
 	};
 
-	Ok(AipWebResult {
+    Ok(AipWebOutput {
 		data,
 		success,
 		status,

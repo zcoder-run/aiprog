@@ -9,7 +9,7 @@ pub fn aip_params_derive(input: TokenStream) -> TokenStream {
 	let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
 	let expanded = quote! {
-		impl #impl_generics ::aiprog::script::AipParams for #ident #ty_generics #where_clause {}
+		impl #impl_generics ::aiprog::AipParams for #ident #ty_generics #where_clause {}
 	};
 
 	TokenStream::from(expanded)

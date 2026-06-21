@@ -54,18 +54,18 @@ In Rust, the Params struct is deserialized manually from the Lua table via the `
 
 ### Return Type and Data Wrapping
 
-Each handler returns an `AipApiResult<T>` where `T` is the response type. The response type determines how the value is rendered in Lua.
+Each handler returns an `AipApiResult<T>` where `T` is the output type. The output type determines how the value is rendered in Lua.
 
-#### Structured responses (table with `data` field)
+#### Structured outputs (table with `data` field)
 
-When additional metadata must accompany the result (e.g., HTTP status code, headers), the response type is a named struct with fields. The struct implements `AipIntoLua` (typically via `#[derive(AipIntoLua)]`, which uses serde to convert to a Lua table). The resulting Lua table always contains a `data` key holding the primary payload, along with any other defined fields.
+When additional metadata must accompany the result (e.g., HTTP status code, headers), the output type is a named struct with fields. The struct implements `AipIntoLua` (typically via `#[derive(AipIntoLua)]`, which uses serde to convert to a Lua table). The resulting Lua table always contains a `data` key holding the primary payload, along with any other defined fields.
 
-Naming convention: `Aip<Module><Function>Result` or `Aip<Module>Result` when shared (e.g., `AipWebResult`).
+Naming convention: `Aip<Module><Function>Output` or `Aip<Module>Output` when shared (e.g., `AipWebOutput`).
 
 Example:
 
 ```rust
-struct AipWebResult {
+struct AipWebOutput {
     data: serde_json::Value,
     success: bool,
     status: u16,
@@ -82,16 +82,16 @@ print(res.data, res.status)
 
 #### Single‑value responses (raw value)
 
-For functions whose natural result is a single value with no needed metadata, the response type is a newtype wrapper (single‑field tuple struct) around the value type. The wrapper implements `AipIntoLua` by delegating directly to the inner type's conversion; the Lua caller receives the value itself, not a table.
+For functions whose natural result is a single value with no needed metadata, the output type is a newtype wrapper (single‑field tuple struct) around the value type. The wrapper implements `AipIntoLua` by delegating directly to the inner type's conversion; the Lua caller receives the value itself, not a table.
 
-Naming convention: `Aip<Module><Function>Response`.
+Naming convention: `Aip<Module><Function>Output`.
 
 Example:
 
 ```rust
-/// Response type for `aip.json.parse`.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
-pub struct AipJsonParseResponse(pub serde_json::Value);
+/// Output type for `aip.json.parse`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipOutput)]
+pub struct AipJsonParseOutput(pub serde_json::Value);
 ```
 
 In Lua:
@@ -137,17 +137,17 @@ All types follow the naming schema:
 Aip<Module><Function><Role>
 ```
 
-Where `<Role>` is one of `Params`, `Response`, `Result`, or `Error`.
+Where `<Role>` is one of `Params`, `Output`, or `Error`.
 
 Examples:
 
 - `AipJsonParseParams`
-- `AipJsonParseResponse`
-- `AipJsonStringifyResponse`
+- `AipJsonParseOutput`
+- `AipJsonStringifyOutput`
 - `AipWebGetParams`
-- `AipWebResult`
+- `AipWebOutput`
 
-When a type is reused, the name may drop the function part (e.g., `AipWebResult` instead of `AipWebGetResult`). Single‑value responses use the `Response` suffix; structured results with metadata use the `Result` suffix. This is clearly documented per function.
+When a type is reused, the name may drop the function part (e.g., `AipWebOutput` instead of `AipWebGetOutput`). All output types use the `Output` suffix. This is clearly documented per function.
 
 ## Design Considerations
 

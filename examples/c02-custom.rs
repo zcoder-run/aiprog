@@ -1,6 +1,5 @@
-use aiprog::registry::AipRegistry;
-use aiprog::script::AipApiError;
-use aiprog::{AipFromLua, AipIntoLua, AipParams, AipResponse, ScriptEngine};
+use aiprog::macros::{AipFromLua, AipIntoLua, AipOutput, AipParams};
+use aiprog::{AipApiError, AipRegistry, ScriptEngine};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use value_ext::JsonValueExt as _;
@@ -14,7 +13,7 @@ struct GreetingParams {
 }
 
 /// The greeting
-#[derive(Debug, Deserialize, Serialize, JsonSchema, AipIntoLua, AipResponse)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema, AipIntoLua, AipOutput)]
 struct GreetingResult(String);
 
 fn custom_greetings(params: GreetingParams) -> core::result::Result<GreetingResult, AipApiError> {

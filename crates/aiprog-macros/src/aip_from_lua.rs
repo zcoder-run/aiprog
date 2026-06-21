@@ -9,9 +9,9 @@ pub fn aip_from_lua_derive(input: TokenStream) -> TokenStream {
 	let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
 	let expanded = quote! {
-		impl #impl_generics ::aiprog::script::AipFromLua for #ident #ty_generics #where_clause {
-			fn from_lua(_lua: &::aiprog::mlua::Lua, value: ::aiprog::mlua::Value) -> ::aiprog::script::ScriptResult<Self> {
-				let serde_value = ::aiprog::script::LuaJsonExt::x_to_json_value(&value)
+		impl #impl_generics ::aiprog::AipFromLua for #ident #ty_generics #where_clause {
+			fn from_lua(_lua: &::aiprog::mlua::Lua, value: ::aiprog::mlua::Value) -> ::aiprog::ScriptResult<Self> {
+				let serde_value = ::aiprog::LuaJsonExt::x_to_json_value(&value)
 					.map_err(|e| ::aiprog::ScriptError::custom(format!("Invalid params: {e}")))?;
 				let serde_value = serde_value
 					.ok_or_else(|| ::aiprog::ScriptError::custom("expected JSON value, got nil".to_string()))?;

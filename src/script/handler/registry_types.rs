@@ -1,4 +1,4 @@
-use super::{AipError, AipParams, AipResponse};
+use super::{AipError, AipParams, AipOutput};
 use crate::script::HandlerResult;
 use crate::script::{HandlerError, HandlerWrapperTrait, IntoHandlerWrapper};
 use mlua::{Lua, Value};
@@ -112,7 +112,7 @@ impl HandlerRegistry {
 	where
 		H: crate::script::Handler<P, R, crate::script::SyncMarker> + Clone + Send + Sync + 'static,
 		P: AipParams + crate::script::AipFromLua,
-		R: AipResponse + crate::script::AipIntoLua,
+		R: AipOutput + crate::script::AipIntoLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Sync, handler.into_dyn())
@@ -130,7 +130,7 @@ impl HandlerRegistry {
 	where
 		H: crate::script::Handler<P, R, crate::script::AsyncMarker> + Clone + Send + Sync + 'static,
 		P: AipParams + crate::script::AipFromLua,
-		R: AipResponse + crate::script::AipIntoLua,
+		R: AipOutput + crate::script::AipIntoLua,
 		E: AipError,
 	{
 		self.insert_entry::<P, R, E>(name, HandlerKind::Async, handler.into_dyn())
@@ -169,7 +169,7 @@ impl HandlerRegistry {
 	) -> core::result::Result<(), RegistryError>
 	where
 		P: AipParams,
-		R: AipResponse,
+		R: AipOutput,
 		E: AipError,
 	{
 		validate_name(name)?;
@@ -228,7 +228,7 @@ mod tests {
 	impl_lua_serde_traits!(EchoResult);
 
 	impl crate::script::AipParams for EchoParams {}
-	impl crate::script::AipResponse for EchoResult {}
+	impl crate::script::AipOutput for EchoResult {}
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })

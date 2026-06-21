@@ -13,16 +13,16 @@ pub trait AipParams: AipFromLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipParams
 
-// region:    --- AipResponse
+// region:    --- AipOutput
 
-/// Unified trait for handler response types.
+/// Unified trait for handler output types.
 ///
-/// Any type used as a handler response must be serializable to a Lua value, have a
+/// Any type used as a handler output must be serializable to a Lua value, have a
 /// JSON schema, and be thread-safe. The blanket implementation ensures any
 /// type satisfying the component bounds automatically qualifies.
-pub trait AipResponse: AipIntoLua + JsonSchema + Send + Sync + 'static {}
+pub trait AipOutput: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
-// endregion: --- AipResponse
+// endregion: --- AipOutput
 
 // region:    --- AipError
 

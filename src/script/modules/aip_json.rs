@@ -33,28 +33,35 @@ use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
 use aiprog_macros::AipIntoLua;
-use aiprog_macros::AipResponse;
 
 // region:    --- Response Types (new single-value returns)
 
-/// Response type for `aip.json.parse`.
+// region:    --- Output Types (new single-value returns)
+
+/// Output type for `aip.json.parse`.
 ///
 /// The parsed JSON value is returned directly to Lua without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
-pub struct AipJsonParseResponse(pub serde_json::Value);
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
+pub struct AipJsonParseOutput(pub serde_json::Value);
 
-/// Response type for `aip.json.stringify`.
+impl crate::script::AipOutput for AipJsonParseOutput {}
+
+/// Output type for `aip.json.stringify`.
 ///
 /// The serialized JSON string is returned directly to Lua as a Lua string,
 /// without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipResponse)]
-pub struct AipJsonStringifyResponse(pub String);
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
+pub struct AipJsonStringifyOutput(pub String);
 
-/// Response type for `aip.json.parse_jsonl`.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipResponse)]
-pub struct AipJsonParseJsonlResponse(pub Vec<serde_json::Value>);
+impl crate::script::AipOutput for AipJsonStringifyOutput {}
 
-impl AipIntoLua for AipJsonParseJsonlResponse {
+/// Output type for `aip.json.parse_jsonl`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipJsonParseJsonlOutput(pub Vec<serde_json::Value>);
+
+impl crate::script::AipOutput for AipJsonParseJsonlOutput {}
+
+impl AipIntoLua for AipJsonParseJsonlOutput {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
 		let seq = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
 		for (i, item) in self.0.into_iter().enumerate() {
@@ -65,7 +72,7 @@ impl AipIntoLua for AipJsonParseJsonlResponse {
 	}
 }
 
-// endregion: --- Response Types
+// endregion: --- Output Types
 
 /// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
 ///
@@ -105,14 +112,14 @@ impl AipFromLua for AipJsonParseParams {
 
 impl crate::script::AipParams for AipJsonParseParams {}
 
-fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseResponse> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
-		return Ok(AipJsonParseResponse(serde_json::Value::Null));
+		return Ok(AipJsonParseOutput(serde_json::Value::Null));
 	};
 
 	match jsons::parse_jsonc_to_serde_value(&content) {
-		Ok(Some(json_val)) => Ok(AipJsonParseResponse(json_val)),
-		Ok(None) => Ok(AipJsonParseResponse(serde_json::Value::Null)),
+		Ok(Some(json_val)) => Ok(AipJsonParseOutput(json_val)),
+		Ok(None) => Ok(AipJsonParseOutput(serde_json::Value::Null)),
 		Err(err) => Err(AipApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse failed. {err}"),
@@ -144,13 +151,13 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl crate::script::AipParams for AipJsonParseJsonlParams {}
 
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlResponse> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
-		return Ok(AipJsonParseJsonlResponse(vec![]));
+		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
 	let reader = BufReader::new(content.as_bytes());
 	match parse_ndjson_from_reader(reader) {
-		Ok(values) => Ok(AipJsonParseJsonlResponse(values)),
+		Ok(values) => Ok(AipJsonParseJsonlOutput(values)),
 		Err(err) => Err(AipApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse_jsonl failed. {err}"),
@@ -193,7 +200,7 @@ impl AipFromLua for AipJsonStringifyParams {
 
 impl crate::script::AipParams for AipJsonStringifyParams {}
 
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyResponse> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {
@@ -201,7 +208,7 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<Ai
 	};
 
 	match res {
-		Ok(str) => Ok(AipJsonStringifyResponse(str)),
+		Ok(str) => Ok(AipJsonStringifyOutput(str)),
 		Err(err) => Err(AipApiError {
 			code: "STRINGIFY_FAILED".to_string(),
 			message: format!("aip.json.stringify fail to stringify. {err}"),

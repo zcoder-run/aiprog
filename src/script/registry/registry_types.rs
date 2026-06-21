@@ -1,4 +1,4 @@
-use crate::script::{AipError, AipParams, AipResponse};
+use crate::script::{AipError, AipParams, AipOutput};
 use schemars::Schema;
 use std::future::Future;
 use std::pin::Pin;
@@ -10,7 +10,7 @@ pub type AipAsyncBoxFuture<R, E> = Pin<Box<dyn Future<Output = core::result::Res
 pub trait AipSyncFnWrapper<P, R, E>: Send + Sync + 'static
 where
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	E: AipError,
 {
 	fn call_sync(&self, params: P) -> core::result::Result<R, E>;
@@ -20,8 +20,9 @@ impl<H, P, R, E> AipSyncFnWrapper<P, R, E> for H
 where
 	H: Fn(P) -> core::result::Result<R, E> + Send + Sync + 'static,
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	E: AipError,
+
 {
 	fn call_sync(&self, params: P) -> core::result::Result<R, E> {
 		self(params)
@@ -31,7 +32,7 @@ where
 pub trait AipAsyncFnWrapper<P, R, E>: Send + Sync + 'static
 where
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	E: AipError,
 {
 	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R, E>;
@@ -42,8 +43,9 @@ where
 	H: Fn(P) -> Fut + Send + Sync + 'static,
 	Fut: Future<Output = core::result::Result<R, E>> + Send + 'static,
 	P: AipParams,
-	R: AipResponse,
+	R: AipOutput,
 	E: AipError,
+
 {
 	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R, E> {
 		Box::pin(self(params))

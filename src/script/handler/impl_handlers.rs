@@ -16,7 +16,7 @@ macro_rules! impl_aip_handlers {
 		where
 			F: FnOnce(P) -> core::result::Result<R, E> + Clone + Send + 'static,
 			P: $crate::script::AipParams,
-			R: $crate::script::AipResponse,
+			R: $crate::script::AipOutput,
 			E: $crate::script::AipError,
 		{
 			type Future = $crate::script::PinFutureValue;
@@ -36,7 +36,7 @@ macro_rules! impl_aip_handlers {
 		where
 			F: FnOnce(P) -> Fut + Clone + Send + 'static,
 			P: $crate::script::AipParams,
-			R: $crate::script::AipResponse,
+			R: $crate::script::AipOutput,
 			E: $crate::script::AipError,
 			Fut: core::future::Future<Output = core::result::Result<R, E>> + Send,
 		{
@@ -187,7 +187,7 @@ impl_aip_handlers!();
 mod tests {
 	use crate::script::LuaJsonExt;
 	use crate::script::{AipApiError, Handler, HandlerError};
-	use aiprog_macros::{AipFromLua, AipIntoLua, AipParams, AipResponse};
+	use aiprog_macros::{AipFromLua, AipIntoLua, AipParams};
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 	use serde_json::json;
@@ -199,10 +199,12 @@ mod tests {
 		data: String,
 	}
 
-	#[derive(Debug, Deserialize, Serialize, JsonSchema, AipFromLua, AipIntoLua, AipResponse)]
+	#[derive(Debug, Deserialize, Serialize, JsonSchema, AipFromLua, AipIntoLua)]
 	struct EchoResult {
 		data: String,
 	}
+
+	impl crate::script::AipOutput for EchoResult {}
 
 	fn echo_sync(params: EchoParams) -> core::result::Result<EchoResult, AipApiError> {
 		Ok(EchoResult { data: params.data })
