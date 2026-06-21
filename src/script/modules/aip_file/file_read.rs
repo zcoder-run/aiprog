@@ -10,7 +10,7 @@ use mlua::{Lua, Value};
 ///
 /// This function captures the provided `FileContext` and wraps each handler so
 /// that it receives the context automatically.
-pub fn register_read(registry: &mut crate::registry::AipRegistry, ctx: FileContext) -> crate::Result<()> {
+pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> crate::Result<()> {
 	// -- aip.file.read
 	{
 		let ctx = ctx.clone();
@@ -638,7 +638,7 @@ fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> ScriptRes
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::registry::AipRegistry;
+	use crate::AipRegistry;
 	use crate::script::LuaJsonExt;
 	use serde_json::json;
 	use tempfile::TempDir;

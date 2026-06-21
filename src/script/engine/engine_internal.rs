@@ -1,5 +1,6 @@
-use crate::registry::{AipFnKind, AipHandlerClosure, AipRegistry};
+use crate::script::AipHandlerClosure;
 use crate::script::LuaJsonExt;
+use crate::{AipFnKind, AipRegistry};
 use crate::{Result, ScriptEngine};
 use mlua::{Function, Lua, MultiValue, Value};
 

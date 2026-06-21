@@ -1,5 +1,5 @@
+use crate::AipRegistry;
 use crate::Result;
-use crate::registry::AipRegistry;
 use simple_fs::SPath;
 
 use super::file_read;

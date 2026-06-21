@@ -19,10 +19,10 @@
 //! ---
 //!
 
+use crate::AipApiResult;
+use crate::AipRegistry;
+use crate::LuaJsonExt;
 use crate::ScriptResult;
-use crate::registry::AipRegistry;
-use crate::script::AipApiResult;
-use crate::script::LuaJsonExt;
 use crate::script::script_error;
 use crate::script::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use crate::webc;
@@ -206,7 +206,7 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebOutp
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-    web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
+	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
 }
 
 // endregion: --- aip.web.get
@@ -432,7 +432,6 @@ fn build_webc_client(
 }
 
 fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> AipApiResult<AipWebOutput> {
-
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;
@@ -453,7 +452,7 @@ fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_ur
 			} else {
 				Some(format!("HTTP request failed with status {}", status))
 			};
-            return Ok(AipWebOutput {
+			return Ok(AipWebOutput {
 				data: value,
 				success,
 				status,
@@ -491,7 +490,7 @@ fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_ur
 		Some(format!("HTTP request failed with status {}", status))
 	};
 
-    Ok(AipWebOutput {
+	Ok(AipWebOutput {
 		data,
 		success,
 		status,

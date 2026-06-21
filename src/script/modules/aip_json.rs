@@ -23,7 +23,7 @@
 //! ---
 //!
 
-use crate::registry::AipRegistry;
+use crate::AipRegistry;
 use crate::script::{AipApiError, AipFromLua, AipIntoLua};
 use crate::script::{AipApiResult, LuaExt};
 use crate::support::jsons;

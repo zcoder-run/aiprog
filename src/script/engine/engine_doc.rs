@@ -1,5 +1,5 @@
 use crate::Result;
-use crate::{ScriptEngine, registry::AipFnKind};
+use crate::{AipFnKind, ScriptEngine};
 
 impl ScriptEngine {
 	/// Generate Markdown documentation for all registered functions.

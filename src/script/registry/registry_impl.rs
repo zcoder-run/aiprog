@@ -1,8 +1,9 @@
 #![allow(unused)]
 
+use crate::LuaJsonExt;
 use crate::Result;
-use crate::script::LuaJsonExt;
-use crate::script::{AipError, AipParams, AipOutput, IntoHandlerError, handler_error_to_lua};
+use crate::script::handler_error_to_lua;
+use crate::{AipError, AipOutput, AipParams};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
 use serde::Serialize;

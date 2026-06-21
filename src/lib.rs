@@ -12,8 +12,8 @@ mod error;
 pub use error::{Error, Result};
 
 // NOTE: for now, re-export one by one to tune the shape of this crate.
-pub use script::registry::AipRegistry;
-pub use script::{AipApiError, AipApiResult, AipError, AipOutput, AipParams};
+pub use script::AipRegistry;
+pub use script::{AipApiError, AipApiResult, AipError, AipFnKind, AipOutput, AipParams, AipRegistryError};
 pub use script::{AipFromLua, AipIntoLua, LuaExt, LuaJsonExt};
 pub use script::{ScriptEngine, ScriptError, ScriptResult};
 
@@ -26,10 +26,6 @@ pub use serde_json;
 
 pub mod macros {
 	pub use aiprog_macros::*;
-}
-
-pub mod registry {
-	pub use crate::script::registry::*;
 }
 
 // endregion: --- Modules

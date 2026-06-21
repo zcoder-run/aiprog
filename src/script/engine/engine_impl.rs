@@ -1,6 +1,6 @@
+use crate::AipRegistry;
 use crate::Result;
-use crate::registry::AipRegisteredFn;
-use crate::registry::AipRegistry;
+use crate::script::AipRegisteredFn;
 use mlua::{Lua, LuaSerdeExt};
 
 pub struct ScriptEngine {

@@ -1,6 +1,6 @@
 use super::*;
+use crate::AipRegistry;
 use crate::impl_lua_serde_traits;
-use crate::registry::AipRegistry;
 use crate::script::AipApiError;
 use mlua::Value;
 use schemars::JsonSchema;

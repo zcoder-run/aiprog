@@ -1,4 +1,4 @@
-use crate::registry::AipRegistryResult;
+use super::AipRegistryResult;
 
 use super::registry_types::AipRegistryError;
 

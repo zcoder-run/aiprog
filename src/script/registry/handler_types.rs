@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::script::HandlerResult;
+use super::HandlerResult;
 use mlua::{Lua, Value};
 use std::future::Future;
 use std::pin::Pin;

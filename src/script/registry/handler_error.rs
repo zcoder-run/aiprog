@@ -1,4 +1,4 @@
-use crate::script::{RegistryError, ScriptError};
+use crate::script::ScriptError;
 use serde::Serialize;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
@@ -14,7 +14,7 @@ pub enum HandlerError {
 	AipApi(AipApiError),
 
 	/// Registry‑specific error (e.g., unknown method, duplicate path).
-	Registry(RegistryError),
+	// Registry(RegistryError),
 
 	/// Script‑level error from Lua operations or conversion failures.
 	Script(ScriptError),
@@ -27,7 +27,6 @@ impl core::fmt::Display for HandlerError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
 			HandlerError::AipApi(e) => write!(f, "{e}"),
-			HandlerError::Registry(e) => write!(f, "{e}"),
 			HandlerError::Script(e) => write!(f, "{e}"),
 			HandlerError::Custom(s) => f.write_str(s),
 		}
@@ -35,6 +34,31 @@ impl core::fmt::Display for HandlerError {
 }
 
 impl std::error::Error for HandlerError {}
+
+/// Convert a normalized `HandlerError` into an `mlua::Error`.
+///
+/// When the handler error carries a typed `AipApiError`, the error code,
+/// message, and optional details/cause are surfaced. A `RegistryError` is
+/// surfaced with its display message. Otherwise, the error type name is used as
+/// a fallback.
+pub fn handler_error_to_lua(err: HandlerError) -> mlua::Error {
+	match err {
+		HandlerError::AipApi(api_err) => api_error_to_lua(api_err),
+		HandlerError::Script(script_err) => mlua::Error::RuntimeError(script_err.to_string()),
+		HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
+	}
+}
+
+fn api_error_to_lua(api_err: AipApiError) -> mlua::Error {
+	let mut msg = format!("[{}] {}", api_err.code, api_err.message);
+	if let Some(details) = api_err.details.as_ref() {
+		msg.push_str(&format!("\nDetails: {details}"));
+	}
+	if let Some(cause) = api_err.cause.as_ref() {
+		msg.push_str(&format!("\nCause: {cause}"));
+	}
+	mlua::Error::RuntimeError(msg)
+}
 
 // region:    --- IntoHandlerError
 
@@ -55,12 +79,6 @@ impl IntoHandlerError for HandlerError {
 impl IntoHandlerError for AipApiError {
 	fn into_handler_error(self) -> HandlerError {
 		HandlerError::AipApi(self)
-	}
-}
-
-impl IntoHandlerError for RegistryError {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::Registry(self)
 	}
 }
 
@@ -138,7 +156,7 @@ impl core::fmt::Display for AipApiError {
 }
 
 impl std::error::Error for AipApiError {}
-impl crate::script::AipError for AipApiError {}
+impl crate::AipError for AipApiError {}
 
 // endregion: --- AipApiError
 
@@ -147,12 +165,6 @@ impl crate::script::AipError for AipApiError {}
 impl From<ScriptError> for HandlerError {
 	fn from(err: ScriptError) -> Self {
 		HandlerError::Script(err)
-	}
-}
-
-impl From<RegistryError> for HandlerError {
-	fn from(err: RegistryError) -> Self {
-		HandlerError::Registry(err)
 	}
 }
 
