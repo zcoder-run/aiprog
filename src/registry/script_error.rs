@@ -2,7 +2,7 @@ use derive_more::{Display, From};
 use lazy_regex::regex;
 use serde::Serialize;
 
-use crate::script::HandlerError;
+use crate::HandlerError;
 use std::borrow::Cow;
 
 pub type ScriptResult<T> = core::result::Result<T, ScriptError>;

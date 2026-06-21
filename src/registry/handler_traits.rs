@@ -1,5 +1,5 @@
 use super::IntoHandlerError;
-use crate::script::{AipFromLua, AipIntoLua};
+use crate::{AipFromLua, AipIntoLua};
 use schemars::JsonSchema;
 
 // region:    --- AipParams

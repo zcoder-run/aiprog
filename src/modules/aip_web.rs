@@ -23,9 +23,8 @@ use crate::AipApiResult;
 use crate::AipRegistry;
 use crate::LuaJsonExt;
 use crate::ScriptResult;
-use crate::script::script_error;
-use crate::script::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use crate::webc;
+use crate::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -147,7 +146,7 @@ impl AipFromLua for AipWebGetParams {
 	}
 }
 
-impl crate::script::AipParams for AipWebGetParams {}
+impl crate::AipParams for AipWebGetParams {}
 
 /// User-Agent option for the `get` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -314,7 +313,7 @@ impl AipFromLua for AipWebPostParams {
 	}
 }
 
-impl crate::script::AipParams for AipWebPostParams {}
+impl crate::AipParams for AipWebPostParams {}
 
 async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebOutput> {
 	let client = build_webc_client(
@@ -361,7 +360,7 @@ async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebOu
 // region:    --- AipWebOutput
 
 impl AipIntoLua for AipWebOutput {
-	fn into_lua(self, lua: &Lua) -> script_error::ScriptResult<mlua::Value> {
+	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
 		let table = lua.create_table()?;
 
 		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;
@@ -384,7 +383,7 @@ impl AipIntoLua for AipWebOutput {
 	}
 }
 
-impl crate::script::AipOutput for AipWebOutput {}
+impl crate::AipOutput for AipWebOutput {}
 
 // endregion: --- AipWebOutput
 

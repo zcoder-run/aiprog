@@ -2,7 +2,6 @@
 
 use crate::LuaJsonExt;
 use crate::Result;
-use crate::script::handler_error_to_lua;
 use crate::{AipError, AipOutput, AipParams};
 use mlua::{Lua, Value};
 use schemars::{JsonSchema, schema_for};
@@ -35,7 +34,7 @@ impl AipRegistry {
 	}
 
 	pub fn from_aip_modules() -> Result<AipRegistry> {
-		crate::script::modules::init_registry()
+		crate::modules::init_registry()
 	}
 }
 
@@ -64,7 +63,7 @@ impl AipRegistry {
 				Ok(response) => response
 					.into_lua(lua)
 					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
-				Err(err) => Err(handler_error_to_lua(err.into_handler_error())),
+				Err(err) => Err(err.into_handler_error().into_lua_error()),
 			}
 		});
 
@@ -114,7 +113,7 @@ impl AipRegistry {
 					match handler.call_async(params).await {
 						Ok(response) => serde_json::to_value(response)
 							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-						Err(err) => Err(handler_error_to_lua(err.into_handler_error())),
+						Err(err) => Err(err.into_handler_error().into_lua_error()),
 					}
 				})
 			},

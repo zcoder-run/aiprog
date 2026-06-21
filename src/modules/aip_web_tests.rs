@@ -3,7 +3,7 @@
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
 
 use crate::_test_support;
-use crate::script::modules;
+use crate::modules;
 
 #[tokio::test]
 async fn test_script_lua_web_constants() -> Result<()> {

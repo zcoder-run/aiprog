@@ -1,8 +1,8 @@
 // region:    --- Tests
 
 use super::*;
+use crate::AipApiError;
 use crate::impl_lua_serde_traits;
-use crate::script::AipApiError;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +21,8 @@ struct TestResponse {
 impl_lua_serde_traits!(TestParams);
 impl_lua_serde_traits!(TestResponse);
 
-impl crate::script::AipParams for TestParams {}
-impl crate::script::AipOutput for TestResponse {}
+impl crate::AipParams for TestParams {}
+impl crate::AipOutput for TestResponse {}
 
 fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
 	Ok(TestResponse { data: params.data })

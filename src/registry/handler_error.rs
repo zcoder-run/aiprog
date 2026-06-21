@@ -1,4 +1,4 @@
-use crate::script::ScriptError;
+use crate::ScriptError;
 use serde::Serialize;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
@@ -35,17 +35,19 @@ impl core::fmt::Display for HandlerError {
 
 impl std::error::Error for HandlerError {}
 
-/// Convert a normalized `HandlerError` into an `mlua::Error`.
-///
-/// When the handler error carries a typed `AipApiError`, the error code,
-/// message, and optional details/cause are surfaced. A `RegistryError` is
-/// surfaced with its display message. Otherwise, the error type name is used as
-/// a fallback.
-pub fn handler_error_to_lua(err: HandlerError) -> mlua::Error {
-	match err {
-		HandlerError::AipApi(api_err) => api_error_to_lua(api_err),
-		HandlerError::Script(script_err) => mlua::Error::RuntimeError(script_err.to_string()),
-		HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
+impl HandlerError {
+	/// Convert a normalized `HandlerError` into an `mlua::Error`.
+	///
+	/// When the handler error carries a typed `AipApiError`, the error code,
+	/// message, and optional details/cause are surfaced. A `RegistryError` is
+	/// surfaced with its display message. Otherwise, the error type name is used as
+	/// a fallback.
+	pub fn into_lua_error(self) -> mlua::Error {
+		match self {
+			HandlerError::AipApi(api_err) => api_error_to_lua(api_err),
+			HandlerError::Script(script_err) => mlua::Error::RuntimeError(script_err.to_string()),
+			HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
+		}
 	}
 }
 

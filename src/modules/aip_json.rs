@@ -23,10 +23,10 @@
 //! ---
 //!
 
-use crate::AipRegistry;
-use crate::script::{AipApiError, AipFromLua, AipIntoLua};
-use crate::script::{AipApiResult, LuaExt};
 use crate::support::jsons;
+use crate::{AipApiError, AipFromLua, AipIntoLua, AipParams};
+use crate::{AipApiResult, LuaExt};
+use crate::{AipOutput, AipRegistry};
 use crate::{ScriptError, ScriptResult};
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
@@ -44,7 +44,7 @@ use aiprog_macros::AipIntoLua;
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
 pub struct AipJsonParseOutput(pub serde_json::Value);
 
-impl crate::script::AipOutput for AipJsonParseOutput {}
+impl AipOutput for AipJsonParseOutput {}
 
 /// Output type for `aip.json.stringify`.
 ///
@@ -53,13 +53,13 @@ impl crate::script::AipOutput for AipJsonParseOutput {}
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
 pub struct AipJsonStringifyOutput(pub String);
 
-impl crate::script::AipOutput for AipJsonStringifyOutput {}
+impl AipOutput for AipJsonStringifyOutput {}
 
 /// Output type for `aip.json.parse_jsonl`.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseJsonlOutput(pub Vec<serde_json::Value>);
 
-impl crate::script::AipOutput for AipJsonParseJsonlOutput {}
+impl AipOutput for AipJsonParseJsonlOutput {}
 
 impl AipIntoLua for AipJsonParseJsonlOutput {
 	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
@@ -110,7 +110,7 @@ impl AipFromLua for AipJsonParseParams {
 	}
 }
 
-impl crate::script::AipParams for AipJsonParseParams {}
+impl AipParams for AipJsonParseParams {}
 
 fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
@@ -149,7 +149,7 @@ impl AipFromLua for AipJsonParseJsonlParams {
 	}
 }
 
-impl crate::script::AipParams for AipJsonParseJsonlParams {}
+impl AipParams for AipJsonParseJsonlParams {}
 
 fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
@@ -198,7 +198,7 @@ impl AipFromLua for AipJsonStringifyParams {
 	}
 }
 
-impl crate::script::AipParams for AipJsonStringifyParams {}
+impl AipParams for AipJsonStringifyParams {}
 
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {

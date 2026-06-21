@@ -1,6 +1,6 @@
+use crate::AipRegisteredFn;
 use crate::AipRegistry;
 use crate::Result;
-use crate::script::AipRegisteredFn;
 use mlua::{Lua, LuaSerdeExt};
 
 pub struct ScriptEngine {
@@ -22,7 +22,7 @@ impl ScriptEngine {
 			registered_fns: Vec::new(),
 		};
 		engine.init_native_is()?;
-		let registry = crate::script::modules::init_registry()?;
+		let registry = crate::modules::init_registry()?;
 		engine.register(registry)?;
 		Ok(engine)
 	}

@@ -1,7 +1,7 @@
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
 
 use crate::_test_support;
-use crate::script::modules;
+use crate::modules;
 use assertables::{assert_contains, assert_not_contains};
 use serde_json::json;
 

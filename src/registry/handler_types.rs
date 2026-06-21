@@ -29,7 +29,7 @@ pub type PinFutureValue = Pin<Box<dyn Future<Output = HandlerResult<Value>>>>;
 pub trait Handler<P, R, M>: Clone
 where
 	P: Send + Sync + 'static,
-	R: crate::script::AipIntoLua + Send + Sync + 'static,
+	R: crate::AipIntoLua + Send + Sync + 'static,
 {
 	/// The future type returned by calling this handler.
 	type Future: Future<Output = HandlerResult<Value>> + 'static;

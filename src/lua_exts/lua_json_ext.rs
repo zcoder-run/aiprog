@@ -1,4 +1,4 @@
-use crate::script::LuaExt;
+use crate::LuaExt;
 use crate::{ScriptError, ScriptResult};
 use mlua::{Lua, LuaSerdeExt as _, Table, Value};
 

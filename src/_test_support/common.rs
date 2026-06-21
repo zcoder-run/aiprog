@@ -1,6 +1,6 @@
 use crate::_test_support::lua_evals::process_lua_eval_result;
+use crate::LuaJsonExt;
 use crate::Result;
-use crate::script::LuaJsonExt;
 use mlua::{Lua, Table};
 use serde_json::Value;
 

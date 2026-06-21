@@ -5,8 +5,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, Display, From)]
 #[display("{self:?}")]
 pub enum Error {
-	#[from(crate::script::HandlerError)]
-	Handler(crate::script::HandlerError),
+	#[from(crate::HandlerError)]
+	Handler(crate::HandlerError),
 
 	#[from(String, &String, &str)]
 	Custom(String),
@@ -15,7 +15,7 @@ pub enum Error {
 	CustomAndCause(String, String),
 
 	#[from]
-	AipApi(crate::script::AipApiError),
+	AipApi(crate::AipApiError),
 
 	// -- Externals
 	#[from]
@@ -41,8 +41,8 @@ impl From<crate::AipRegistryError> for Error {
 
 // region:    --- Conversions
 
-impl From<crate::script::ScriptError> for Error {
-	fn from(err: crate::script::ScriptError) -> Self {
+impl From<crate::ScriptError> for Error {
+	fn from(err: crate::ScriptError) -> Self {
 		Error::Custom(err.to_string())
 	}
 }

@@ -4,18 +4,20 @@ extern crate self as aiprog; // for aiprog_macros
 #[cfg(test)]
 mod _test_support;
 
-mod script;
+mod modules;
 mod support;
 
+mod engine;
 mod error;
+mod lua_exts;
+mod registry;
 
 pub use error::{Error, Result};
 
 // NOTE: for now, re-export one by one to tune the shape of this crate.
-pub use script::AipRegistry;
-pub use script::{AipApiError, AipApiResult, AipError, AipFnKind, AipOutput, AipParams, AipRegistryError};
-pub use script::{AipFromLua, AipIntoLua, LuaExt, LuaJsonExt};
-pub use script::{ScriptEngine, ScriptError, ScriptResult};
+pub use engine::*;
+pub use lua_exts::*;
+pub use registry::*;
 
 pub mod types;
 pub mod webc;

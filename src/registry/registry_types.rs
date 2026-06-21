@@ -1,4 +1,4 @@
-use crate::script::{AipError, AipParams, AipOutput};
+use crate::{AipError, AipOutput, AipParams};
 use schemars::Schema;
 use std::future::Future;
 use std::pin::Pin;
@@ -22,7 +22,6 @@ where
 	P: AipParams,
 	R: AipOutput,
 	E: AipError,
-
 {
 	fn call_sync(&self, params: P) -> core::result::Result<R, E> {
 		self(params)
@@ -45,7 +44,6 @@ where
 	P: AipParams,
 	R: AipOutput,
 	E: AipError,
-
 {
 	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R, E> {
 		Box::pin(self(params))
