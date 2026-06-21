@@ -2,13 +2,14 @@
 
 // Deprecated: backward-compatibility shim. use crate::ScriptError methods.
 
-use crate::{Error, ScriptError};
+use crate::Error;
+use crate::registry::HandlerError;
 use std::sync::Arc;
 
 impl Error {
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Error {
-		let script_err = ScriptError::from_error_with_script(lua_error, script);
-		Error::from(script_err)
+		let handler_err = HandlerError::from_lua_error_with_script(lua_error, script);
+		Error::Handler(handler_err)
 	}
 }
 

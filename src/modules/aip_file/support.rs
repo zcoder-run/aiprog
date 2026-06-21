@@ -3,7 +3,7 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-use crate::{AipApiError, AipApiResult, ScriptResult};
+use crate::{ApiError, ApiResult};
 use mlua::{Lua, Value};
 use simple_fs::{ListOptions, SPath, list_files, read_to_string};
 
@@ -157,7 +157,7 @@ pub fn file_info_from_meta(
 // region:    --- Lua conversion helpers
 
 /// Convert a `FileInfo` into a Lua table.
-pub fn file_info_into_lua(info: FileInfo, lua: &Lua) -> ScriptResult<Value> {
+pub fn file_info_into_lua(info: FileInfo, lua: &Lua) -> crate::Result<Value> {
 	let table = lua.create_table()?;
 	table.set("path", info.path.as_str())?;
 	table.set("name", info.name.as_str())?;
@@ -176,7 +176,7 @@ pub fn file_info_into_lua(info: FileInfo, lua: &Lua) -> ScriptResult<Value> {
 }
 
 /// Convert a `FileRecord` into a Lua table.
-pub fn file_record_into_lua(record: FileRecord, lua: &Lua) -> ScriptResult<Value> {
+pub fn file_record_into_lua(record: FileRecord, lua: &Lua) -> crate::Result<Value> {
 	let table = lua.create_table()?;
 	let info = record.info;
 	table.set("path", info.path.as_str())?;
@@ -197,7 +197,7 @@ pub fn file_record_into_lua(record: FileRecord, lua: &Lua) -> ScriptResult<Value
 }
 
 /// Convert a `FileStats` into a Lua table.
-pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> ScriptResult<Value> {
+pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> crate::Result<Value> {
 	let table = lua.create_table()?;
 	table.set("number_of_files", stats.number_of_files)?;
 	table.set("total_size", stats.total_size)?;
@@ -221,8 +221,8 @@ pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> ScriptResult<Value> 
 // region:    --- Error helpers
 
 /// Create an `AipApiError` with the given error code and message.
-pub fn aip_file_error(code: impl Into<String>, message: &str) -> AipApiError {
-	AipApiError::new(code, message.to_string())
+pub fn aip_file_error(code: impl Into<String>, message: &str) -> ApiError {
+    ApiError::new(code, message.to_string())
 }
 
 /// Validate that the given glob patterns are well-formed.
@@ -230,7 +230,7 @@ pub fn aip_file_error(code: impl Into<String>, message: &str) -> AipApiError {
 /// This function checks each pattern (including exclude patterns after
 /// stripping the `!` prefix) using the `glob` crate. If any pattern is
 /// invalid, an `AipApiError` with code `INVALID_GLOB` is returned.
-pub fn validate_glob_patterns(globs: &[String]) -> AipApiResult<()> {
+pub fn validate_glob_patterns(globs: &[String]) -> ApiResult<()> {
 	for g in globs {
 		let trimmed = g.trim();
 		if trimmed.is_empty() {

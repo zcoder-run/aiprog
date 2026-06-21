@@ -49,7 +49,7 @@ pub fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<se
 pub fn eval_lua(lua: &Lua, code: &str) -> Result<Value> {
 	let res = lua.load(code).eval::<mlua::Value>();
 	let res_lua_value = process_lua_eval_result(lua, res, code)?;
-	let some_value = res_lua_value.x_to_json_value().map_err(crate::Error::from)?;
+	let some_value = res_lua_value.x_to_json_value()?;
 	let serde_value = some_value.ok_or_else(|| crate::Error::custom("Lua value converted to nil"))?;
 	Ok(serde_value)
 }

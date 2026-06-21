@@ -1,4 +1,6 @@
-use crate::ScriptError;
+use std::borrow::Cow;
+
+use lazy_regex::regex;
 use serde::Serialize;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
@@ -11,13 +13,11 @@ pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
 #[serde(tag = "type", content = "value")]
 pub enum HandlerError {
 	/// Structured API error (code, message, optional details/cause).
-	AipApi(AipApiError),
+	Api(ApiError),
 
 	/// Registry‑specific error (e.g., unknown method, duplicate path).
 	// Registry(RegistryError),
 
-	/// Script‑level error from Lua operations or conversion failures.
-	Script(ScriptError),
 
 	/// Fallback variant for string errors.
 	Custom(String),
@@ -26,8 +26,7 @@ pub enum HandlerError {
 impl core::fmt::Display for HandlerError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
-			HandlerError::AipApi(e) => write!(f, "{e}"),
-			HandlerError::Script(e) => write!(f, "{e}"),
+			HandlerError::Api(e) => write!(f, "{e}"),
 			HandlerError::Custom(s) => f.write_str(s),
 		}
 	}
@@ -44,14 +43,22 @@ impl HandlerError {
 	/// a fallback.
 	pub fn into_lua_error(self) -> mlua::Error {
 		match self {
-			HandlerError::AipApi(api_err) => api_error_to_lua(api_err),
-			HandlerError::Script(script_err) => mlua::Error::RuntimeError(script_err.to_string()),
+			HandlerError::Api(api_err) => api_error_to_lua(api_err),
 			HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
 		}
 	}
+
+	/// Build a `HandlerError` from a Lua error, enriching stack traces with the provided script source.
+	pub fn from_lua_error_with_script(lua_error: &mlua::Error, script: &str) -> Self {
+		let mut buff: Vec<String> = Vec::new();
+		for item in lua_error.chain() {
+			buff.push(process_stack_with_script(&item.to_string(), script));
+		}
+		HandlerError::Custom(buff.join("\n"))
+	}
 }
 
-fn api_error_to_lua(api_err: AipApiError) -> mlua::Error {
+fn api_error_to_lua(api_err: ApiError) -> mlua::Error {
 	let mut msg = format!("[{}] {}", api_err.code, api_err.message);
 	if let Some(details) = api_err.details.as_ref() {
 		msg.push_str(&format!("\nDetails: {details}"));
@@ -62,57 +69,39 @@ fn api_error_to_lua(api_err: AipApiError) -> mlua::Error {
 	mlua::Error::RuntimeError(msg)
 }
 
-// region:    --- IntoHandlerError
+	// region:    --- Private helpers
 
-/// Trait for converting an application error into a `HandlerError`.
-pub trait IntoHandlerError
-where
-	Self: Sized + Send + Sync + 'static,
-{
-	fn into_handler_error(self) -> HandlerError;
-}
-
-impl IntoHandlerError for HandlerError {
-	fn into_handler_error(self) -> HandlerError {
-		self
+	fn process_stack_with_script(stack: &str, script: &str) -> String {
+		let script_lines: Vec<&str> = script.lines().collect();
+		let mut buff: Vec<Cow<str>> = Vec::new();
+		let rx = regex!(r#"src/script/lua_engine\s*\.[^\n]*:(\d+):"#);
+		for line in stack.lines() {
+			if rx.is_match(line) {
+				let replaced_line = rx.replace_all(line, |caps: &regex::Captures| {
+					if let Some(num) = caps.get(1).and_then(|m| m.as_str().parse::<usize>().ok()) {
+						if let Some(script_line) = script_lines.get(num - 1) {
+							let script_line = script_line.trim();
+							Cow::from(format!("At line {num} '{script_line}'"))
+						} else {
+							Cow::from(format!("Line({num})"))
+						}
+					} else {
+						Cow::from("")
+					}
+				});
+				buff.push(replaced_line);
+			} else {
+				buff.push(line.into());
+			}
+		}
+		buff.join("\n")
 	}
-}
 
-impl IntoHandlerError for AipApiError {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::AipApi(self)
-	}
-}
-
-impl IntoHandlerError for ScriptError {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::Script(self)
-	}
-}
-
-impl IntoHandlerError for String {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::Custom(self)
-	}
-}
-
-impl IntoHandlerError for &'static str {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::Custom(self.into())
-	}
-}
-
-impl IntoHandlerError for serde_json::Value {
-	fn into_handler_error(self) -> HandlerError {
-		HandlerError::Custom(self.to_string())
-	}
-}
-
-// endregion: --- IntoHandlerError
+	// endregion: --- Private helpers
 
 // region:    --- AipApiError
 
-pub type AipApiResult<T> = core::result::Result<T, AipApiError>;
+pub type ApiResult<T> = core::result::Result<T, ApiError>;
 
 /// The standard typed API error.
 ///
@@ -120,7 +109,7 @@ pub type AipApiResult<T> = core::result::Result<T, AipApiError>;
 /// `IntoHandlerError`. Conversion into `mlua::Error` happens only at the Lua
 /// adapter layer.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipApiError {
+pub struct ApiError {
 	pub code: String,
 	pub message: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -129,10 +118,10 @@ pub struct AipApiError {
 	pub cause: Option<String>,
 }
 
-impl AipApiError {
+impl ApiError {
 	/// Convenience constructor for the common case of a code and message.
 	pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
-		AipApiError {
+		ApiError {
 			code: code.into(),
 			message: message.into(),
 			details: None,
@@ -151,42 +140,66 @@ impl AipApiError {
 	}
 }
 
-impl core::fmt::Display for AipApiError {
+impl core::fmt::Display for ApiError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		write!(f, "[{}] {}", self.code, self.message)
 	}
 }
 
-impl std::error::Error for AipApiError {}
-impl crate::AipError for AipApiError {}
+impl std::error::Error for ApiError {}
+impl crate::AipError for ApiError {}
 
 // endregion: --- AipApiError
 
 // region:    --- From conversions
 
-impl From<ScriptError> for HandlerError {
-	fn from(err: ScriptError) -> Self {
-		HandlerError::Script(err)
-	}
-}
-
 impl From<crate::Error> for HandlerError {
 	fn from(e: crate::Error) -> Self {
 		match e {
 			crate::Error::Handler(h) => h,
-			crate::Error::AipApi(api_err) => HandlerError::AipApi(api_err),
+			crate::Error::Api(api_err) => HandlerError::Api(api_err),
 			other => HandlerError::Custom(other.to_string()),
 		}
 	}
 }
 
+impl From<ApiError> for HandlerError {
+	fn from(e: ApiError) -> Self {
+		HandlerError::Api(e)
+	}
+}
+
+impl From<String> for HandlerError {
+	fn from(s: String) -> Self {
+		HandlerError::Custom(s)
+	}
+}
+
+impl From<&str> for HandlerError {
+	fn from(s: &str) -> Self {
+		HandlerError::Custom(s.to_string())
+	}
+}
+
+impl From<serde_json::Value> for HandlerError {
+	fn from(v: serde_json::Value) -> Self {
+		HandlerError::Custom(v.to_string())
+	}
+}
+
+impl From<mlua::Error> for HandlerError {
+	fn from(e: mlua::Error) -> Self {
+		HandlerError::Custom(e.to_string())
+	}
+}
+
 // endregion: --- From conversions
 
-impl From<crate::Error> for AipApiError {
+impl From<crate::Error> for ApiError {
 	fn from(e: crate::Error) -> Self {
 		match e {
-			crate::Error::AipApi(api_err) => api_err,
-			other => AipApiError::new("INTERNAL_ERROR", other.to_string()),
+			crate::Error::Api(api_err) => api_err,
+			other => ApiError::new("INTERNAL_ERROR", other.to_string()),
 		}
 	}
 }

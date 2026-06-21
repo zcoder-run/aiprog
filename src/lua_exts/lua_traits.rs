@@ -1,52 +1,51 @@
 use crate::LuaExt as _;
 use crate::LuaJsonExt;
-use crate::ScriptResult;
 
 use mlua::{Lua, Value};
 use std::collections::HashMap;
 
 pub trait AipFromLua: Sized {
-	fn from_lua(lua: &Lua, value: Value) -> ScriptResult<Self>;
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self>;
 }
 
 pub trait AipIntoLua {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value>;
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value>;
 }
 
 // region:    --- FromLua implementations
 
 impl AipFromLua for Value {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		Ok(value)
 	}
 }
 
 impl AipFromLua for String {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		Ok(value.x_as_lua_str().map(|s| s.to_string()).ok_or("expected string")?)
 	}
 }
 
 impl AipFromLua for i64 {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		Ok(value.x_as_i64().ok_or("expected integer")?)
 	}
 }
 
 impl AipFromLua for f64 {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		Ok(value.x_as_f64().ok_or("expected number")?)
 	}
 }
 
 impl AipFromLua for bool {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		Ok(value.as_boolean().ok_or("expected boolean")?)
 	}
 }
 
 impl<T: AipFromLua> AipFromLua for Option<T> {
-	fn from_lua(lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		if value.is_nil() || value.x_is_null() {
 			Ok(None)
 		} else {
@@ -56,7 +55,7 @@ impl<T: AipFromLua> AipFromLua for Option<T> {
 }
 
 impl<T: AipFromLua> AipFromLua for Vec<T> {
-	fn from_lua(lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("expected table")?;
 		let mut vec = Vec::new();
 		for val in table.sequence_values::<Value>() {
@@ -68,7 +67,7 @@ impl<T: AipFromLua> AipFromLua for Vec<T> {
 }
 
 impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
-	fn from_lua(lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(lua: &Lua, value: Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("expected table")?;
 		let mut map = HashMap::new();
 		for pair in table.pairs::<Value, Value>() {
@@ -89,7 +88,7 @@ impl<T: AipFromLua> AipFromLua for HashMap<String, T> {
 }
 
 impl AipFromLua for serde_json::Value {
-	fn from_lua(_lua: &Lua, value: Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
 		let value = LuaJsonExt::x_to_json_value(&value)?.ok_or("cannot convert Lua nil to JSON value")?;
 		Ok(value)
 	}
@@ -104,17 +103,17 @@ impl AipFromLua for serde_json::Value {
 macro_rules! impl_lua_serde_traits {
 	($ty:path) => {
 		impl $crate::AipFromLua for $ty {
-			fn from_lua(_lua: &mlua::Lua, value: mlua::Value) -> $crate::ScriptResult<Self> {
+			fn from_lua(_lua: &mlua::Lua, value: mlua::Value) -> $crate::Result<Self> {
 				let serde_value = $crate::LuaJsonExt::x_to_json_value(&value)
-					.map_err(|e| $crate::ScriptError::custom(format!("Invalid params: {e}")))?;
+					.map_err(|e| $crate::Error::custom(format!("Invalid params: {e}")))?;
 				let serde_value = serde_value
-					.ok_or_else(|| $crate::ScriptError::custom("expected JSON value, got nil".to_string()))?;
+					.ok_or_else(|| $crate::Error::custom("expected JSON value, got nil".to_string()))?;
 				Ok(serde_json::from_value(serde_value).map_err(|e| format!("deserialization error: {e}"))?)
 			}
 		}
 		impl $crate::AipIntoLua for $ty {
-			fn into_lua(self, lua: &mlua::Lua) -> $crate::ScriptResult<mlua::Value> {
-				let serde_value = serde_json::to_value(self).map_err(|e| $crate::ScriptError::custom(e.to_string()))?;
+			fn into_lua(self, lua: &mlua::Lua) -> $crate::Result<mlua::Value> {
+				let serde_value = serde_json::to_value(self).map_err(|e| $crate::Error::custom(e.to_string()))?;
 				<mlua::Value as $crate::LuaJsonExt>::x_from_json_value(lua, serde_value)
 			}
 		}
@@ -126,37 +125,37 @@ macro_rules! impl_lua_serde_traits {
 // region:    --- ToLua implementations
 
 impl AipIntoLua for Value {
-	fn into_lua(self, _lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, _lua: &Lua) -> crate::Result<Value> {
 		Ok(self)
 	}
 }
 
 impl AipIntoLua for String {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
 		Ok(Value::String(lua.create_string(&self)?))
 	}
 }
 
 impl AipIntoLua for i64 {
-	fn into_lua(self, _lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, _lua: &Lua) -> crate::Result<Value> {
 		Ok(Value::Integer(self))
 	}
 }
 
 impl AipIntoLua for f64 {
-	fn into_lua(self, _lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, _lua: &Lua) -> crate::Result<Value> {
 		Ok(Value::Number(self))
 	}
 }
 
 impl AipIntoLua for bool {
-	fn into_lua(self, _lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, _lua: &Lua) -> crate::Result<Value> {
 		Ok(Value::Boolean(self))
 	}
 }
 
 impl<T: AipIntoLua> AipIntoLua for Option<T> {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
 		match self {
 			None => Ok(Value::NULL),
 			Some(v) => v.into_lua(lua),
@@ -165,7 +164,7 @@ impl<T: AipIntoLua> AipIntoLua for Option<T> {
 }
 
 impl<T: AipIntoLua> AipIntoLua for Vec<T> {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table()?;
 		for (i, v) in self.into_iter().enumerate() {
 			table.set(i + 1, v.into_lua(lua)?)?;
@@ -175,7 +174,7 @@ impl<T: AipIntoLua> AipIntoLua for Vec<T> {
 }
 
 impl<T: AipIntoLua> AipIntoLua for HashMap<String, T> {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
 		let table = lua.create_table()?;
 		for (k, v) in self {
 			table.set(k, v.into_lua(lua)?)?;
@@ -185,7 +184,7 @@ impl<T: AipIntoLua> AipIntoLua for HashMap<String, T> {
 }
 
 impl AipIntoLua for serde_json::Value {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
 		<mlua::Value as crate::LuaJsonExt>::x_from_json_value(lua, self)
 	}
 }
@@ -196,12 +195,8 @@ impl AipIntoLua for serde_json::Value {
 
 #[cfg(test)]
 mod tests {
-	use crate::ScriptError;
-
 	use super::*;
 	use mlua::Lua;
-
-	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 	fn lua() -> Lua {
 		Lua::new()
@@ -210,7 +205,7 @@ mod tests {
 	// region:    --- FromLua / ToLua round‑trip primitives
 
 	#[test]
-	fn test_roundtrip_string() -> TestResult<()> {
+	fn test_roundtrip_string() -> crate::Result<()> {
 		let l = lua();
 		let original = "hello".to_string();
 		let lua_val = original.clone().into_lua(&l)?;
@@ -220,7 +215,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_roundtrip_i64() -> TestResult<()> {
+	fn test_roundtrip_i64() -> crate::Result<()> {
 		let l = lua();
 		let original: i64 = 42;
 		let lua_val = original.into_lua(&l)?;
@@ -230,7 +225,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_roundtrip_f64() -> TestResult<()> {
+	fn test_roundtrip_f64() -> crate::Result<()> {
 		let l = lua();
 		let original: f64 = 3.18;
 		let lua_val = original.into_lua(&l)?;
@@ -240,7 +235,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_roundtrip_bool() -> TestResult<()> {
+	fn test_roundtrip_bool() -> crate::Result<()> {
 		let l = lua();
 		let original = true;
 		let lua_val = original.into_lua(&l)?;
@@ -254,7 +249,7 @@ mod tests {
 	// region:    --- Option<T>
 
 	#[test]
-	fn test_roundtrip_option_some_i64() -> TestResult<()> {
+	fn test_roundtrip_option_some_i64() -> crate::Result<()> {
 		let l = lua();
 		let original: Option<i64> = Some(7);
 		let lua_val = original.into_lua(&l)?;
@@ -264,7 +259,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_roundtrip_option_none() -> TestResult<()> {
+	fn test_roundtrip_option_none() -> crate::Result<()> {
 		let l = lua();
 		let original: Option<i64> = None;
 		let lua_val = original.into_lua(&l)?;
@@ -275,7 +270,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_from_lua_nil_sentinel_into_none() -> TestResult<()> {
+	fn test_from_lua_nil_sentinel_into_none() -> crate::Result<()> {
 		let l = lua();
 		let nil_val: mlua::Value = Value::Nil;
 		// Value::Nil is treated as None by Option::from_lua.
@@ -289,7 +284,7 @@ mod tests {
 	// region:    --- Vec<T>
 
 	#[test]
-	fn test_roundtrip_vec_i64() -> TestResult<()> {
+	fn test_roundtrip_vec_i64() -> crate::Result<()> {
 		let l = lua();
 		let original: Vec<i64> = vec![1, 2, 3];
 		let lua_val = original.clone().into_lua(&l)?;
@@ -303,7 +298,7 @@ mod tests {
 	// region:    --- HashMap<String, T>
 
 	#[test]
-	fn test_roundtrip_hashmap_string_i64() -> TestResult<()> {
+	fn test_roundtrip_hashmap_string_i64() -> crate::Result<()> {
 		let l = lua();
 		let mut original = HashMap::<String, i64>::new();
 		original.insert("a".into(), 10);
@@ -319,7 +314,7 @@ mod tests {
 	// region:    --- serde_json::Value
 
 	#[test]
-	fn test_roundtrip_json_value() -> TestResult<()> {
+	fn test_roundtrip_json_value() -> crate::Result<()> {
 		let l = lua();
 		let original: serde_json::Value = serde_json::json!({"key": [1, "two", null]});
 		let lua_val = original.clone().into_lua(&l)?;
@@ -337,10 +332,8 @@ mod tests {
 		let l = lua();
 		let number_val = mlua::Value::Integer(1);
 		let err = String::from_lua(&l, number_val).unwrap_err();
-		let msg = match err {
-			ScriptError::Custom(msg) => msg,
-		};
-		assert_eq!(msg, "expected string");
+	let msg = err.to_string();
+	assert!(msg.contains("expected string"));
 	}
 
 	#[test]
@@ -348,10 +341,8 @@ mod tests {
 		let l = lua();
 		let str_val = mlua::Value::String(l.create_string("nope").unwrap());
 		let err = i64::from_lua(&l, str_val).unwrap_err();
-		let msg = match err {
-			ScriptError::Custom(msg) => msg,
-		};
-		assert_eq!(msg, "expected integer");
+	let msg = err.to_string();
+	assert!(msg.contains("expected integer"));
 	}
 
 	// endregion: --- Error cases

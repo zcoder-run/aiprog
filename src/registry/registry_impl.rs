@@ -63,7 +63,7 @@ impl AipRegistry {
 				Ok(response) => response
 					.into_lua(lua)
 					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
-				Err(err) => Err(err.into_handler_error().into_lua_error()),
+                Err(err) => Err(err.into().into_lua_error()),
 			}
 		});
 
@@ -113,7 +113,7 @@ impl AipRegistry {
 					match handler.call_async(params).await {
 						Ok(response) => serde_json::to_value(response)
 							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-						Err(err) => Err(err.into_handler_error().into_lua_error()),
+                        Err(err) => Err(err.into().into_lua_error()),
 					}
 				})
 			},

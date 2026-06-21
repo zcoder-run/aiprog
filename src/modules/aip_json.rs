@@ -24,15 +24,13 @@
 //!
 
 use crate::support::jsons;
-use crate::{AipApiError, AipFromLua, AipIntoLua, AipParams};
-use crate::{AipApiResult, LuaExt};
+use crate::{ApiError, AipFromLua, AipIntoLua, AipParams};
+use crate::{ApiResult, LuaExt};
 use crate::{AipOutput, AipRegistry};
-use crate::{ScriptError, ScriptResult};
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
 
-use aiprog_macros::AipIntoLua;
 
 // region:    --- Response Types (new single-value returns)
 
@@ -41,8 +39,14 @@ use aiprog_macros::AipIntoLua;
 /// Output type for `aip.json.parse`.
 ///
 /// The parsed JSON value is returned directly to Lua without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonParseOutput(pub serde_json::Value);
+
+impl AipIntoLua for AipJsonParseOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
 
 impl AipOutput for AipJsonParseOutput {}
 
@@ -50,8 +54,14 @@ impl AipOutput for AipJsonParseOutput {}
 ///
 /// The serialized JSON string is returned directly to Lua as a Lua string,
 /// without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua)]
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipJsonStringifyOutput(pub String);
+
+impl AipIntoLua for AipJsonStringifyOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
 
 impl AipOutput for AipJsonStringifyOutput {}
 
@@ -62,11 +72,11 @@ pub struct AipJsonParseJsonlOutput(pub Vec<serde_json::Value>);
 impl AipOutput for AipJsonParseJsonlOutput {}
 
 impl AipIntoLua for AipJsonParseJsonlOutput {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
-		let seq = lua.create_table().map_err(|e| ScriptError::custom(e.to_string()))?;
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		let seq = lua.create_table().map_err(|e| crate::Error::custom(e.to_string()))?;
 		for (i, item) in self.0.into_iter().enumerate() {
 			let item_lua = item.into_lua(lua)?;
-			seq.set(i + 1, item_lua).map_err(|e| ScriptError::custom(e.to_string()))?;
+			seq.set(i + 1, item_lua).map_err(|e| crate::Error::custom(e.to_string()))?;
 		}
 		Ok(mlua::Value::Table(seq))
 	}
@@ -103,7 +113,7 @@ pub struct AipJsonParseParams {
 }
 
 impl AipFromLua for AipJsonParseParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
 		let text = table.x_get_string("text");
 		Ok(AipJsonParseParams { text })
@@ -112,7 +122,7 @@ impl AipFromLua for AipJsonParseParams {
 
 impl AipParams for AipJsonParseParams {}
 
-fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonParseOutput> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> ApiResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
 	};
@@ -120,7 +130,7 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> AipApiResult<AipJsonPar
 	match jsons::parse_jsonc_to_serde_value(&content) {
 		Ok(Some(json_val)) => Ok(AipJsonParseOutput(json_val)),
 		Ok(None) => Ok(AipJsonParseOutput(serde_json::Value::Null)),
-		Err(err) => Err(AipApiError {
+		Err(err) => Err(ApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse failed. {err}"),
 			details: None,
@@ -142,8 +152,8 @@ pub struct AipJsonParseJsonlParams {
 }
 
 impl AipFromLua for AipJsonParseJsonlParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
-		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
 		let text = table.x_get_string("text");
 		Ok(AipJsonParseJsonlParams { text })
 	}
@@ -151,14 +161,14 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> AipApiResult<AipJsonParseJsonlOutput> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> ApiResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
 	let reader = BufReader::new(content.as_bytes());
 	match parse_ndjson_from_reader(reader) {
 		Ok(values) => Ok(AipJsonParseJsonlOutput(values)),
-		Err(err) => Err(AipApiError {
+		Err(err) => Err(ApiError {
 			code: "PARSE_FAILED".to_string(),
 			message: format!("aip.json.parse_jsonl failed. {err}"),
 			details: None,
@@ -182,8 +192,8 @@ pub struct AipJsonStringifyParams {
 }
 
 impl AipFromLua for AipJsonStringifyParams {
-	fn from_lua(lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
-		let table = value.as_table().ok_or_else(|| ScriptError::custom("Expected table"))?;
+	fn from_lua(lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+     let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
 
 		let data_val: mlua::Value = table.get("data").map_err(|e| e.to_string())?;
 		let data = if data_val.is_nil() || data_val.x_is_null() {
@@ -200,7 +210,7 @@ impl AipFromLua for AipJsonStringifyParams {
 
 impl AipParams for AipJsonStringifyParams {}
 
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<AipJsonStringifyOutput> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> ApiResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {
@@ -209,7 +219,7 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> AipApiResult<Ai
 
 	match res {
 		Ok(str) => Ok(AipJsonStringifyOutput(str)),
-		Err(err) => Err(AipApiError {
+		Err(err) => Err(ApiError {
 			code: "STRINGIFY_FAILED".to_string(),
 			message: format!("aip.json.stringify fail to stringify. {err}"),
 			details: None,

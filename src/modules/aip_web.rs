@@ -19,12 +19,11 @@
 //! ---
 //!
 
-use crate::AipApiResult;
+use crate::ApiResult;
 use crate::AipRegistry;
 use crate::LuaJsonExt;
-use crate::ScriptResult;
 use crate::webc;
-use crate::{AipApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
+use crate::{ApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -90,7 +89,7 @@ pub struct AipWebGetParams {
 }
 
 impl AipFromLua for AipWebGetParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("data")?;
 
@@ -191,7 +190,7 @@ pub struct AipWebOutput {
 	pub error: Option<String>,
 }
 
-async fn aip_web_get_handler(params: AipWebGetParams) -> AipApiResult<AipWebOutput> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> ApiResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -238,14 +237,14 @@ pub struct AipWebPostParams {
 }
 
 impl AipFromLua for AipWebPostParams {
-	fn from_lua(_lua: &Lua, value: mlua::Value) -> ScriptResult<Self> {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("data")?;
 
 		let json: Option<serde_json::Value> = table
 			.get::<mlua::Value>("json")
 			.ok()
-			.and_then(|v| -> Option<ScriptResult<serde_json::Value>> {
+			.and_then(|v| -> Option<crate::Result<serde_json::Value>> {
 				if v.is_nil() {
 					return None;
 				}
@@ -315,7 +314,7 @@ impl AipFromLua for AipWebPostParams {
 
 impl crate::AipParams for AipWebPostParams {}
 
-async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebOutput> {
+async fn aip_web_post_handler(params: AipWebPostParams) -> ApiResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -360,7 +359,7 @@ async fn aip_web_post_handler(params: AipWebPostParams) -> AipApiResult<AipWebOu
 // region:    --- AipWebOutput
 
 impl AipIntoLua for AipWebOutput {
-	fn into_lua(self, lua: &Lua) -> ScriptResult<mlua::Value> {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
 		let table = lua.create_table()?;
 
 		let data_lua = mlua::Value::x_from_json_value(lua, self.data)?;
@@ -393,7 +392,7 @@ fn build_webc_client(
 	user_agent: Option<&AipWebUserAgent>,
 	headers: Option<&HashMap<String, AipWebHeaderValue>>,
 	redirect_limit: Option<usize>,
-) -> AipApiResult<webc::WebClient> {
+) -> ApiResult<webc::WebClient> {
 	let mut builder = webc::WebClientBuilder::new();
 
 	if let Some(limit) = redirect_limit {
@@ -430,7 +429,11 @@ fn build_webc_client(
 	})
 }
 
-fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> AipApiResult<AipWebOutput> {
+fn web_response_to_aip_output(
+	response: webc::WebResponse,
+	parse: bool,
+	error_url: &str,
+) -> ApiResult<AipWebOutput> {
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;
@@ -539,8 +542,8 @@ fn aip_web_error(
 	message: impl Into<String>,
 	details: Option<String>,
 	cause: Option<String>,
-) -> AipApiError {
-	AipApiError {
+) -> ApiError {
+	ApiError {
 		code: code.into(),
 		message: message.into(),
 		details,
@@ -548,7 +551,7 @@ fn aip_web_error(
 	}
 }
 
-fn webc_error_to_aip(url: &str, err: webc::Error) -> AipApiError {
+fn webc_error_to_aip(url: &str, err: webc::Error) -> ApiError {
 	match err {
 		webc::Error::BuildFailed(e) => aip_web_error(
 			"CLIENT_BUILD_FAILED",

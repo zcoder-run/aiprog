@@ -1,5 +1,4 @@
 use crate::LuaExt;
-use crate::{ScriptError, ScriptResult};
 use mlua::{Lua, LuaSerdeExt as _, Table, Value};
 
 /// Lua JSON conversion extension trait for Lua values.
@@ -48,11 +47,11 @@ use mlua::{Lua, LuaSerdeExt as _, Table, Value};
 #[allow(dead_code)]
 pub trait LuaJsonExt: LuaExt {
 	/// Convert a `serde_json::Value` into a `mlua::Value`.
-	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> ScriptResult<Value>;
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> crate::Result<Value>;
 
 	/// Convert an iterable of JSON values into a Lua table (list) as a `mlua::Value`.
 	/// The table uses 1-based integer keys to form a Lua list.
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> ScriptResult<Value>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> crate::Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>;
 
@@ -62,7 +61,7 @@ pub trait LuaJsonExt: LuaExt {
 	/// - Returns `Ok(Some(json))` for convertible types (booleans, numbers, strings, tables, etc.).
 	/// - Tables are converted to JSON arrays (if contiguous 1..n integer keys) or objects (stringified keys).
 	/// - Returns `Err` for unsupported Lua types (function, userdata, thread, error, …).
-	fn x_to_json_value(&self) -> ScriptResult<Option<serde_json::Value>>;
+	fn x_to_json_value(&self) -> crate::Result<Option<serde_json::Value>>;
 
 	/// If this Lua value is a table/list, convert its elements to JSON values.
 	///
@@ -70,11 +69,11 @@ pub trait LuaJsonExt: LuaExt {
 	/// - Returns `Ok(Some(vec))` when the value is a table; the vector contains the JSON
 	///   representation of each element (using `to_json_value`).
 	/// - Returns `Err` if any element cannot be converted.
-	fn x_to_json_values(&self) -> ScriptResult<Option<Vec<serde_json::Value>>>;
+	fn x_to_json_values(&self) -> crate::Result<Option<Vec<serde_json::Value>>>;
 }
 
 impl LuaJsonExt for Value {
-	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> ScriptResult<Value> {
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> crate::Result<Value> {
 		// Map serde `Null` to `mlua::Value::NULL` — the null sentinel
 		// that is compatible with `LuaExt::x_is_null`.
 		match val {
@@ -83,7 +82,7 @@ impl LuaJsonExt for Value {
 		}
 	}
 
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> ScriptResult<Value>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> crate::Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
@@ -95,13 +94,12 @@ impl LuaJsonExt for Value {
 		Ok(Value::Table(table))
 	}
 
-	fn x_to_json_value(&self) -> ScriptResult<Option<serde_json::Value>> {
-		fn number_from_f64(v: f64) -> ScriptResult<serde_json::Number> {
-			serde_json::Number::from_f64(v)
-				.ok_or_else(|| ScriptError::custom("Cannot convert non-finite Lua number to JSON (NaN or Infinity)"))
+	fn x_to_json_value(&self) -> crate::Result<Option<serde_json::Value>> {
+		fn number_from_f64(v: f64) -> crate::Result<serde_json::Number> {
+			serde_json::Number::from_f64(v).ok_or(crate::Error::custom("Cannot convert non-finite Lua number to JSON (NaN or Infinity)"))
 		}
 
-		fn convert_table(table: mlua::Table) -> ScriptResult<serde_json::Value> {
+		fn convert_table(table: mlua::Table) -> crate::Result<serde_json::Value> {
 			// Try to treat as an array (1..n contiguous integer keys, no gaps)
 			let mut max_idx: usize = 0;
 			let mut numeric_only = true;
@@ -165,7 +163,7 @@ impl LuaJsonExt for Value {
 					Value::Number(n) => n.to_string(),
 					Value::Boolean(b) => b.to_string(),
 					other => {
-						return Err(ScriptError::custom(format!(
+						return Err(crate::Error::custom(format!(
 							"Unsupported Lua table key type '{}' for JSON object",
 							other.type_name()
 						)));
@@ -192,48 +190,48 @@ impl LuaJsonExt for Value {
 					Ok(Some(serde_json::Value::Null))
 				}
 			}
-			Value::Function(_) | Value::Thread(_) | Value::UserData(_) => Err(ScriptError::custom(
+			Value::Function(_) | Value::Thread(_) | Value::UserData(_) => Err(crate::Error::custom(
 				"Cannot serialize Lua value to JSON: unsupported type (Function/LightUserData/UserData)",
 			)),
-			Value::Error(_) => Err(ScriptError::custom(
+			Value::Error(_) => Err(crate::Error::custom(
 				"Cannot serialize Lua value to JSON: unsupported type (error)",
 			)),
-			Value::Other(_) => Err(ScriptError::custom(
+			Value::Other(_) => Err(crate::Error::custom(
 				"Cannot serialize Lua value to JSON: unsupported type (other)",
 			)),
 		}
 	}
 
-	fn x_to_json_values(&self) -> ScriptResult<Option<Vec<serde_json::Value>>> {
+	fn x_to_json_values(&self) -> crate::Result<Option<Vec<serde_json::Value>>> {
 		let Some(list) = self.x_as_list() else {
 			return Ok(None);
 		};
 		let json_list = list
 			.into_iter()
 			.map(|v| v.x_to_json_value().map(|opt| opt.unwrap_or(serde_json::Value::Null)))
-			.collect::<ScriptResult<Vec<_>>>()?;
+			.collect::<crate::Result<Vec<_>>>()?;
 		Ok(Some(json_list))
 	}
 }
 
 impl LuaJsonExt for Table {
-	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> ScriptResult<Value> {
+	fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> crate::Result<Value> {
 		Value::x_from_json_value(lua, val)
 	}
 
-	fn x_from_json_values<I>(lua: &Lua, values: I) -> ScriptResult<Value>
+	fn x_from_json_values<I>(lua: &Lua, values: I) -> crate::Result<Value>
 	where
 		I: IntoIterator<Item = serde_json::Value>,
 	{
 		Value::x_from_json_values(lua, values)
 	}
 
-	fn x_to_json_value(&self) -> ScriptResult<Option<serde_json::Value>> {
+	fn x_to_json_value(&self) -> crate::Result<Option<serde_json::Value>> {
 		let val: Value = Value::Table(self.clone());
 		val.x_to_json_value()
 	}
 
-	fn x_to_json_values(&self) -> ScriptResult<Option<Vec<serde_json::Value>>> {
+	fn x_to_json_values(&self) -> crate::Result<Option<Vec<serde_json::Value>>> {
 		let val: Value = Value::Table(self.clone());
 		val.x_to_json_values()
 	}

@@ -1,5 +1,5 @@
 use super::*;
-use crate::AipApiError;
+use crate::ApiError;
 use crate::AipRegistry;
 use crate::impl_lua_serde_traits;
 use mlua::Value;
@@ -24,16 +24,16 @@ impl_lua_serde_traits!(TestResponse);
 impl crate::AipParams for TestParams {}
 impl crate::AipOutput for TestResponse {}
 
-fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
+fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, ApiError> {
 	Ok(TestResponse { data: params.data })
 }
 
-async fn test_async_handler(params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
+async fn test_async_handler(params: TestParams) -> core::result::Result<TestResponse, ApiError> {
 	Ok(TestResponse { data: params.data })
 }
 
-fn test_error_handler(_params: TestParams) -> core::result::Result<TestResponse, AipApiError> {
-	Err(AipApiError {
+fn test_error_handler(_params: TestParams) -> core::result::Result<TestResponse, ApiError> {
+	Err(ApiError {
 		code: "TEST_ERROR".into(),
 		message: "forced test error".into(),
 		details: Some("detail test".into()),
@@ -237,8 +237,8 @@ async fn test_script_engine_async_invocation() -> Result<()> {
 #[tokio::test]
 async fn test_script_engine_async_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
-	async fn async_error_handler(_: TestParams) -> core::result::Result<TestResponse, AipApiError> {
-		Err(AipApiError {
+    async fn async_error_handler(_: TestParams) -> core::result::Result<TestResponse, ApiError> {
+        Err(ApiError {
 			code: "ASYNC_ERROR".into(),
 			message: "forced async error".into(),
 			details: None,

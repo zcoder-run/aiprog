@@ -15,7 +15,7 @@ pub enum Error {
 	CustomAndCause(String, String),
 
 	#[from]
-	AipApi(crate::AipApiError),
+	Api(crate::ApiError),
 
 	// -- Externals
 	#[from]
@@ -39,17 +39,6 @@ impl From<crate::AipRegistryError> for Error {
 
 // region:    --- Custom
 
-// region:    --- Conversions
-
-impl From<crate::ScriptError> for Error {
-	fn from(err: crate::ScriptError) -> Self {
-		Error::Custom(err.to_string())
-	}
-}
-
-// endregion: --- Conversions
-
-// region:    --- Custom
 impl Error {
 	pub fn custom(val: impl Into<String>) -> Self {
 		Self::Custom(val.into())
