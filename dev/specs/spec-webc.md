@@ -71,6 +71,13 @@ pub enum HeaderValue {
     Many(Vec<String>),
 }
 
+/// Request body to send in a POST (or other) request.
+#[derive(Debug, Clone)]
+pub enum RequestBody {
+    Json(serde_json::Value),
+    Text(String),
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum BodyFormat {
     #[default]
@@ -79,10 +86,24 @@ pub enum BodyFormat {
     Binary,
 }
 
-pub struct WebGetParams {
+/// Parameters for a GET web request.
+pub struct WebParams {
     pub url: String,
     pub user_agent: Option<String>,
     pub headers: Option<HashMap<String, HeaderValue>>,
+    pub body_format: BodyFormat,
+}
+
+/// Parameters for a POST web request.
+pub struct WebPostParams {
+    pub url: String,
+    /// Per-request User-Agent override. `None` uses the client's default.
+    pub user_agent: Option<String>,
+    /// Additional headers to merge with the client's defaults.
+    pub headers: Option<HashMap<String, HeaderValue>>,
+    /// Request body. `None` means no body is sent.
+    pub body: Option<RequestBody>,
+    /// Desired format for the response body. Defaults to `Text`.
     pub body_format: BodyFormat,
 }
 ```
@@ -97,7 +118,7 @@ pub enum Body {
     Binary(Vec<u8>),
 }
 
-pub struct WebGetResponse {
+pub struct WebResponse {
     pub status: u16,
     pub success: bool,
     pub url: String,
@@ -111,7 +132,8 @@ pub struct WebGetResponse {
 
 ```rust
 impl WebClient {
-    pub async fn web_get(&self, params: WebGetParams) -> Result<WebGetResponse>;
+    pub async fn web_get(&self, params: WebParams) -> Result<WebResponse>;
+    pub async fn web_post(&self, params: WebPostParams) -> Result<WebResponse>;
 }
 ```
 
@@ -121,6 +143,8 @@ impl WebClient {
 - **JSON parsing in WebClient**: Callers request JSON parsing per-request via `BodyFormat::Json`. `WebClient` handles the parsing internally and returns a `Body::Json(serde_json::Value)`. This avoids duplicating JSON parsing logic across callers and lets the Lua module focus on converting `serde_json::Value` into Lua types. Callers that need raw text or binary use `BodyFormat::Text` or `BodyFormat::Binary`.
 - **Binary body support**: `BodyFormat::Binary` returns raw bytes as `Body::Binary(Vec<u8>)`. The initial `aip_web` consumer does not require binary responses, but the capability is available for future callers.
 - **Body parse failures**: When `BodyFormat::Json` is requested but the response body is not valid JSON, `WebClient` returns `Err(Error::BodyParseFailed)`. This distinguishes transport-level errors from content-level errors.
+- **POST support**: `web_post` accepts a `WebPostParams` with an optional `RequestBody` that can carry JSON or plain text. The response is handled identically to `web_get` (via a shared `WebResponse` type).
+- **`WebParams` vs `WebPostParams`**: `web_get` uses `WebParams`; `web_post` uses `WebPostParams` which adds a `body` field. The GET parameter type is simply `WebParams` (not `WebGetParams`), while POST uses `WebPostParams` for clarity.
 - **`redirect_limit` is a client-level setting**: `reqwest` configures redirect policy on the `Client`. The `WebClient` builder accepts `with_redirect_limit`. If per-request redirect limits are needed, the caller can create separate `WebClient` instances. The initial scope does not require per-request redirect limits.
 - **Non-success HTTP responses are not errors**: HTTP 4xx/5xx responses are returned as `Ok(WebGetResponse)` with `success: false`. Only transport-level or client-build failures produce `Err(Error)`. Callers (like the Lua module) can generate an `error` message from the status code if needed.
 - **User-Agent defaults**: The `WebClient` builder accepts a default user-agent string. The Lua module's `UA_AIPROG` and `UA_BROWSER` constants remain Lua-specific.
