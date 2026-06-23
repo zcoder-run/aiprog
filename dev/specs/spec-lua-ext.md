@@ -54,12 +54,12 @@ These methods first attempt to access the table by `key`, then attempt the appro
 
 ## Code Design
 
-The trait is defined in `src/script/lua_exts/lua_ext.rs`, with a companion helper `table_as_list`. The trait is implemented for `mlua::Value` and `mlua::Table` separately, with the `Table` impl providing some overrides (e.g., `x_is_null` returns `false`).
+The trait is defined in `src/lua_exts/lua_ext.rs`, with a companion helper `table_as_list`. The trait is implemented for `mlua::Value` and `mlua::Table` separately, with the `Table` impl providing some overrides (e.g., `x_is_null` returns `false`).
 
 The module hierarchy:
 
 ```
-src/script/lua_exts/
+src/lua_exts/
   mod.rs           – re-exports LuaExt, LuaJsonExt, and other traits
   lua_ext.rs       – LuaExt trait and impls
   lua_json_ext.rs  – (adjacent) JSON conversion extensions
@@ -75,3 +75,56 @@ The trait methods are all infallible in the RustResult sense: they return `Optio
 - **No error details**: The `Option` return hides the reason for failure (e.g., wrong type vs missing key). For debugging, callers may use raw mlua access. This is acceptable for most configuration and request parsing use cases.
 - **Performance**: The trait adds a thin layer of indirection but avoids unnecessary cloning when possible (e.g., `x_as_lua_str` returns a borrow).
 - **Future extensions**: Additional helper methods (e.g., `x_get_date`, `x_get_array_of`) could be added as new trait methods or as free functions that build on `x_get_*` primitives.
+
+## LuaJsonExt Trait (Lua ↔ JSON Conversion)
+
+### When to use
+
+Use `LuaJsonExt` whenever the application needs to convert between Lua values and JSON (e.g., for HTTP responses, configuration merging, or serialising Lua data to a wire format). Its custom conversion logic avoids pitfalls of the default `mlua` serde integration.
+
+### Intent
+
+Provide a set of extension methods for `mlua::Value` and `mlua::Table` that convert between `serde_json::Value` and `mlua::Value` with three key improvements over `mlua`'s built-in serde bridge:
+
+1. **Null mapping** – `serde_json::Value::Null` is converted to `mlua::Value::NULL` (the crate's null sentinel) instead of opaque userdata, so that `LuaExt::x_is_null()` can uniformly recognise nulls.
+2. **Array vs object heuristics** – When converting a Lua table to JSON, the trait inspects the keys; if the table has only contiguous 1..n integer keys, it emits a JSON array; otherwise it emits a JSON object with stringified keys.
+3. **Nil‑to‑None semantics** – `x_to_json_value` returns `Result<Option<serde_json::Value>>`, allowing callers to distinguish a Lua `nil` (`Ok(None)`) from a JSON `null` (`Ok(Some(serde_json::Value::Null))`), which is impossible with the default conversion.
+
+The trait has `LuaExt` as a supertrait, so all `LuaExt` query helpers (`x_get_string`, `x_as_list`, etc.) are available on any value that supports JSON conversion.
+
+### Public API
+
+#### Trait: `LuaJsonExt`
+
+```rust
+pub trait LuaJsonExt: LuaExt {
+    fn x_from_json_value(lua: &Lua, val: serde_json::Value) -> crate::Result<Value>;
+    fn x_from_json_values<I>(lua: &Lua, values: I) -> crate::Result<Value>
+    where
+        I: IntoIterator<Item = serde_json::Value>;
+    fn x_to_json_value(&self) -> crate::Result<Option<serde_json::Value>>;
+    fn x_to_json_values(&self) -> crate::Result<Option<Vec<serde_json::Value>>>;
+}
+```
+
+**`x_from_json_value`** – Converts a single `serde_json::Value` into a `mlua::Value`. JSON `null` becomes `Value::NULL`, scalars become the corresponding Lua primitives, objects become Lua tables with string keys, and arrays become 1‑based Lua tables.
+
+**`x_from_json_values`** – Converts an iterable of JSON values into a single Lua table with 1‑based integer keys, forming an array (list).
+
+**`x_to_json_value`** – Converts the Lua value into a JSON value. Returns `Ok(None)` for `nil`, `Ok(Some(json))` for convertible types, and `Err` for unsupported types (functions, userdata, threads, etc.). Tables use the array/object heuristic.
+
+**`x_to_json_values`** – If the value is a table, extracts its list elements (via `LuaExt::x_as_list`) and converts each element to JSON, returning `Ok(Some(vec))`. Returns `Ok(None)` for non‑table or `nil`.
+
+### Code Design
+
+The trait is implemented for both `mlua::Value` and `mlua::Table`. The `Table` implementations delegate to the `Value` implementations by wrapping the table in `Value::Table(self.clone())`. A private helper `convert_table` handles the array‑vs‑object inspection.
+
+The implementation resides in `src/lua_exts/lua_json_ext.rs`. It uses `crate::Result<T>` for all conversions, returning descriptive errors on unsupported types.
+
+### Design Considerations
+
+- **Supertrait `LuaExt`** ensures that any value implementing `LuaJsonExt` also has all the `x_get_*` and `x_as_*` helpers, enabling fluid composition of key access and JSON conversion.
+- **Null sentinel** – `Value::NULL` is a `LightUserData` sentinel recognised by `x_is_null`. This is different from both `nil` and JSON `null`, providing three states: absent (nil), null (sentinel), and a present value.
+- **Array detection** requires two passes over the table entries to ensure no non‑sequential keys exist. This is O(n) and acceptable for typical request/response sizes.
+- **JSON number conversion** uses `serde_json::Number::from_f64` and returns an error for non‑finite floats (`NaN`, `Infinity`), consistent with JSON constraints.
+- **Future extensions** – additional helpers (e.g., `x_to_json_string`, bulk converters) can be layered on top of these primitives.
