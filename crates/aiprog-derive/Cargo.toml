@@ -1,6 +1,6 @@
 [package]
-name = "aiprog-macros"
-version = "0.1.0"
+name = "aiprog-derive"
+version = "0.0.1"
 edition = "2024"
 
 [lib]

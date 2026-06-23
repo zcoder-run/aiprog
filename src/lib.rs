@@ -26,8 +26,8 @@ pub mod webc;
 pub use mlua;
 pub use serde_json;
 
-pub mod macros {
-	pub use aiprog_macros::*;
+pub mod derive {
+	pub use aiprog_derive::*;
 }
 
 // endregion: --- Modules

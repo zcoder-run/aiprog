@@ -1,4 +1,4 @@
-use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, ApiError, Error, ScriptEngine};
+use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, ApiError, Error, LuaExt, ScriptEngine};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use value_ext::JsonValueExt as _;
@@ -12,13 +12,8 @@ struct GreetingParams {
 }
 
 impl AipFromLua for GreetingParams {
-	fn from_lua(lua: &mlua::Lua, value: mlua::Value) -> aiprog::Result<Self> {
-		let table = match value {
-			mlua::Value::Table(t) => t,
-			_ => return Err(Error::custom("expected a table")),
-		};
-		let name_value = table.get::<mlua::Value>("name").map_err(|e| Error::custom(format!("{}", e)))?;
-		let name: String = AipFromLua::from_lua(lua, name_value)?;
+	fn from_lua(_lua: &mlua::Lua, value: mlua::Value) -> aiprog::Result<Self> {
+		let name = value.x_get_string("name").ok_or("No .name value (required)")?;
 		Ok(GreetingParams { name })
 	}
 }
@@ -63,9 +58,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// -- print doc
 
-	let doc = script_engine.generate_doc()?;
+	// let doc = script_engine.generate_doc()?;
 
-	println!("\n=== Doc:\n{doc}");
+	// println!("\n=== Doc:\n{doc}");
 
 	Ok(())
 }
