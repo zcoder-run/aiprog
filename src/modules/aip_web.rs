@@ -19,11 +19,11 @@
 //! ---
 //!
 
-use crate::ApiResult;
 use crate::AipRegistry;
+use crate::ApiResult;
 use crate::LuaJsonExt;
 use crate::webc;
-use crate::{ApiError, AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
+use crate::{AipFromLua, AipIntoLua, ApiError, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -73,7 +73,7 @@ pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipWebGetParams {
 	/// The URL to request.
-	pub data: String,
+	pub url: String,
 
 	/// User-Agent behavior. `true` uses `aipROG`, `false` disables the default, and a string is used as-is.
 	pub user_agent: Option<AipWebUserAgent>,
@@ -136,7 +136,7 @@ impl AipFromLua for AipWebGetParams {
 		let parse: Option<bool> = table.x_get_bool("parse");
 
 		Ok(AipWebGetParams {
-			data,
+			url: data,
 			user_agent,
 			headers,
 			redirect_limit,
@@ -197,14 +197,14 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> ApiResult<AipWebOutput>
 		params.redirect_limit,
 	)?;
 	let web_params = build_web_get_params(&params);
-	let url_clone = params.data.clone();
+	let url_clone = params.url.clone();
 
 	let response = client
 		.web_get(web_params)
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
+	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.url)
 }
 
 // endregion: --- aip.web.get
@@ -429,11 +429,7 @@ fn build_webc_client(
 	})
 }
 
-fn web_response_to_aip_output(
-	response: webc::WebResponse,
-	parse: bool,
-	error_url: &str,
-) -> ApiResult<AipWebOutput> {
+fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> ApiResult<AipWebOutput> {
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;
@@ -517,7 +513,7 @@ fn build_web_get_params(params: &AipWebGetParams) -> webc::WebParams {
 	});
 
 	webc::WebParams {
-		url: params.data.clone(),
+		url: params.url.clone(),
 		user_agent: None,
 		headers,
 		body_format: webc::BodyFormat::Text,

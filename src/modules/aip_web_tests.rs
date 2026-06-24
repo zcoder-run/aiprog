@@ -6,7 +6,7 @@ use crate::_test_support;
 use crate::modules;
 
 #[tokio::test]
-async fn test_script_lua_web_constants() -> Result<()> {
+async fn test_api_web_constants() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	// Install the constants (must be done after the functions are installed)
@@ -31,7 +31,7 @@ async fn test_script_lua_web_constants() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_web_get_simple() -> Result<()> {
+async fn test_api_web_get_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
@@ -65,7 +65,7 @@ async fn test_script_lua_web_get_simple() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_web_post_json() -> Result<()> {
+async fn test_api_web_post_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
@@ -103,7 +103,7 @@ async fn test_script_lua_web_post_json() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_web_post_body() -> Result<()> {
+async fn test_api_web_post_body() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;
@@ -139,7 +139,7 @@ async fn test_script_lua_web_post_body() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_web_post_error() -> Result<()> {
+async fn test_api_web_post_error() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
 	modules::aip_web::install_constants(&engine)?;

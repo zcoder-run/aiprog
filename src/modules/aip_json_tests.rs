@@ -6,7 +6,7 @@ use assertables::{assert_contains, assert_not_contains};
 use serde_json::json;
 
 #[tokio::test]
-async fn test_script_lua_json_parse_simple() -> Result<()> {
+async fn test_api_json_parse_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -24,7 +24,7 @@ async fn test_script_lua_json_parse_simple() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_roundtrip() -> Result<()> {
+async fn test_api_json_parse_roundtrip() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -44,7 +44,7 @@ async fn test_script_lua_json_parse_roundtrip() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_with_comment() -> Result<()> {
+async fn test_api_json_parse_with_comment() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -65,7 +65,7 @@ async fn test_script_lua_json_parse_with_comment() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_nil() -> Result<()> {
+async fn test_api_json_parse_nil() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -81,7 +81,7 @@ async fn test_script_lua_json_parse_nil() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_invalid() -> Result<()> {
+async fn test_api_json_parse_invalid() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -105,7 +105,7 @@ async fn test_script_lua_json_parse_invalid() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_jsonl_simple() -> Result<()> {
+async fn test_api_json_parse_jsonl_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -126,7 +126,7 @@ async fn test_script_lua_json_parse_jsonl_simple() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_jsonl_empty_lines() -> Result<()> {
+async fn test_api_json_parse_jsonl_empty_lines() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -148,7 +148,7 @@ async fn test_script_lua_json_parse_jsonl_empty_lines() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_jsonl_nil() -> Result<()> {
+async fn test_api_json_parse_jsonl_nil() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -164,7 +164,7 @@ async fn test_script_lua_json_parse_jsonl_nil() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_jsonl_invalid_json() -> Result<()> {
+async fn test_api_json_parse_jsonl_invalid_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -187,7 +187,7 @@ async fn test_script_lua_json_parse_jsonl_invalid_json() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
+async fn test_api_json_stringify_pretty_basic() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -211,7 +211,7 @@ async fn test_script_lua_json_stringify_pretty_basic() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_stringify_pretty_complex() -> Result<()> {
+async fn test_api_json_stringify_pretty_complex() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -244,7 +244,7 @@ async fn test_script_lua_json_stringify_pretty_complex() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_stringify_simple() -> Result<()> {
+async fn test_api_json_stringify_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -271,7 +271,7 @@ async fn test_script_lua_json_stringify_simple() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_new_api() -> Result<()> {
+async fn test_api_json_parse_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -289,7 +289,7 @@ async fn test_script_lua_json_parse_new_api() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
+async fn test_api_json_parse_new_api_error() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -310,7 +310,7 @@ async fn test_script_lua_json_parse_new_api_error() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_parse_jsonl_new_api() -> Result<()> {
+async fn test_api_json_parse_jsonl_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -331,7 +331,7 @@ async fn test_script_lua_json_parse_jsonl_new_api() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_stringify_new_api() -> Result<()> {
+async fn test_api_json_stringify_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -349,7 +349,7 @@ async fn test_script_lua_json_stringify_new_api() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
+async fn test_api_json_stringify_pretty_new_api() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -367,7 +367,7 @@ async fn test_script_lua_json_stringify_pretty_new_api() -> Result<()> {
 	Ok(())
 }
 #[tokio::test]
-async fn test_script_lua_json_stringify_to_line_alias_removed() -> Result<()> {
+async fn test_api_json_stringify_to_line_alias_removed() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
@@ -382,7 +382,7 @@ async fn test_script_lua_json_stringify_to_line_alias_removed() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_script_lua_json_chained_stringify_and_parse() -> Result<()> {
+async fn test_api_json_chained_stringify_and_parse() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
 	let script = r#"
