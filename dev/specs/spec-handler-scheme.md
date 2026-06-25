@@ -54,7 +54,7 @@ In Rust, the Params struct is deserialized manually from the Lua table via the `
 
 ### Return Type and Data Wrapping
 
-Each handler returns an `AipApiResult<T>` where `T` is the output type. The output type determines how the value is rendered in Lua.
+Each handler returns a `HandlerResult<T>` where `T` is the output type. The output type determines how the value is rendered in Lua.
 
 #### Structured outputs (table with `data` field)
 
@@ -108,24 +108,18 @@ The `#[derive(AipIntoLua)]` macro detects single‑field tuple structs and gener
 ### Error Handling
 
 
-All handler errors are communicated through a unified `AipApiError` type. There is no per‑module or per‑function error variant; instead, the `code` field differentiates error categories.
+All handler errors use the `HandlerError` type, a simple string-based error. The Rust definition is an enum with a single `Custom(String)` variant (other variants may be added in the future). This keeps error handling lightweight and avoids introducing a complex error taxonomy.
 
-```typescript
-interface AipApiError {
-  /** Machine‑readable error code, e.g. `"PARSE_FAILED"`, `"REQUEST_FAILED"`. */
-  code: string;
-  /** Human‑readable description of the error. */
-  message: string;
-  /** Optional additional context. */
-  details?: string;
-  /** Optional underlying cause. */
-  cause?: string;
+```rust
+// Simplified representation (actual Rust enum in handler_error.rs)
+enum HandlerError {
+    Custom(String),
 }
 ```
 
-On the Lua side, this error is surfaced as a normal Lua error containing the `AipApiError` structure. Each function’s documentation **must** list the possible error codes it can return, so that Lua scripts can inspect and react to them.
+On the Lua side, errors are raised as a standard Lua error with a plain string message. There is no structured error table or machine‑readable error code to inspect; the Lua script receives the error as a human‑readable string via the usual `pcall` mechanism.
 
-Module authors are free to define their own error code strings. The codes should be concise, uppercase snake_case (e.g., `"PARSE_FAILED"`, `"STRINGIFY_FAILED"`, `"REQUEST_FAILED"`, `"CLIENT_BUILD_FAILED"`). A module‑level table of error codes may be exposed as a constant (e.g., `aip.json.ERROR_PARSE_FAILED`) if useful, but this is not required.
+Because there is no error code system, module‑specific error codes (like `"PARSE_FAILED"`) and module‑level error constant tables are not defined. When additional error information is needed, the string message should be descriptive enough to convey the context.
 
 ### TypeScript Type Definitions
 
@@ -137,7 +131,7 @@ All types follow the naming schema:
 Aip<Module><Function><Role>
 ```
 
-Where `<Role>` is one of `Params`, `Output`, or `Error`.
+Where `<Role>` is one of `Params` or `Output`.
 
 Examples:
 
@@ -154,5 +148,7 @@ When a type is reused, the name may drop the function part (e.g., `AipWebOutput`
 - **Single table argument**: Lua functions that accept many positional arguments can become hard to read. Using a single named-parameter table makes the API explicit and future-proof, as new optional fields can be added without breaking callers.
  **Return value shape**: Functions that produce a single value without additional metadata return that value directly, so callers can use it without unwrapping. Functions that need to provide metadata alongside the result use a table with a `data` field and additional fields, keeping the primary result accessible via `res.data`. This balances simplicity for common cases with clarity for more complex results.
 - **Shared types**: When two functions have identical inputs or outputs, sharing the type reduces duplication and keeps the API consistent. The naming convention should still suggest the primary use or module.
- **Error representation**: The unified `AipApiError` type with string error codes provides a simple yet sufficient differentiation mechanism. Lua scripts can inspect the `code` field to handle specific errors. This avoids the complexity of multiple error types while remaining extensible through new code strings.
+
+ **Error representation**: Errors are raised as standard Lua errors with a descriptive string message. The Rust `HandlerError` type is a simple string-based error, keeping the API lightweight and avoiding a complex error taxonomy. Lua scripts can handle errors via `pcall` and inspect the error message string.
+
 - **TypeScript documentation**: TypeScript interfaces provide a familiar, tool-friendly way to document the API shape without tying it to a particular language. They are used in the standard documentation (e.g., `doc-aip-json.md`).
