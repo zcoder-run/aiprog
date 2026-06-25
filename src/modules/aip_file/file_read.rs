@@ -4,7 +4,7 @@ use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
 	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
-use crate::{ApiResult, AipFromLua, AipIntoLua, LuaExt};
+use crate::{HandlerResult, AipFromLua, AipIntoLua, LuaExt};
 use mlua::{Lua, Value};
 
 /// Register all read-related handlers into the given `AipRegistry`.
@@ -15,7 +15,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.read
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.read", move |p: AipFileReadParams| {
+		registry.register_sync::<_, _, _>("aip.file.read", move |p: AipFileReadParams| {
 			aip_file_read_handler(p, &ctx)
 		})?;
 	}
@@ -23,7 +23,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.list
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.list", move |p: AipFileListParams| {
+		registry.register_sync::<_, _, _>("aip.file.list", move |p: AipFileListParams| {
 			aip_file_list_handler(p, &ctx)
 		})?;
 	}
@@ -31,7 +31,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.list_read
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.list_read", move |p: AipFileListReadParams| {
+		registry.register_sync::<_, _, _>("aip.file.list_read", move |p: AipFileListReadParams| {
 			aip_file_list_read_handler(p, &ctx)
 		})?;
 	}
@@ -39,7 +39,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.info
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.info", move |p: AipFileInfoParams| {
+		registry.register_sync::<_, _, _>("aip.file.info", move |p: AipFileInfoParams| {
 			aip_file_info_handler(p, &ctx)
 		})?;
 	}
@@ -47,7 +47,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.exists
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.exists", move |p: AipFileExistsParams| {
+		registry.register_sync::<_, _, _>("aip.file.exists", move |p: AipFileExistsParams| {
 			aip_file_exists_handler(p, &ctx)
 		})?;
 	}
@@ -55,7 +55,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.first
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.first", move |p: AipFileFirstParams| {
+		registry.register_sync::<_, _, _>("aip.file.first", move |p: AipFileFirstParams| {
 			aip_file_first_handler(p, &ctx)
 		})?;
 	}
@@ -63,7 +63,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.stats
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _, _>("aip.file.stats", move |p: AipFileStatsParams| {
+		registry.register_sync::<_, _, _>("aip.file.stats", move |p: AipFileStatsParams| {
 			aip_file_stats_handler(p, &ctx)
 		})?;
 	}
@@ -429,7 +429,7 @@ impl AipOutput for AipFileStatsOutput {}
 
 // region:    --- Handler functions
 
-fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> ApiResult<AipFileReadOutput> {
+fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> HandlerResult<AipFileReadOutput> {
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
 		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
@@ -450,7 +450,7 @@ fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> ApiRes
 	Ok(AipFileReadOutput { data: record })
 }
 
-fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> ApiResult<AipFileListOutput> {
+fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let with_meta = params.with_meta.unwrap_or(true);
@@ -468,7 +468,7 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> ApiRes
 	Ok(AipFileListOutput { data: infos })
 }
 
-fn aip_file_list_read_handler(params: AipFileListReadParams, ctx: &FileContext) -> ApiResult<AipFileListReadOutput> {
+fn aip_file_list_read_handler(params: AipFileListReadParams, ctx: &FileContext) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
@@ -489,7 +489,7 @@ fn aip_file_list_read_handler(params: AipFileListReadParams, ctx: &FileContext) 
 	Ok(AipFileListReadOutput { data: records })
 }
 
-fn aip_file_info_handler(params: AipFileInfoParams, ctx: &FileContext) -> ApiResult<AipFileInfoOutput> {
+fn aip_file_info_handler(params: AipFileInfoParams, ctx: &FileContext) -> HandlerResult<AipFileInfoOutput> {
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
 		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
@@ -506,7 +506,7 @@ fn aip_file_info_handler(params: AipFileInfoParams, ctx: &FileContext) -> ApiRes
 	Ok(AipFileInfoOutput { data })
 }
 
-fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> ApiResult<AipFileExistsOutput> {
+fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> HandlerResult<AipFileExistsOutput> {
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
 		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
@@ -514,7 +514,7 @@ fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> Ap
 	Ok(AipFileExistsOutput { data: exists })
 }
 
-fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> ApiResult<AipFileFirstOutput> {
+fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
@@ -533,7 +533,7 @@ fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> ApiR
 	Ok(AipFileFirstOutput { data })
 }
 
-fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> ApiResult<AipFileStatsOutput> {
+fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> HandlerResult<AipFileStatsOutput> {
 	let globs = match params.globs {
 		Some(g) => {
 			let v = g.into_vec();

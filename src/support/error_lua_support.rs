@@ -9,7 +9,7 @@ use std::sync::Arc;
 impl Error {
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Error {
 		let handler_err = HandlerError::from_lua_error_with_script(lua_error, script);
-		Error::Handler(handler_err)
+		Error::from(handler_err)
 	}
 }
 

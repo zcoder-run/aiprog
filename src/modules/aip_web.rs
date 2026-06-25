@@ -20,10 +20,10 @@
 //!
 
 use crate::AipRegistry;
-use crate::ApiResult;
+use crate::registry::{HandlerError, HandlerResult};
 use crate::LuaJsonExt;
 use crate::webc;
-use crate::{AipFromLua, AipIntoLua, ApiError, LuaExt, ScriptEngine};
+use crate::{AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -44,8 +44,8 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 }
 
 fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-	registry.register_async::<_, _, _, _>("aip.web.get", aip_web_get_handler)?;
-	registry.register_async::<_, _, _, _>("aip.web.post", aip_web_post_handler)?;
+	registry.register_async::<_, _, _>("aip.web.get", aip_web_get_handler)?;
+	registry.register_async::<_, _, _>("aip.web.post", aip_web_post_handler)?;
 	Ok(())
 }
 
@@ -190,7 +190,7 @@ pub struct AipWebOutput {
 	pub error: Option<String>,
 }
 
-async fn aip_web_get_handler(params: AipWebGetParams) -> ApiResult<AipWebOutput> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -314,7 +314,7 @@ impl AipFromLua for AipWebPostParams {
 
 impl crate::AipParams for AipWebPostParams {}
 
-async fn aip_web_post_handler(params: AipWebPostParams) -> ApiResult<AipWebOutput> {
+async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -392,7 +392,7 @@ fn build_webc_client(
 	user_agent: Option<&AipWebUserAgent>,
 	headers: Option<&HashMap<String, AipWebHeaderValue>>,
 	redirect_limit: Option<usize>,
-) -> ApiResult<webc::WebClient> {
+) -> HandlerResult<webc::WebClient> {
 	let mut builder = webc::WebClientBuilder::new();
 
 	if let Some(limit) = redirect_limit {
@@ -429,7 +429,7 @@ fn build_webc_client(
 	})
 }
 
-fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> ApiResult<AipWebOutput> {
+fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> HandlerResult<AipWebOutput> {
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;
@@ -538,16 +538,20 @@ fn aip_web_error(
 	message: impl Into<String>,
 	details: Option<String>,
 	cause: Option<String>,
-) -> ApiError {
-	ApiError {
-		code: code.into(),
-		message: message.into(),
-		details,
-		cause,
+) -> HandlerError {
+	let code = code.into();
+	let message = message.into();
+	let mut msg = format!("[{code}] {message}");
+	if let Some(d) = &details {
+		msg.push_str(&format!("\nDetails: {d}"));
 	}
+	if let Some(c) = &cause {
+		msg.push_str(&format!("\nCause: {c}"));
+	}
+	HandlerError::Custom(msg)
 }
 
-fn webc_error_to_aip(url: &str, err: webc::Error) -> ApiError {
+fn webc_error_to_aip(url: &str, err: webc::Error) -> HandlerError {
 	match err {
 		webc::Error::BuildFailed(e) => aip_web_error(
 			"CLIENT_BUILD_FAILED",

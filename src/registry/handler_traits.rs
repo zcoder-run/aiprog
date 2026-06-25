@@ -1,4 +1,3 @@
-use super::HandlerError;
 use crate::{AipFromLua, AipIntoLua};
 use schemars::JsonSchema;
 
@@ -23,15 +22,3 @@ pub trait AipParams: AipFromLua + JsonSchema + Send + Sync + 'static {}
 pub trait AipOutput: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipOutput
-
-// region:    --- AipError
-
-/// Unified trait for handler error types.
-///
-/// Any type used as a handler error must be convertible into a normalized
-/// `HandlerError`, have a JSON schema, and be `Send`. The blanket
-/// implementation ensures any type satisfying the component bounds
-/// automatically qualifies.
-pub trait AipError: Into<HandlerError> + JsonSchema + Send + 'static {}
-
-// endregion: --- AipError

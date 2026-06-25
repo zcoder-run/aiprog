@@ -2,9 +2,9 @@
 
 use crate::LuaJsonExt;
 use crate::Result;
-use crate::{AipError, AipOutput, AipParams};
+use crate::{AipOutput, AipParams};
 use mlua::{Lua, Value};
-use schemars::{JsonSchema, schema_for};
+use schemars::schema_for;
 use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
@@ -13,6 +13,7 @@ use std::sync::Arc;
 use super::registry_internal::{AipHandlerClosure, LuaAsyncClosure, LuaSyncClosure, RegistryEntry};
 use super::registry_types::*;
 use super::support::validate_path;
+use super::HandlerError;
 
 // endregion: --- Error Boilerplate
 
@@ -39,12 +40,11 @@ impl AipRegistry {
 }
 
 impl AipRegistry {
-	pub fn register_sync<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
+	pub fn register_sync<P, R, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
 		R: AipOutput,
-		E: AipError,
-		H: AipSyncFnWrapper<P, R, E>,
+		H: AipSyncFnWrapper<P, R>,
 	{
 		validate_path(path)?;
 		if self.registered_paths.contains(path) {
@@ -53,7 +53,7 @@ impl AipRegistry {
 
 		let params_schema = schema_for!(P);
 		let response_schema = schema_for!(R);
-		let error_schema = schema_for!(E);
+		let error_schema = schema_for!(HandlerError);
 
 		let closure: LuaSyncClosure = Box::new(move |lua: &Lua, value: Value| -> mlua::Result<Value> {
 			let params: P =
@@ -63,7 +63,7 @@ impl AipRegistry {
 				Ok(response) => response
 					.into_lua(lua)
 					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
-                Err(err) => Err(err.into().into_lua_error()),
+                Err(err) => Err(err.into_lua_error()),
 			}
 		});
 
@@ -80,12 +80,11 @@ impl AipRegistry {
 		Ok(())
 	}
 
-	pub fn register_async<P, R, E, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
+	pub fn register_async<P, R, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
 		R: AipOutput + serde::Serialize,
-		E: AipError,
-		H: AipAsyncFnWrapper<P, R, E>,
+		H: AipAsyncFnWrapper<P, R>,
 	{
 		validate_path(path)?;
 		if self.registered_paths.contains(path) {
@@ -94,7 +93,7 @@ impl AipRegistry {
 
 		let params_schema = schema_for!(P);
 		let response_schema = schema_for!(R);
-		let error_schema = schema_for!(E);
+		let error_schema = schema_for!(HandlerError);
 
 		let handler_arc = Arc::new(handler);
 		let closure: LuaAsyncClosure = Box::new(
@@ -113,7 +112,7 @@ impl AipRegistry {
 					match handler.call_async(params).await {
 						Ok(response) => serde_json::to_value(response)
 							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-                        Err(err) => Err(err.into().into_lua_error()),
+                                Err(err) => Err(err.into_lua_error()),
 					}
 				})
 			},

@@ -14,7 +14,7 @@ pub fn aip_from_lua_derive(input: TokenStream) -> TokenStream {
 				let serde_value = ::aiprog::LuaJsonExt::x_to_json_value(&value)
 					.map_err(|e| ::aiprog::ScriptError::custom(format!("Invalid params: {e}")))?;
 				let serde_value = serde_value
-					.ok_or_else(|| ::aiprog::ScriptError::custom("expected JSON value, got nil".to_string()))?;
+					.ok_or_else(|| ::aiprog::ScriptError::custom("expected JSON value, got nil"))?;
 				Ok(::aiprog::serde_json::from_value(serde_value)
 					.map_err(|e| format!("deserialization error: {e}"))?)
 			}

@@ -23,7 +23,7 @@ keywords = [
 doctest = false
 
 [lints.clippy]
-infallible_destructuring_match = "allow" # for now
+# infallible_destructuring_match = "allow" # for now
 
 [lints.rust]
 unsafe_code = "forbid"

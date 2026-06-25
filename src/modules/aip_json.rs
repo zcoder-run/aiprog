@@ -24,8 +24,9 @@
 //!
 
 use crate::support::jsons;
-use crate::{ApiError, AipFromLua, AipIntoLua, AipParams};
-use crate::{ApiResult, LuaExt};
+use crate::{AipFromLua, AipIntoLua, AipParams};
+use crate::registry::{HandlerError, HandlerResult};
+use crate::LuaExt;
 use crate::{AipOutput, AipRegistry};
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
@@ -96,9 +97,9 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 }
 
 fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-	registry.register_sync::<_, _, _, _>("aip.json.parse", aip_json_parse_handler)?;
-	registry.register_sync::<_, _, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	registry.register_sync::<_, _, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
+	registry.register_sync::<_, _, _>("aip.json.parse", aip_json_parse_handler)?;
+	registry.register_sync::<_, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	registry.register_sync::<_, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
 	Ok(())
 }
 
@@ -122,7 +123,7 @@ impl AipFromLua for AipJsonParseParams {
 
 impl AipParams for AipJsonParseParams {}
 
-fn aip_json_parse_handler(params: AipJsonParseParams) -> ApiResult<AipJsonParseOutput> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
 	};
@@ -130,12 +131,7 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> ApiResult<AipJsonParseO
 	match jsons::parse_jsonc_to_serde_value(&content) {
 		Ok(Some(json_val)) => Ok(AipJsonParseOutput(json_val)),
 		Ok(None) => Ok(AipJsonParseOutput(serde_json::Value::Null)),
-		Err(err) => Err(ApiError {
-			code: "PARSE_FAILED".to_string(),
-			message: format!("aip.json.parse failed. {err}"),
-			details: None,
-			cause: None,
-		}),
+		Err(err) => Err(HandlerError::custom(format!("aip.json.parse failed. {err}"))),
 	}
 }
 
@@ -161,19 +157,14 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> ApiResult<AipJsonParseJsonlOutput> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
 	let reader = BufReader::new(content.as_bytes());
 	match parse_ndjson_from_reader(reader) {
 		Ok(values) => Ok(AipJsonParseJsonlOutput(values)),
-		Err(err) => Err(ApiError {
-			code: "PARSE_FAILED".to_string(),
-			message: format!("aip.json.parse_jsonl failed. {err}"),
-			details: None,
-			cause: None,
-		}),
+		Err(err) => Err(HandlerError::custom(format!("aip.json.parse_jsonl failed. {err}"))),
 	}
 }
 
@@ -210,7 +201,7 @@ impl AipFromLua for AipJsonStringifyParams {
 
 impl AipParams for AipJsonStringifyParams {}
 
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> ApiResult<AipJsonStringifyOutput> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {
@@ -219,12 +210,7 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> ApiResult<AipJs
 
 	match res {
 		Ok(str) => Ok(AipJsonStringifyOutput(str)),
-		Err(err) => Err(ApiError {
-			code: "STRINGIFY_FAILED".to_string(),
-			message: format!("aip.json.stringify fail to stringify. {err}"),
-			details: None,
-			cause: None,
-		}),
+		Err(err) => Err(HandlerError::custom(format!("aip.json.stringify fail to stringify. {err}"))),
 	}
 }
 

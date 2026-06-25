@@ -1,4 +1,4 @@
-use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, ApiError, Error, LuaExt, ScriptEngine};
+use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, HandlerResult, Error, LuaExt, ScriptEngine};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use value_ext::JsonValueExt as _;
@@ -33,7 +33,7 @@ impl AipIntoLua for GreetingResult {
 
 impl AipOutput for GreetingResult {}
 
-fn custom_greetings(params: GreetingParams) -> core::result::Result<GreetingResult, ApiError> {
+fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingResult> {
 	Ok(GreetingResult(format!("Hello {}", params.name)))
 }
 

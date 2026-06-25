@@ -1,7 +1,7 @@
 use super::*;
-use crate::ApiError;
 use crate::AipRegistry;
 use crate::impl_lua_serde_traits;
+use crate::registry::{HandlerError, HandlerResult};
 use mlua::Value;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,21 +24,16 @@ impl_lua_serde_traits!(TestResponse);
 impl crate::AipParams for TestParams {}
 impl crate::AipOutput for TestResponse {}
 
-fn test_sync_handler(params: TestParams) -> core::result::Result<TestResponse, ApiError> {
+fn test_sync_handler(params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
-async fn test_async_handler(params: TestParams) -> core::result::Result<TestResponse, ApiError> {
+async fn test_async_handler(params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
-fn test_error_handler(_params: TestParams) -> core::result::Result<TestResponse, ApiError> {
-	Err(ApiError {
-		code: "TEST_ERROR".into(),
-		message: "forced test error".into(),
-		details: Some("detail test".into()),
-		cause: None,
-	})
+fn test_error_handler(_params: TestParams) -> HandlerResult<TestResponse> {
+	Err(HandlerError::custom("[TEST_ERROR] forced test error"))
 }
 
 // region:    --- Nested table creation
@@ -237,13 +232,8 @@ async fn test_script_engine_async_invocation() -> Result<()> {
 #[tokio::test]
 async fn test_script_engine_async_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
-    async fn async_error_handler(_: TestParams) -> core::result::Result<TestResponse, ApiError> {
-        Err(ApiError {
-			code: "ASYNC_ERROR".into(),
-			message: "forced async error".into(),
-			details: None,
-			cause: None,
-		})
+	async fn async_error_handler(_: TestParams) -> HandlerResult<TestResponse> {
+		Err(HandlerError::custom("[ASYNC_ERROR] forced async error"))
 	}
 
 	let mut registry = AipRegistry::from_empty();

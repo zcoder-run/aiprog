@@ -5,17 +5,11 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, Display, From)]
 #[display("{self:?}")]
 pub enum Error {
-	#[from(crate::HandlerError)]
-	Handler(crate::HandlerError),
-
 	#[from(String, &String, &str)]
 	Custom(String),
 
 	#[display("Error: {_0}\n\tCause: {_1}")]
 	CustomAndCause(String, String),
-
-	#[from]
-	Api(crate::ApiError),
 
 	// -- Externals
 	#[from]
@@ -29,6 +23,12 @@ pub enum Error {
 
 	#[from]
 	SimpleFs(simple_fs::Error),
+}
+
+impl From<crate::HandlerError> for Error {
+	fn from(err: crate::HandlerError) -> Self {
+		Error::Custom(err.to_string())
+	}
 }
 
 impl From<crate::AipRegistryError> for Error {

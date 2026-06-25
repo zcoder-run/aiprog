@@ -1,51 +1,49 @@
-use crate::{AipError, AipOutput, AipParams};
+use crate::{AipOutput, AipParams};
 use schemars::Schema;
 use std::future::Future;
 use std::pin::Pin;
 
+use super::handler_error::HandlerResult;
+
 // region:    --- Handler Wrappers
 
-pub type AipAsyncBoxFuture<R, E> = Pin<Box<dyn Future<Output = core::result::Result<R, E>> + Send>>;
+pub type AipAsyncBoxFuture<R> = Pin<Box<dyn Future<Output = HandlerResult<R>> + Send>>;
 
-pub trait AipSyncFnWrapper<P, R, E>: Send + Sync + 'static
+pub trait AipSyncFnWrapper<P, R>: Send + Sync + 'static
 where
 	P: AipParams,
 	R: AipOutput,
-	E: AipError,
 {
-	fn call_sync(&self, params: P) -> core::result::Result<R, E>;
+	fn call_sync(&self, params: P) -> HandlerResult<R>;
 }
 
-impl<H, P, R, E> AipSyncFnWrapper<P, R, E> for H
+impl<H, P, R> AipSyncFnWrapper<P, R> for H
 where
-	H: Fn(P) -> core::result::Result<R, E> + Send + Sync + 'static,
+	H: Fn(P) -> HandlerResult<R> + Send + Sync + 'static,
 	P: AipParams,
 	R: AipOutput,
-	E: AipError,
 {
-	fn call_sync(&self, params: P) -> core::result::Result<R, E> {
+	fn call_sync(&self, params: P) -> HandlerResult<R> {
 		self(params)
 	}
 }
 
-pub trait AipAsyncFnWrapper<P, R, E>: Send + Sync + 'static
+pub trait AipAsyncFnWrapper<P, R>: Send + Sync + 'static
 where
 	P: AipParams,
 	R: AipOutput,
-	E: AipError,
 {
-	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R, E>;
+	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R>;
 }
 
-impl<H, Fut, P, R, E> AipAsyncFnWrapper<P, R, E> for H
+impl<H, Fut, P, R> AipAsyncFnWrapper<P, R> for H
 where
 	H: Fn(P) -> Fut + Send + Sync + 'static,
-	Fut: Future<Output = core::result::Result<R, E>> + Send + 'static,
+	Fut: Future<Output = HandlerResult<R>> + Send + 'static,
 	P: AipParams,
 	R: AipOutput,
-	E: AipError,
 {
-	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R, E> {
+	fn call_async(&self, params: P) -> AipAsyncBoxFuture<R> {
 		Box::pin(self(params))
 	}
 }

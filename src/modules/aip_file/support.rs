@@ -3,7 +3,7 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-use crate::{ApiError, ApiResult};
+use crate::registry::{HandlerError, HandlerResult};
 use mlua::{Lua, Value};
 use simple_fs::{ListOptions, SPath, list_files, read_to_string};
 
@@ -220,17 +220,17 @@ pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> crate::Result<Value>
 
 // region:    --- Error helpers
 
-/// Create an `AipApiError` with the given error code and message.
-pub fn aip_file_error(code: impl Into<String>, message: &str) -> ApiError {
-    ApiError::new(code, message.to_string())
+/// Create a `HandlerError::Custom` with the given error code and message.
+pub fn aip_file_error(code: impl Into<String>, message: &str) -> HandlerError {
+    HandlerError::custom(format!("[{}] {}", code.into(), message))
 }
 
 /// Validate that the given glob patterns are well-formed.
 ///
 /// This function checks each pattern (including exclude patterns after
 /// stripping the `!` prefix) using the `glob` crate. If any pattern is
-/// invalid, an `AipApiError` with code `INVALID_GLOB` is returned.
-pub fn validate_glob_patterns(globs: &[String]) -> ApiResult<()> {
+/// invalid, a `HandlerError` with code `INVALID_GLOB` is returned.
+pub fn validate_glob_patterns(globs: &[String]) -> HandlerResult<()> {
 	for g in globs {
 		let trimmed = g.trim();
 		if trimmed.is_empty() {

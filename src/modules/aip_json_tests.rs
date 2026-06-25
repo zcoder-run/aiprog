@@ -99,7 +99,7 @@ async fn test_api_json_parse_invalid() -> Result<()> {
 	// -- Check
 	let err_str = res.as_str().ok_or("Expected error string")?;
 
-	assert_contains!(err_str, "PARSE_FAILED");
+	assert_contains!(err_str, "Fail to parse json");
 	assert_contains!(err_str, "aip.json.parse failed");
 	Ok(())
 }
@@ -305,7 +305,7 @@ async fn test_api_json_parse_new_api_error() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check error message
-	assert_contains!(res.as_str().ok_or("Expected error string")?, "PARSE_FAILED");
+	assert_contains!(res.as_str().ok_or("Expected error string")?, "Fail to parse json");
 	Ok(())
 }
 
