@@ -5,6 +5,7 @@ extern crate self as aiprog; // for aiprog_macros
 mod _test_support;
 
 mod modules;
+pub mod schema_ref;
 mod support;
 
 mod engine;
