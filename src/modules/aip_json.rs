@@ -23,15 +23,14 @@
 //! ---
 //!
 
+use crate::LuaExt;
+use crate::registry::{HandlerError, HandlerResult};
 use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
-use crate::registry::{HandlerError, HandlerResult};
-use crate::LuaExt;
 use crate::{AipOutput, AipRegistry};
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader;
 use std::io::BufReader;
-
 
 // region:    --- Response Types (new single-value returns)
 
@@ -105,10 +104,11 @@ fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 
 // region:    --- aip.json.parse
 
-/// Parameters for the `parse` function.
+// Parse a json string into a json/lua object
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseParams {
-	/// The JSON string to parse.
+	// The JSON string to parse.
+	// Can be strict json, or jsonc, or relaxed json
 	#[serde(default)]
 	pub text: Option<String>,
 }
@@ -184,7 +184,7 @@ pub struct AipJsonStringifyParams {
 
 impl AipFromLua for AipJsonStringifyParams {
 	fn from_lua(lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-     let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
 
 		let data_val: mlua::Value = table.get("data").map_err(|e| e.to_string())?;
 		let data = if data_val.is_nil() || data_val.x_is_null() {
@@ -210,7 +210,9 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<A
 
 	match res {
 		Ok(str) => Ok(AipJsonStringifyOutput(str)),
-		Err(err) => Err(HandlerError::custom(format!("aip.json.stringify fail to stringify. {err}"))),
+		Err(err) => Err(HandlerError::custom(format!(
+			"aip.json.stringify fail to stringify. {err}"
+		))),
 	}
 }
 

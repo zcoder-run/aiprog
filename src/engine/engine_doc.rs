@@ -40,7 +40,7 @@ impl ScriptEngine {
 				// Response schema
 				doc.push_str("### Response schema\n\n");
 				doc.push_str("```json\n");
-				let json_str = serde_json::to_string_pretty(&fn_meta.response_schema)
+				let json_str = serde_json::to_string_pretty(&fn_meta.output_schema)
 					.map_err(|e| crate::Error::cc("Failed to serialize response schema", e))?;
 				doc.push_str(&json_str);
 				if !json_str.ends_with('\n') {

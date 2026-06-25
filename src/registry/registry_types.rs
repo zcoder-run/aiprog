@@ -56,7 +56,7 @@ where
 pub struct AipRegisteredFn {
 	pub path: String,
 	pub params_schema: Schema,
-	pub response_schema: Schema,
+	pub output_schema: Schema,
 	pub error_schema: Schema,
 	pub kind: AipFnKind,
 }

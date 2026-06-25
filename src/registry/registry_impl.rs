@@ -10,10 +10,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use super::HandlerError;
 use super::registry_internal::{AipHandlerClosure, LuaAsyncClosure, LuaSyncClosure, RegistryEntry};
 use super::registry_types::*;
 use super::support::validate_path;
-use super::HandlerError;
 
 // endregion: --- Error Boilerplate
 
@@ -52,7 +52,7 @@ impl AipRegistry {
 		}
 
 		let params_schema = schema_for!(P);
-		let response_schema = schema_for!(R);
+		let output_schema = schema_for!(R);
 		let error_schema = schema_for!(HandlerError);
 
 		let closure: LuaSyncClosure = Box::new(move |lua: &Lua, value: Value| -> mlua::Result<Value> {
@@ -63,7 +63,7 @@ impl AipRegistry {
 				Ok(response) => response
 					.into_lua(lua)
 					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
-                Err(err) => Err(err.into_lua_error()),
+				Err(err) => Err(err.into_lua_error()),
 			}
 		});
 
@@ -73,18 +73,18 @@ impl AipRegistry {
 			kind: AipFnKind::Sync,
 			handler: AipHandlerClosure::Sync(closure),
 			params_schema,
-			response_schema,
+			output_schema,
 			error_schema,
 		});
 
 		Ok(())
 	}
 
-	pub fn register_async<P, R, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
+	pub fn register_async<P, O, H>(&mut self, path: &str, handler: H) -> AipRegistryResult<()>
 	where
 		P: AipParams,
-		R: AipOutput + serde::Serialize,
-		H: AipAsyncFnWrapper<P, R>,
+		O: AipOutput + serde::Serialize,
+		H: AipAsyncFnWrapper<P, O>,
 	{
 		validate_path(path)?;
 		if self.registered_paths.contains(path) {
@@ -92,7 +92,7 @@ impl AipRegistry {
 		}
 
 		let params_schema = schema_for!(P);
-		let response_schema = schema_for!(R);
+		let output_schema = schema_for!(O);
 		let error_schema = schema_for!(HandlerError);
 
 		let handler_arc = Arc::new(handler);
@@ -112,7 +112,7 @@ impl AipRegistry {
 					match handler.call_async(params).await {
 						Ok(response) => serde_json::to_value(response)
 							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-                                Err(err) => Err(err.into_lua_error()),
+						Err(err) => Err(err.into_lua_error()),
 					}
 				})
 			},
@@ -124,7 +124,7 @@ impl AipRegistry {
 			kind: AipFnKind::Async,
 			handler: AipHandlerClosure::Async(closure),
 			params_schema,
-			response_schema,
+			output_schema,
 			error_schema,
 		});
 
@@ -153,7 +153,7 @@ impl AipRegistry {
 			.map(|entry| AipRegisteredFn {
 				path: entry.path.clone(),
 				params_schema: entry.params_schema.clone(),
-				response_schema: entry.response_schema.clone(),
+				output_schema: entry.output_schema.clone(),
 				error_schema: entry.error_schema.clone(),
 				kind: entry.kind,
 			})

@@ -16,7 +16,7 @@ pub(crate) struct RegistryEntry {
 	pub kind: AipFnKind,
 	pub handler: AipHandlerClosure,
 	pub params_schema: Schema,
-	pub response_schema: Schema,
+	pub output_schema: Schema,
 	pub error_schema: Schema,
 }
 

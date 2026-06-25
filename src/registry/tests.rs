@@ -125,12 +125,12 @@ fn test_registry_schema_metadata() -> Result<()> {
 	let fns = registry.list_registered_fns();
 	let registered = &fns[0];
 	let params_schema = serde_json::to_value(&registered.params_schema)?;
-	let response_schema = serde_json::to_value(&registered.response_schema)?;
+	let output_schema = serde_json::to_value(&registered.output_schema)?;
 	let error_schema = serde_json::to_value(&registered.error_schema)?;
 
 	// -- Check
 	assert!(!params_schema.is_null());
-	assert!(!response_schema.is_null());
+	assert!(!output_schema.is_null());
 	assert!(!error_schema.is_null());
 
 	Ok(())
