@@ -300,34 +300,15 @@ fn test_generate_doc_content() -> Result<()> {
 	let doc = engine.generate_doc()?;
 
 	// Check for expected sections
-	assert!(doc.contains("## `aip.test.echo` (sync)"));
-	assert!(doc.contains("## `aip.test.echo_async` (async)"));
-	// assert!(doc.contains("### Parameters schema"));
-	// assert!(doc.contains("### Response schema"));
-	// assert!(doc.contains("### Error schema"));
-
-	// // Verify JSON blocks contain valid JSON
-	// let mut json_block_count = 0;
-	// let mut remaining = doc.as_str();
-	// while let Some(start) = remaining.find("```json") {
-	// 	let after_open = &remaining[start + "```json".len()..];
-	// 	let after_open = after_open.trim_start_matches(|c: char| c.is_whitespace());
-	// 	if let Some(end) = after_open.find("```") {
-	// 		let json_str = &after_open[..end].trim_end();
-	// 		serde_json::from_str::<serde_json::Value>(json_str)?;
-	// 		json_block_count += 1;
-	// 		remaining = &after_open[end + 3..];
-	// 	} else {
-	// 		break;
-	// 	}
-	// }
-	// // There should be at least 3 blocks per handler (params, response, error)
-	// // with 2 handlers, that's 6 blocks minimum
-	// assert!(
-	// 	json_block_count >= 6,
-	// 	"Expected at least 6 JSON blocks, found {}",
-	// 	json_block_count
-	// );
+	assert!(doc.contains("### aip.test.echo"));
+	assert!(doc.contains("### aip.test.echo_async"));
+	assert!(doc.contains("Signature: `aip.test.echo(params: Params): Output`"));
+	assert!(doc.contains("Signature: `aip.test.echo_async(params: Params): Output`"));
+	// Verify TypeScript block is present
+	assert!(doc.contains("```ts"));
+	assert!(doc.contains("type Params"));
+	assert!(doc.contains("type Output"));
+	assert!(doc.contains("type Error"));
 
 	Ok(())
 }
