@@ -168,7 +168,7 @@ fn test_render_fn_basic() {
 		kind: AipFnKind::Sync,
 	};
 
-	let result = render_fn(&reg_fn);
+	let result = render_fn(&reg_fn, None);
 	assert!(result.contains("### my_func\n"));
 	assert!(result.contains("Root description for the params."));
 	assert!(result.contains("Signature: `my_func(params: Params): Output`"));
@@ -198,4 +198,35 @@ fn test_render_value_multi_line_property_description() {
 	assert!(result.contains("// First line.\n"));
 	assert!(result.contains("// Second line.\n"));
 	assert!(result.contains("// Third line.\n"));
+}
+
+// -- Ref simplification
+
+#[test]
+fn test_render_value_ref_simplification() {
+	let mut map = serde_json::Map::new();
+	map.insert("$ref".into(), "#/$defs/FileGlobs".into());
+	let value = Value::Object(map);
+	let result = render_value(&value);
+	assert_eq!(result, "FileGlobs");
+}
+
+#[test]
+fn test_render_value_ref_no_prefix() {
+	// Already a simple type name.
+	let mut map = serde_json::Map::new();
+	map.insert("$ref".into(), "FileGlobs".into());
+	let value = Value::Object(map);
+	let result = render_value(&value);
+	assert_eq!(result, "FileGlobs");
+}
+
+#[test]
+fn test_render_value_ref_nested() {
+	// With nested path.
+	let mut map = serde_json::Map::new();
+	map.insert("$ref".into(), "#/$defs/SomeNested/Type".into());
+	let value = Value::Object(map);
+	let result = render_value(&value);
+	assert_eq!(result, "Type");
 }

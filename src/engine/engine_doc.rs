@@ -21,18 +21,30 @@ impl ScriptEngine {
 		let mut fns: Vec<&AipRegisteredFn> = self.registered_fns.iter().collect();
 		fns.sort_by(|a, b| a.path.cmp(&b.path));
 
+		// Detect error schemas that are HandlerError<KindNone> and should be inlined.
+		let use_inline_error: Vec<bool> = fns.iter().map(|f| is_kind_none_error_schema(&f.error_schema)).collect();
+
+		let inline_error_schema = inline_error_schema();
+
 		let mut all_ref_keys = HashSet::new();
 		let mut definitions: HashMap<String, Schema> = HashMap::new();
 
-		for reg_fn in &fns {
+		for (i, reg_fn) in fns.iter().enumerate() {
 			collect_schema_info(&reg_fn.params_schema, &mut all_ref_keys, &mut definitions);
 			collect_schema_info(&reg_fn.output_schema, &mut all_ref_keys, &mut definitions);
-			collect_schema_info(&reg_fn.error_schema, &mut all_ref_keys, &mut definitions);
+			if !use_inline_error[i] {
+				collect_schema_info(&reg_fn.error_schema, &mut all_ref_keys, &mut definitions);
+			}
 		}
 
 		let mut doc = String::new();
-		for reg_fn in &fns {
-			doc.push_str(&render_fn(reg_fn));
+		for (i, reg_fn) in fns.iter().enumerate() {
+			let error_schema = if use_inline_error[i] {
+				Some(&inline_error_schema)
+			} else {
+				None
+			};
+			doc.push_str(&render_fn(reg_fn, error_schema));
 		}
 
 		if !all_ref_keys.is_empty() {
@@ -57,12 +69,13 @@ impl ScriptEngine {
 // region:    --- Renderer Functions
 
 /// Render a single registered function as a Markdown documentation section.
-fn render_fn(reg_fn: &AipRegisteredFn) -> String {
+fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String {
 	let path = &reg_fn.path;
 	let desc = SchemaRef::new(&reg_fn.params_schema).desc().map(String::from);
 	let params_type = render_type_block(&reg_fn.params_schema, "Params");
 	let output_type = render_type_block(&reg_fn.output_schema, "Output");
-	let error_type = render_type_block(&reg_fn.error_schema, "Error");
+	let effective_error_schema = error_schema.unwrap_or(&reg_fn.error_schema);
+	let error_type = render_type_block(effective_error_schema, "Error");
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
@@ -127,7 +140,9 @@ fn render_value(v: &Value) -> String {
 		Value::Object(map) => {
 			// Combinators that override the type field.
 			if let Some(ref_val) = map.get("$ref") {
-				return ref_val.as_str().unwrap_or("any").to_string();
+				let s = ref_val.as_str().unwrap_or("any");
+				let last = s.rsplit('/').next().unwrap_or("any");
+				return last.to_string();
 			}
 			if let Some(one_of) = map.get("oneOf") {
 				return render_union(one_of);
@@ -283,6 +298,37 @@ fn render_enum(enum_val: &Value) -> String {
 	}
 }
 
+// region:    --- Error Inline Helpers
+
+/// Returns true if the schema represents a `HandlerError<KindNone>`.
+fn is_kind_none_error_schema(schema: &Schema) -> bool {
+	if let Some(obj) = schema.as_value().as_object()
+		&& let Some(props) = obj.get("properties").and_then(|v| v.as_object())
+		&& let Some(kind) = props.get("kind")
+		&& let Some(kind_obj) = kind.as_object()
+		&& let Some(ref_val) = kind_obj.get("$ref")
+		&& let Some(s) = ref_val.as_str()
+	{
+		s.contains("KindNone")
+	} else {
+		false
+	}
+}
+
+/// Create an inlined error schema equivalent to `HandlerError<KindNone>`.
+fn inline_error_schema() -> Schema {
+	Schema::try_from(serde_json::json!({
+		"type": "object",
+		"properties": {
+			"message": { "type": "string" }
+		},
+		"required": ["message"]
+	}))
+	.expect("Failed to create inline error schema")
+}
+
+// endregion: --- Error Inline Helpers
+
 // endregion: --- Renderer Functions
 
 // region:    --- Tests
@@ -338,6 +384,47 @@ mod shared_types_tests {
 		assert!(doc.contains("type SharedConfig"));
 		assert!(doc.contains("// A shared configuration object"));
 		assert!(doc.contains("// default: 8080"));
+		Ok(())
+	}
+
+	#[test]
+	fn test_generate_doc_inline_kind_none_error() -> Result<(), Box<dyn std::error::Error>> {
+		let params_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
+		let output_schema: Schema = Schema::try_from(json!({"type": "number"})).expect("Invalid schema");
+		let error_schema: Schema = Schema::try_from(json!({
+			"type": "object",
+			"properties": {
+				"kind": { "$ref": "#/$defs/KindNone" },
+				"message": { "type": "string" }
+			},
+			"required": ["kind", "message"],
+			"$defs": {
+				"KindNone": {
+					"type": "object",
+					"properties": {}
+				}
+			}
+		}))
+		.expect("Invalid schema");
+
+		let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+		engine.registered_fns.push(AipRegisteredFn {
+			path: "test.inline_error".to_string(),
+			params_schema,
+			output_schema,
+			error_schema,
+			kind: AipFnKind::Sync,
+		});
+
+		let doc = engine.generate_doc()?;
+
+		let expected_error = "type Error = {\n  message: string;\n};";
+		assert!(
+			doc.contains(expected_error),
+			"Expected inlined error type, got:\n{}",
+			doc
+		);
+		assert!(!doc.contains("KindNone"), "KindNone should not be in output:\n{}", doc);
 		Ok(())
 	}
 }
