@@ -96,7 +96,7 @@ pub fn format_time_local(epoch_us: i64) -> Result<String> {
 
 		let local_dt = utc_dt.to_offset(local_offset);
 		// let format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")?;
-		let format = format_description::parse("At [hour]:[minute]:[second]")?;
+		let format = format_description::parse_borrowed::<1>("At [hour]:[minute]:[second]")?;
 		Ok(local_dt.format(&format)?)
 	}
 

@@ -28,7 +28,7 @@ pub use mlua;
 pub use serde_json;
 
 pub mod derive {
-	pub use aiprog_derive::*;
+	pub use aiprog_macros::{AipError, AipFromLua, AipIntoLua, AipOutput, AipParams};
 }
 
 // endregion: --- Modules

@@ -30,8 +30,8 @@ unsafe_code = "forbid"
 # unused = { level = "allow", priority = -1 } # For exploratory dev.
 
 [dependencies]
-# -- Derive
-aiprog-derive = { path = "crates/aiprog-derive" }
+# -- Macros
+aiprog-macros = { path = "crates/aiprog-macros" }
 # -- Async
 tokio = { version = "1", features = ["full"] }
 # -- Json & Data Formats
