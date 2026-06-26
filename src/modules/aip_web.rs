@@ -552,7 +552,7 @@ fn aip_web_error(
 	if let Some(c) = &cause {
 		msg.push_str(&format!("\nCause: {c}"));
 	}
-	HandlerError::Custom(msg)
+    HandlerError::custom(msg)
 }
 
 fn webc_error_to_aip(url: &str, err: webc::Error) -> HandlerError {

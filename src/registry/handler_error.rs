@@ -1,41 +1,120 @@
-use derive_more::{Display, From};
 use lazy_regex::regex;
 use serde::Serialize;
 use std::borrow::Cow;
+use std::fmt;
 
-pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
+pub type HandlerResult<T, K = KindNone> = core::result::Result<T, HandlerError<K>>;
 
-/// Normalized, Lua‑agnostic handler error.
+// region:    --- KindNone
+
+/// Marker type for HandlerError kind that serializes to nothing.
 ///
-/// Simple string-based error carrying a user-facing message.
-#[derive(Debug, Clone, Serialize, schemars::JsonSchema, From)]
-pub enum HandlerError {
-	/// Fallback variant for string errors.
-	#[from(String, &String, &str)]
-	Custom(String),
+/// When used as the kind in `HandlerError`, the `kind` field is omitted
+/// from serialization, producing `{"message": "..."}`.
+#[derive(Debug, Clone, Serialize, schemars::JsonSchema, Default)]
+pub struct KindNone;
+
+impl fmt::Display for KindNone {
+	fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		Ok(())
+	}
 }
 
-impl core::fmt::Display for HandlerError {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		match self {
-			HandlerError::Custom(s) => f.write_str(s),
+// endregion: --- KindNone
+
+// region:    --- HandlerError
+
+/// Generic handler error.
+///
+/// When `K` is `KindNone` (the default), the serialized output is
+/// `{"message": "..."}`. When `K` is a custom kind implementing `Display`,
+/// the output is `{"kind": "...", "message": "..."}`.
+#[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
+pub struct HandlerError<K: std::fmt::Display + 'static = KindNone> {
+	#[serde(
+		serialize_with = "serialize_kind",
+		skip_serializing_if = "kind_is_none"
+	)]
+	kind: K,
+	message: String,
+}
+
+// endregion: --- HandlerError
+
+// region:    --- Display
+
+impl<K: fmt::Display + 'static> fmt::Display for HandlerError<K> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		if kind_is_none(&self.kind) {
+			f.write_str(&self.message)
+		} else {
+			write!(f, "{}: {}", self.kind, self.message)
 		}
 	}
 }
 
-impl std::error::Error for HandlerError {}
+// endregion: --- Display
 
-impl HandlerError {
-	/// Convert a normalized `HandlerError` into an `mlua::Error`.
-	///
-	/// When the handler error carries a typed `AipApiError`, the error code,
-	/// message, and optional details/cause are surfaced. A `RegistryError` is
-	/// surfaced with its display message. Otherwise, the error type name is used as
-	/// a fallback.
-	pub fn into_lua_error(self) -> mlua::Error {
-		match self {
-			HandlerError::Custom(s) => mlua::Error::RuntimeError(s),
+// region:    --- Serialization helpers
+
+fn kind_is_none<K: 'static>(_: &K) -> bool {
+	std::any::TypeId::of::<K>() == std::any::TypeId::of::<KindNone>()
+}
+
+fn serialize_kind<K: fmt::Display, S: serde::Serializer>(kind: &K, serializer: S) -> Result<S::Ok, S::Error> {
+	serializer.serialize_str(&kind.to_string())
+}
+
+// endregion: --- Serialization helpers
+
+// region:    --- Construction
+
+impl HandlerError<KindNone> {
+	/// Create a new `HandlerError` with no kind (KindNone) and the given message.
+	pub fn new(message: impl Into<String>) -> Self {
+		Self {
+			kind: KindNone,
+			message: message.into(),
 		}
+	}
+}
+
+impl<K: std::fmt::Display> HandlerError<K> {
+	/// Create a new `HandlerError` with a specific kind and message.
+	pub fn with_kind(kind: K, message: impl Into<String>) -> Self {
+		Self {
+			kind,
+			message: message.into(),
+		}
+	}
+}
+
+// endregion: --- Construction
+
+// region:    --- Convenience constructors for KindNone
+
+impl HandlerError<KindNone> {
+	pub fn custom(val: impl Into<String>) -> Self {
+		Self::new(val)
+	}
+
+	pub fn custom_from_err(err: impl std::error::Error) -> Self {
+		Self::new(err.to_string())
+	}
+
+	pub fn cc(context: impl Into<String>, cause: impl std::fmt::Display) -> Self {
+		Self::new(format!("{}: {}", context.into(), cause))
+	}
+}
+
+// endregion: --- Convenience constructors
+
+// region:    --- Lua conversions
+
+impl HandlerError<KindNone> {
+	/// Convert a normalized `HandlerError` into an `mlua::Error`.
+	pub fn into_lua_error(self) -> mlua::Error {
+		mlua::Error::RuntimeError(self.message)
 	}
 
 	/// Build a `HandlerError` from a Lua error, enriching stack traces with the provided script source.
@@ -44,21 +123,11 @@ impl HandlerError {
 		for item in lua_error.chain() {
 			buff.push(process_stack_with_script(&item.to_string(), script));
 		}
-		HandlerError::Custom(buff.join("\n"))
-	}
-
-	pub fn custom(val: impl Into<String>) -> Self {
-		Self::Custom(val.into())
-	}
-
-	pub fn custom_from_err(err: impl std::error::Error) -> Self {
-		Self::Custom(err.to_string())
-	}
-
-	pub fn cc(context: impl Into<String>, cause: impl std::fmt::Display) -> Self {
-		Self::Custom(format!("{}: {}", context.into(), cause))
+		HandlerError::new(buff.join("\n"))
 	}
 }
+
+// endregion: --- Lua conversions
 
 // region:    --- Private helpers
 
@@ -92,21 +161,39 @@ fn process_stack_with_script(stack: &str, script: &str) -> String {
 
 // region:    --- From conversions
 
+impl From<String> for HandlerError<KindNone> {
+	fn from(s: String) -> Self {
+		HandlerError::new(s)
+	}
+}
+
+impl From<&str> for HandlerError<KindNone> {
+	fn from(s: &str) -> Self {
+		HandlerError::new(s.to_string())
+	}
+}
+
+impl From<&String> for HandlerError<KindNone> {
+	fn from(s: &String) -> Self {
+		HandlerError::new(s.clone())
+	}
+}
+
 impl From<crate::Error> for HandlerError {
 	fn from(e: crate::Error) -> Self {
-		HandlerError::Custom(e.to_string())
+		HandlerError::new(e.to_string())
 	}
 }
 
 impl From<serde_json::Value> for HandlerError {
 	fn from(v: serde_json::Value) -> Self {
-		HandlerError::Custom(v.to_string())
+		HandlerError::new(v.to_string())
 	}
 }
 
 impl From<mlua::Error> for HandlerError {
 	fn from(e: mlua::Error) -> Self {
-		HandlerError::Custom(e.to_string())
+		HandlerError::new(e.to_string())
 	}
 }
 
@@ -114,5 +201,6 @@ impl From<mlua::Error> for HandlerError {
 
 // region:    --- Error Boilerplate
 
-// (already implemented above, keep for consistency)
+impl<K: fmt::Debug + fmt::Display> std::error::Error for HandlerError<K> {}
+
 // endregion: --- Error Boilerplate
