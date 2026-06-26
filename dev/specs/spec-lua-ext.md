@@ -2,7 +2,7 @@
 
 ## When to use
 
-Use the `LuaExt` trait and its `x_get_*` methods whenever Rust code needs to read values from Lua `Value`s or `Table`s. These extensions provide a convenient, nil-aware layer over `mlua`'s raw accessors, avoiding common pitfalls like panics on nil values or unexpected types. Prefer these methods over direct `mlua` table indexing or value conversion.
+Use the `LuaExt` trait and its `x_get_*` methods whenever Rust code needs to read values from Lua `Value`s or `Table`s. These extensions provide a convenient, nil-aware layer over `mlua`'s raw accessors, avoiding common pitfalls like panics on nil values or unexpected types. Prefer these methods over direct `mlua` table indexing or value conversion. Handler implementations for the `aip.*` Lua API (see [`dev/specs/spec-handler-scheme.md`](spec-handler-scheme.md)) rely on these methods to extract typed parameters from the single-table argument.
 
 ## Intent
 
@@ -75,6 +75,9 @@ The trait methods are all infallible in the RustResult sense: they return `Optio
 - **No error details**: The `Option` return hides the reason for failure (e.g., wrong type vs missing key). For debugging, callers may use raw mlua access. This is acceptable for most configuration and request parsing use cases.
 - **Performance**: The trait adds a thin layer of indirection but avoids unnecessary cloning when possible (e.g., `x_as_lua_str` returns a borrow).
 - **Future extensions**: Additional helper methods (e.g., `x_get_date`, `x_get_array_of`) could be added as new trait methods or as free functions that build on `x_get_*` primitives.
+
+- **Integration with handler scheme**: The `LuaExt` methods form the basis for the `AipFromLua` and `AipIntoLua` trait implementations (in `src/lua_exts/lua_traits.rs`), which are used to convert between Lua tables and Rust types in `aip.*` handler functions (see [`dev/specs/spec-handler-scheme.md`](spec-handler-scheme.md)).
+
 
 ## LuaJsonExt Trait (Lua ↔ JSON Conversion)
 

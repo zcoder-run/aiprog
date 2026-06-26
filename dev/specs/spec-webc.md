@@ -7,6 +7,7 @@ Provide a reusable, async HTTP client abstraction (`WebClient`) for use across t
 `WebClient` supports multiple response body formats: plain text, JSON (parsed into `serde_json::Value`), and raw binary. Callers select the desired format per request via `BodyFormat`.
 
 The primary consumer is the `aip_web` Lua module (`src/script/modules/aip_web.rs`), but the design is generic enough to serve other modules in the future.
+The `aip_web` module follows the handler-scheme pattern (see `spec-handler-scheme.md`), mapping Lua tables to `WebParams`/`WebPostParams` and converting `WebResponse` back to the structured Lua output via `AipWebOutput`.
 
 ## Public API
 
@@ -140,6 +141,7 @@ impl WebClient {
 ## Design Considerations
 
 - **Thin abstraction**: `WebClient` only exposes `web_get`. Additional methods (`web_post`, etc.) can be added later without breaking changes.
+- **aip.web integration and handler-scheme**: `WebClient` serves as the backend for the `aip.web` Lua module. The Lua handler functions map the incoming Lua table (following the handler-scheme pattern defined in `spec-handler-scheme.md`) to `WebParams`/`WebPostParams` and convert the `WebResponse` back to the structured Lua output via `AipWebOutput`. This separation keeps HTTP concerns in `WebClient` and Lua interop concerns in the `aip_web` module, with `WebClient` remaining independent of any Lua dependency.
 - **JSON parsing in WebClient**: Callers request JSON parsing per-request via `BodyFormat::Json`. `WebClient` handles the parsing internally and returns a `Body::Json(serde_json::Value)`. This avoids duplicating JSON parsing logic across callers and lets the Lua module focus on converting `serde_json::Value` into Lua types. Callers that need raw text or binary use `BodyFormat::Text` or `BodyFormat::Binary`.
 - **Binary body support**: `BodyFormat::Binary` returns raw bytes as `Body::Binary(Vec<u8>)`. The initial `aip_web` consumer does not require binary responses, but the capability is available for future callers.
 - **Body parse failures**: When `BodyFormat::Json` is requested but the response body is not valid JSON, `WebClient` returns `Err(Error::BodyParseFailed)`. This distinguishes transport-level errors from content-level errors.

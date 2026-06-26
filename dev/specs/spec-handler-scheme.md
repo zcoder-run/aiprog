@@ -8,10 +8,10 @@ Provide a consistent, self-documenting Lua API surface where:
 
 - Every function lives under a `aip.<module>.<function>` path.
 - Each function accepts a single table argument carrying typed parameters.
- Each function returns a Lua value appropriate for its result:
-   - Simple results (e.g., a parsed JSON value, a string, a number) are returned directly as the native Lua type.
-   - Structured results that carry metadata (e.g., HTTP response details) are returned as a Lua table with a `data` field and optional metadata.
-- Errors are raised as structured Lua errors (or returned as part of the result) with an error code and message.
+- Each function returns a Lua value appropriate for its result:
+  - Simple results (e.g., a parsed JSON value, a string, a number) are returned directly as the native Lua type.
+  - Structured results that carry metadata (e.g., HTTP response details) are returned as a Lua table with a `data` field and optional metadata.
+- Errors are raised as standard Lua errors with a plain string message. There is no structured error code system.
 - TypeScript-style type definitions accompany the implementation so that autocompletion and documentation tools can leverage them.
 
 ## Code Design
@@ -54,7 +54,7 @@ In Rust, the Params struct is deserialized manually from the Lua table via the `
 
 ### Return Type and Data Wrapping
 
-Each handler returns a `HandlerResult<T>` where `T` is the output type. The output type determines how the value is rendered in Lua.
+ Each handler returns a `HandlerResult<T>`, which is a type alias for `core::result::Result<T, HandlerError>`. `HandlerError` is described in the Error Handling section. The output type `T` determines how the value is rendered in Lua.
 
 #### Structured outputs (table with `data` field)
 
@@ -103,7 +103,27 @@ local val = aip.json.parse({ text = "..." })
 
 The `#[derive(AipIntoLua)]` macro detects single‑field tuple structs and generates a direct delegation `self.0.into_lua(lua)`, bypassing the serde round‑trip. For structs with multiple fields, the existing serde‑based table conversion is used.
 
+The `AipOutput` derive macro is typically used alongside `AipIntoLua` to generate framework‑required trait implementations for output types.
+
 > **Note**: Inner types must implement `AipIntoLua`. Standard library types (`serde_json::Value`, `String`, primitive numbers, `Vec<T>` where `T: AipIntoLua`) already do so.
+
+### Handler Function Signature
+
+A handler function is the Rust implementation of a Lua API function. It follows this signature:
+
+```rust
+fn handler_name(lua: &Lua, params: AipParams) -> HandlerResult<AipOutput> {
+    // ... implementation
+    Ok(AipOutput(...))
+}
+```
+
+- `lua` is the `mlua::Lua` context.
+- `params` is the deserialized parameters (extracted via `AipFromLua`). For functions without parameters, `()` is used.
+- `AipOutput` is the output type (must implement `AipIntoLua` and typically uses `#[derive(AipOutput, AipIntoLua)]`).
+- The function returns `HandlerResult<AipOutput>`. On success, it wraps the output in `Ok(...)`. On failure, it may return `Err(HandlerError::custom("...".into()))`.
+
+The `AipOutput` derive macro provides the necessary boilerplate for the output type to integrate with the handler framework.
 
 ### Error Handling
 
@@ -146,9 +166,9 @@ When a type is reused, the name may drop the function part (e.g., `AipWebOutput`
 ## Design Considerations
 
 - **Single table argument**: Lua functions that accept many positional arguments can become hard to read. Using a single named-parameter table makes the API explicit and future-proof, as new optional fields can be added without breaking callers.
- **Return value shape**: Functions that produce a single value without additional metadata return that value directly, so callers can use it without unwrapping. Functions that need to provide metadata alongside the result use a table with a `data` field and additional fields, keeping the primary result accessible via `res.data`. This balances simplicity for common cases with clarity for more complex results.
+- **Return value shape**: Functions that produce a single value without additional metadata return that value directly, so callers can use it without unwrapping. Functions that need to provide metadata alongside the result use a table with a `data` field and additional fields, keeping the primary result accessible via `res.data`. This balances simplicity for common cases with clarity for more complex results.
 - **Shared types**: When two functions have identical inputs or outputs, sharing the type reduces duplication and keeps the API consistent. The naming convention should still suggest the primary use or module.
 
- **Error representation**: Errors are raised as standard Lua errors with a descriptive string message. The Rust `HandlerError` type is a simple string-based error, keeping the API lightweight and avoiding a complex error taxonomy. Lua scripts can handle errors via `pcall` and inspect the error message string.
+- **Error representation**: Errors are raised as standard Lua errors with a descriptive string message. The Rust `HandlerError` type is a simple string-based error, keeping the API lightweight and avoiding a complex error taxonomy. Lua scripts can handle errors via `pcall` and inspect the error message string.
 
 - **TypeScript documentation**: TypeScript interfaces provide a familiar, tool-friendly way to document the API shape without tying it to a particular language. They are used in the standard documentation (e.g., `doc-aip-json.md`).
