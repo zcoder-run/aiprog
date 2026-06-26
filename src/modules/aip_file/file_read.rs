@@ -36,6 +36,14 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 		})?;
 	}
 
+	// -- aip.file.first
+	{
+		let ctx = ctx.clone();
+		registry.register_sync::<_, _, _>("aip.file.first", move |p: AipFileFirstParams| {
+			aip_file_first_handler(p, &ctx)
+		})?;
+	}
+
 	// -- aip.file.info
 	{
 		let ctx = ctx.clone();
@@ -49,14 +57,6 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 		let ctx = ctx.clone();
 		registry.register_sync::<_, _, _>("aip.file.exists", move |p: AipFileExistsParams| {
 			aip_file_exists_handler(p, &ctx)
-		})?;
-	}
-
-	// -- aip.file.first
-	{
-		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _>("aip.file.first", move |p: AipFileFirstParams| {
-			aip_file_first_handler(p, &ctx)
 		})?;
 	}
 
@@ -96,16 +96,11 @@ impl AipParams for AipFileReadParams {}
 // region:    --- AipFileReadOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileReadOutput {
-	pub data: FileRecord,
-}
+pub struct AipFileReadOutput(pub FileRecord);
 
 impl AipIntoLua for AipFileReadOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
-		let record_lua = support::file_record_into_lua(self.data, lua)?;
-		table.set("data", record_lua)?;
-		Ok(Value::Table(table))
+		support::file_record_into_lua(self.0, lua)
 	}
 }
 
@@ -167,20 +162,16 @@ impl AipParams for AipFileListParams {}
 // region:    --- AipFileListOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileListOutput {
-	pub data: Vec<FileInfo>,
-}
+pub struct AipFileListOutput(pub Vec<FileInfo>);
 
 impl AipIntoLua for AipFileListOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
 		let data_table = lua.create_table()?;
-		for (i, info) in self.data.into_iter().enumerate() {
+		for (i, info) in self.0.into_iter().enumerate() {
 			let info_lua = support::file_info_into_lua(info, lua)?;
 			data_table.set(i + 1, info_lua)?;
 		}
-		table.set("data", data_table)?;
-		Ok(Value::Table(table))
+		Ok(Value::Table(data_table))
 	}
 }
 
@@ -221,20 +212,16 @@ impl AipParams for AipFileListReadParams {}
 // region:    --- AipFileListReadOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileListReadOutput {
-	pub data: Vec<FileRecord>,
-}
+pub struct AipFileListReadOutput(pub Vec<FileRecord>);
 
 impl AipIntoLua for AipFileListReadOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
 		let data_table = lua.create_table()?;
-		for (i, record) in self.data.into_iter().enumerate() {
+		for (i, record) in self.0.into_iter().enumerate() {
 			let record_lua = support::file_record_into_lua(record, lua)?;
 			data_table.set(i + 1, record_lua)?;
 		}
-		table.set("data", data_table)?;
-		Ok(Value::Table(table))
+		Ok(Value::Table(data_table))
 	}
 }
 
@@ -267,19 +254,14 @@ impl AipParams for AipFileInfoParams {}
 // region:    --- AipFileInfoOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileInfoOutput {
-	pub data: Option<FileInfo>,
-}
+pub struct AipFileInfoOutput(pub Option<FileInfo>);
 
 impl AipIntoLua for AipFileInfoOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
-		let data_lua = match self.data {
-			Some(info) => support::file_info_into_lua(info, lua)?,
-			None => Value::Nil,
-		};
-		table.set("data", data_lua)?;
-		Ok(Value::Table(table))
+		match self.0 {
+			Some(info) => support::file_info_into_lua(info, lua),
+			None => Ok(Value::Nil),
+		}
 	}
 }
 
@@ -312,15 +294,11 @@ impl AipParams for AipFileExistsParams {}
 // region:    --- AipFileExistsOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileExistsOutput {
-	pub data: bool,
-}
+pub struct AipFileExistsOutput(pub bool);
 
 impl AipIntoLua for AipFileExistsOutput {
-	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
-		table.set("data", self.data)?;
-		Ok(Value::Table(table))
+	fn into_lua(self, _lua: &Lua) -> crate::Result<Value> {
+		Ok(Value::Boolean(self.0))
 	}
 }
 
@@ -361,19 +339,14 @@ impl AipParams for AipFileFirstParams {}
 // region:    --- AipFileFirstOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileFirstOutput {
-	pub data: Option<FileInfo>,
-}
+pub struct AipFileFirstOutput(pub Option<FileInfo>);
 
 impl AipIntoLua for AipFileFirstOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
-		let data_lua = match self.data {
-			Some(info) => support::file_info_into_lua(info, lua)?,
-			None => Value::Nil,
-		};
-		table.set("data", data_lua)?;
-		Ok(Value::Table(table))
+		match self.0 {
+			Some(info) => support::file_info_into_lua(info, lua),
+			None => Ok(Value::Nil),
+		}
 	}
 }
 
@@ -407,19 +380,14 @@ impl AipParams for AipFileStatsParams {}
 // region:    --- AipFileStatsOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipFileStatsOutput {
-	pub data: Option<FileStats>,
-}
+pub struct AipFileStatsOutput(pub Option<FileStats>);
 
 impl AipIntoLua for AipFileStatsOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<Value> {
-		let table = lua.create_table()?;
-		let data_lua = match self.data {
-			Some(stats) => support::file_stats_into_lua(&stats, lua)?,
-			None => Value::Nil,
-		};
-		table.set("data", data_lua)?;
-		Ok(Value::Table(table))
+		match self.0 {
+			Some(stats) => support::file_stats_into_lua(&stats, lua),
+			None => Ok(Value::Nil),
+		}
 	}
 }
 
@@ -447,7 +415,7 @@ fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> Handle
 		.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 	let record = FileRecord { info, content };
-	Ok(AipFileReadOutput { data: record })
+	Ok(AipFileReadOutput(record))
 }
 
 fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileListOutput> {
@@ -465,7 +433,7 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> Handle
 		infos.push(info);
 	}
 
-	Ok(AipFileListOutput { data: infos })
+	Ok(AipFileListOutput(infos))
 }
 
 fn aip_file_list_read_handler(
@@ -489,7 +457,7 @@ fn aip_file_list_read_handler(
 		records.push(FileRecord { info, content });
 	}
 
-	Ok(AipFileListReadOutput { data: records })
+	Ok(AipFileListReadOutput(records))
 }
 
 fn aip_file_info_handler(params: AipFileInfoParams, ctx: &FileContext) -> HandlerResult<AipFileInfoOutput> {
@@ -506,7 +474,7 @@ fn aip_file_info_handler(params: AipFileInfoParams, ctx: &FileContext) -> Handle
 		None
 	};
 
-	Ok(AipFileInfoOutput { data })
+	Ok(AipFileInfoOutput(data))
 }
 
 fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> HandlerResult<AipFileExistsOutput> {
@@ -514,7 +482,7 @@ fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> Ha
 		.resolve(&params.path, params.base_dir.as_deref())
 		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
 	let exists = resolved.exists();
-	Ok(AipFileExistsOutput { data: exists })
+	Ok(AipFileExistsOutput(exists))
 }
 
 fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> HandlerResult<AipFileFirstOutput> {
@@ -533,7 +501,7 @@ fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> Hand
 		})
 		.transpose()?;
 
-	Ok(AipFileFirstOutput { data })
+	Ok(AipFileFirstOutput(data))
 }
 
 fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> HandlerResult<AipFileStatsOutput> {
@@ -541,11 +509,11 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> Hand
 		Some(g) => {
 			let v = g.into_vec();
 			if v.is_empty() {
-				return Ok(AipFileStatsOutput { data: None });
+				return Ok(AipFileStatsOutput(None));
 			}
 			v
 		}
-		None => return Ok(AipFileStatsOutput { data: None }),
+		None => return Ok(AipFileStatsOutput(None)),
 	};
 	validate_glob_patterns(&globs)?;
 
@@ -576,16 +544,14 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> Hand
 		}
 	}
 
-	Ok(AipFileStatsOutput {
-		data: Some(FileStats {
-			number_of_files,
-			total_size,
-			ctime_first,
-			ctime_last,
-			mtime_first,
-			mtime_last,
-		}),
-	})
+	Ok(AipFileStatsOutput(Some(FileStats {
+		number_of_files,
+		total_size,
+		ctime_first,
+		ctime_last,
+		mtime_first,
+		mtime_last,
+	})))
 }
 
 // endregion: --- Handler functions
@@ -661,7 +627,7 @@ mod tests {
 			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
 			.ok_or_else(|| mlua::Error::RuntimeError("expected JSON value".to_string()))?;
 
-		assert_eq!(back["data"]["content"], json!("world"));
+		assert_eq!(back["content"], json!("world"));
 		Ok(())
 	}
 }
