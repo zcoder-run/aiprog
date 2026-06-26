@@ -31,7 +31,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.list_read
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _>("aip.file.list_read", move |p: AipFileListReadParams| {
+		registry.register_sync::<_, _, _>("aip.file.list_read", move |p: AipFileListParams| {
 			aip_file_list_read_handler(p, &ctx)
 		})?;
 	}
@@ -39,7 +39,7 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	// -- aip.file.first
 	{
 		let ctx = ctx.clone();
-		registry.register_sync::<_, _, _>("aip.file.first", move |p: AipFileFirstParams| {
+		registry.register_sync::<_, _, _>("aip.file.first", move |p: AipFileListParams| {
 			aip_file_first_handler(p, &ctx)
 		})?;
 	}
@@ -179,36 +179,6 @@ impl AipOutput for AipFileListOutput {}
 
 // endregion: --- AipFileListOutput
 
-// region:    --- AipFileListReadParams
-
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct AipFileListReadParams {
-	pub globs: FileGlobs,
-	#[serde(default)]
-	pub base_dir: Option<String>,
-	#[serde(default)]
-	pub absolute: Option<bool>,
-}
-
-impl AipFromLua for AipFileListReadParams {
-	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let globs = lua_value_to_file_globs(table, "globs")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.x_get_bool("absolute");
-
-		Ok(AipFileListReadParams {
-			globs,
-			base_dir,
-			absolute,
-		})
-	}
-}
-
-impl AipParams for AipFileListReadParams {}
-
-// endregion: --- AipFileListReadParams
-
 // region:    --- AipFileListReadOutput
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
@@ -305,36 +275,6 @@ impl AipIntoLua for AipFileExistsOutput {
 impl AipOutput for AipFileExistsOutput {}
 
 // endregion: --- AipFileExistsOutput
-
-// region:    --- AipFileFirstParams
-
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-pub struct AipFileFirstParams {
-	pub globs: FileGlobs,
-	#[serde(default)]
-	pub base_dir: Option<String>,
-	#[serde(default)]
-	pub absolute: Option<bool>,
-}
-
-impl AipFromLua for AipFileFirstParams {
-	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let globs = lua_value_to_file_globs(table, "globs")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.x_get_bool("absolute");
-
-		Ok(AipFileFirstParams {
-			globs,
-			base_dir,
-			absolute,
-		})
-	}
-}
-
-impl AipParams for AipFileFirstParams {}
-
-// endregion: --- AipFileFirstParams
 
 // region:    --- AipFileFirstOutput
 
@@ -437,7 +377,7 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> Handle
 }
 
 fn aip_file_list_read_handler(
-	params: AipFileListReadParams,
+	params: AipFileListParams,
 	ctx: &FileContext,
 ) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
@@ -448,7 +388,7 @@ fn aip_file_list_read_handler(
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
-		let info = file_info_from_meta(&p, true, ctx.workspace_root(), absolute)
+		let info = file_info_from_meta(&p, params.with_meta.unwrap_or(true), ctx.workspace_root(), absolute)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 		let content = support::read_file_content(&p)
@@ -485,7 +425,7 @@ fn aip_file_exists_handler(params: AipFileExistsParams, ctx: &FileContext) -> Ha
 	Ok(AipFileExistsOutput(exists))
 }
 
-fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> HandlerResult<AipFileFirstOutput> {
+fn aip_file_first_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
@@ -496,7 +436,7 @@ fn aip_file_first_handler(params: AipFileFirstParams, ctx: &FileContext) -> Hand
 		.into_iter()
 		.next()
 		.map(|first| {
-			file_info_from_meta(&first, true, ctx.workspace_root(), absolute)
+			file_info_from_meta(&first, params.with_meta.unwrap_or(true), ctx.workspace_root(), absolute)
 				.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))
 		})
 		.transpose()?;
