@@ -14,14 +14,14 @@
 //! ### Constants
 //!
 //! - `aip.web.UA_BROWSER: string`: Default browser User Agent string.
-//! - `aip.web.UA_AIPROG: string`: Default aipROG User Agent string (`aipROG`).
+//! - `aip.web.UA_AIPROG: string`: Default AIProg User Agent string (`AIProg`).
 //!
 //! ---
 //!
 
 use crate::AipRegistry;
-use crate::registry::{HandlerError, HandlerResult};
 use crate::LuaJsonExt;
+use crate::registry::{HandlerError, HandlerResult};
 use crate::webc;
 use crate::{AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use mlua::Lua;
@@ -75,7 +75,7 @@ pub struct AipWebGetParams {
 	/// The URL to request.
 	pub url: String,
 
-	/// User-Agent behavior. `true` uses `aipROG`, `false` disables the default, and a string is used as-is.
+	/// User-Agent behavior. `true` uses `AIProg`, `false` disables the default, and a string is used as-is.
 	pub user_agent: Option<AipWebUserAgent>,
 
 	/// Request headers.
@@ -223,7 +223,7 @@ pub struct AipWebPostParams {
 	/// Raw string body.
 	pub body: Option<String>,
 
-	/// User-Agent behavior. `true` uses `aipROG`, `false` disables the default, and a string is used as-is.
+	/// User-Agent behavior. `true` uses `AIProg`, `false` disables the default, and a string is used as-is.
 	pub user_agent: Option<AipWebUserAgent>,
 
 	/// Request headers.
@@ -429,7 +429,11 @@ fn build_webc_client(
 	})
 }
 
-fn web_response_to_aip_output(response: webc::WebResponse, parse: bool, error_url: &str) -> HandlerResult<AipWebOutput> {
+fn web_response_to_aip_output(
+	response: webc::WebResponse,
+	parse: bool,
+	error_url: &str,
+) -> HandlerResult<AipWebOutput> {
 	let status = response.status;
 	let url = response.url.clone();
 	let headers = response.headers;

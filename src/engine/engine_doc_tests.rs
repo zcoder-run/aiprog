@@ -152,34 +152,6 @@ fn test_render_type_one_of() {
 	assert!(result.contains("string | number"));
 }
 
-// -- Type-block aliases
-
-#[test]
-fn test_render_params_basic() {
-	let schema = schema_for!(SimpleParams);
-	let result = render_params(&schema);
-	let expected_start = "type Params = ";
-	assert!(result.starts_with(expected_start), "{}", result);
-	assert!(result.ends_with(";\n"), "{}", result);
-	assert!(result.contains("name: string;"));
-}
-
-#[test]
-fn test_render_output_basic() {
-	let schema = schema_for!(String);
-	let result = render_output(&schema);
-	assert!(result.starts_with("type Output = "));
-	assert!(result.ends_with(";\n"));
-}
-
-#[test]
-fn test_render_error_basic() {
-	let schema = schema_for!(String);
-	let result = render_error(&schema);
-	assert!(result.starts_with("type Error = "));
-	assert!(result.ends_with(";\n"));
-}
-
 // -- render_fn
 
 #[test]

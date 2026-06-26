@@ -3,6 +3,7 @@
 use crate::AipRegisteredFn;
 use crate::Result;
 use crate::ScriptEngine;
+use crate::schema_ref::SchemaRef;
 use schemars::Schema;
 use serde_json::Value;
 
@@ -33,10 +34,10 @@ impl ScriptEngine {
 /// Render a single registered function as a Markdown documentation section.
 fn render_fn(reg_fn: &AipRegisteredFn) -> String {
 	let path = &reg_fn.path;
-	let desc = get_root_description(&reg_fn.params_schema);
-	let params_type = render_params(&reg_fn.params_schema);
-	let output_type = render_output(&reg_fn.output_schema);
-	let error_type = render_error(&reg_fn.error_schema);
+	let desc = SchemaRef::new(&reg_fn.params_schema).desc().map(String::from);
+	let params_type = render_type_block(&reg_fn.params_schema, "Params");
+	let output_type = render_type_block(&reg_fn.output_schema, "Output");
+	let error_type = render_type_block(&reg_fn.error_schema, "Error");
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
@@ -54,25 +55,10 @@ fn render_fn(reg_fn: &AipRegisteredFn) -> String {
 	s
 }
 
-fn render_params(schema: &Schema) -> String {
-	render_type_block(schema, "Params")
-}
-
-fn render_output(schema: &Schema) -> String {
-	render_type_block(schema, "Output")
-}
-
-fn render_error(schema: &Schema) -> String {
-	render_type_block(schema, "Error")
-}
-
 /// Helper that renders a type alias block.
 fn render_type_block(schema: &Schema, name: &str) -> String {
-	let mut value = serde_json::to_value(schema).unwrap_or(Value::Null);
-	let description = value
-		.as_object_mut()
-		.and_then(|map| map.remove("description"))
-		.and_then(|v| v.as_str().map(|s| s.to_string()));
+	let description = SchemaRef::new(schema).desc().map(String::from);
+	let value = serde_json::to_value(schema).unwrap_or(Value::Null);
 	let type_expr = render_value(&value);
 	let mut s = String::new();
 	if let Some(desc) = description {
@@ -119,7 +105,7 @@ fn render_value(v: &Value) -> String {
 							return prim.to_string();
 						}
 						match s.as_str() {
-							"object" => return render_schema_object(map),
+							"object" => return render_object_schema(map),
 							"array" => return render_array(map),
 							_ => {}
 						}
@@ -192,56 +178,35 @@ fn simplify_optional_type(type_expr: &str) -> String {
 	}
 }
 
-fn render_schema_object(map: &serde_json::Map<String, Value>) -> String {
-	let properties = match map.get("properties") {
-		Some(Value::Object(props)) => props,
-		_ => return "{}".to_string(),
+fn render_object_schema(map: &serde_json::Map<String, Value>) -> String {
+	let schema = match Schema::try_from(Value::Object(map.clone())) {
+		Ok(s) => s,
+		Err(_) => return "{}".to_string(),
 	};
-
-	let required: Vec<&str> = match map.get("required") {
-		Some(Value::Array(arr)) => arr.iter().filter_map(|v| v.as_str()).collect(),
-		_ => vec![],
-	};
-
+	let schema_ref = SchemaRef::new(&schema);
 	let mut out = String::new();
 	out.push_str("{\n");
 
-	let mut keys: Vec<&String> = properties.keys().collect();
-	keys.sort();
+	let mut props = schema_ref.properties();
+	props.sort_by(|a, b| a.name().cmp(b.name()));
 
-	for key in keys {
-		let prop_val = &properties[key];
-		if let Value::Object(prop_map) = prop_val {
-			// Emit description comment.
-			if let Some(desc) = prop_map.get("description").and_then(|v| v.as_str()) {
-				for line in desc.lines() {
-					out.push_str(&format!("  // {}\n", line));
-				}
+	for prop in props {
+		if let Some(desc) = prop.desc() {
+			for line in desc.lines() {
+				out.push_str(&format!("  // {}\n", line));
 			}
-
-			// Emit default comment.
-			if let Some(default) = prop_map.get("default") {
-				out.push_str(&format!("  // default: {}\n", default));
-			}
-
-			// Clone and strip metadata before type rendering to avoid duplication.
-			let mut clean_prop = prop_val.clone();
-			if let Value::Object(ref mut m) = clean_prop {
-				m.remove("description");
-				m.remove("default");
-			}
-
-			let mut type_expr = render_value(&clean_prop);
-			let optional_marker = if required.contains(&key.as_str()) {
-				""
-			} else {
-				type_expr = simplify_optional_type(&type_expr);
-				"?"
-			};
-			out.push_str(&format!("  {}{}: {};\n", key, optional_marker, type_expr));
-		} else {
-			out.push_str(&format!("  {}: any;\n", key));
 		}
+		if let Some(default) = prop.default() {
+			out.push_str(&format!("  // default: {}\n", default));
+		}
+		let mut type_expr = render_value(prop.raw_value());
+		let optional_marker = if prop.is_required() {
+			""
+		} else {
+			type_expr = simplify_optional_type(&type_expr);
+			"?"
+		};
+		out.push_str(&format!("  {}{}: {};\n", prop.name(), optional_marker, type_expr));
 	}
 
 	out.push('}');
@@ -270,11 +235,6 @@ fn render_enum(enum_val: &Value) -> String {
 	} else {
 		"any".to_string()
 	}
-}
-
-fn get_root_description(schema: &Schema) -> Option<String> {
-	let value = serde_json::to_value(schema).ok()?;
-	value.as_object()?.get("description")?.as_str().map(|s| s.to_string())
 }
 
 // endregion: --- Renderer Functions
