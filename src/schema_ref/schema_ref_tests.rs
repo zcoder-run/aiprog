@@ -201,3 +201,93 @@ fn test_schema_prop_ref_typ_without_type() -> Result<()> {
 	assert!(typ.is_none(), "Property should not have type");
 	Ok(())
 }
+
+#[test]
+fn test_ref_keys_with_refs() -> Result<()> {
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"$ref": "#/$defs/Foo"
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+
+	// -- Exec
+	let keys = schema_ref.ref_keys();
+
+	// -- Check
+	assert_eq!(keys, &["Foo"]);
+	Ok(())
+}
+
+#[test]
+fn test_ref_keys_no_refs() -> Result<()> {
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({"type": "object"})).unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+
+	// -- Exec
+	let keys = schema_ref.ref_keys();
+
+	// -- Check
+	assert!(keys.is_empty());
+	Ok(())
+}
+
+#[test]
+fn test_ref_keys_duplicates() -> Result<()> {
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"properties": {
+			"a": {"$ref": "#/$defs/Foo"},
+			"b": {"$ref": "#/$defs/Foo"}
+		}
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+
+	// -- Exec
+	let keys = schema_ref.ref_keys();
+
+	// -- Check
+	assert_eq!(keys.len(), 1);
+	assert!(keys.contains(&"Foo"));
+	Ok(())
+}
+
+#[test]
+fn test_ref_keys_non_defs_ref() -> Result<()> {
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"$ref": "#/components/schemas/Bar"
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+
+	// -- Exec
+	let keys = schema_ref.ref_keys();
+
+	// -- Check
+	assert!(keys.is_empty(), "Should ignore non-$defs refs");
+	Ok(())
+}
+
+#[test]
+fn test_ref_keys_nested() -> Result<()> {
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"properties": {
+			"nested": {
+				"items": {"$ref": "#/$defs/Baz"}
+			}
+		}
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+
+	// -- Exec
+	let keys = schema_ref.ref_keys();
+
+	// -- Check
+	assert_eq!(keys, &["Baz"]);
+	Ok(())
+}

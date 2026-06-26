@@ -6,11 +6,14 @@ use value_ext::JsonValueExt;
 
 pub struct SchemaRef<'s> {
 	schema: &'s Schema,
+	ref_keys: Vec<&'s str>,
 }
 
 impl<'s> SchemaRef<'s> {
 	pub fn new(schema: &'s Schema) -> Self {
-		SchemaRef { schema }
+		let mut ref_keys = Vec::new();
+		collect_ref_keys(schema.as_value(), &mut ref_keys);
+		SchemaRef { schema, ref_keys }
 	}
 
 	/// Returns the root-level `description` field, if present.
@@ -60,6 +63,11 @@ impl<'s> SchemaRef<'s> {
 	pub fn raw_value(&self) -> &'s Value {
 		self.schema.as_value()
 	}
+
+	/// Returns the `$defs` keys referenced by this schema, deduplicated.
+	pub fn ref_keys(&self) -> &[&str] {
+		&self.ref_keys
+	}
 }
 
 // endregion: --- SchemaRef
@@ -103,6 +111,30 @@ impl<'s> SchemaPropRef<'s> {
 }
 
 // endregion: --- SchemaPropRef
+
+// region:    --- Helper
+fn collect_ref_keys<'v>(value: &'v Value, keys: &mut Vec<&'v str>) {
+	match value {
+		Value::Object(map) => {
+			if let Some(ref_val) = map.get("$ref").and_then(|v| v.as_str())
+				&& let Some(key) = ref_val.strip_prefix("#/$defs/")
+				&& !keys.contains(&key)
+			{
+				keys.push(key);
+			}
+			for val in map.values() {
+				collect_ref_keys(val, keys);
+			}
+		}
+		Value::Array(arr) => {
+			for val in arr {
+				collect_ref_keys(val, keys);
+			}
+		}
+		_ => {}
+	}
+}
+// endregion: --- Helper
 
 // region:    --- Tests
 

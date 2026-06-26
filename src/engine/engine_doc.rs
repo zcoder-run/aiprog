@@ -6,6 +6,7 @@ use crate::ScriptEngine;
 use crate::schema_ref::SchemaRef;
 use schemars::Schema;
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 
 // endregion: --- Modules
 
@@ -19,10 +20,34 @@ impl ScriptEngine {
 	pub fn generate_doc(&self) -> Result<String> {
 		let mut fns: Vec<&AipRegisteredFn> = self.registered_fns.iter().collect();
 		fns.sort_by(|a, b| a.path.cmp(&b.path));
+
+		let mut all_ref_keys = HashSet::new();
+		let mut definitions: HashMap<String, Schema> = HashMap::new();
+
+		for reg_fn in &fns {
+			collect_schema_info(&reg_fn.params_schema, &mut all_ref_keys, &mut definitions);
+			collect_schema_info(&reg_fn.output_schema, &mut all_ref_keys, &mut definitions);
+			collect_schema_info(&reg_fn.error_schema, &mut all_ref_keys, &mut definitions);
+		}
+
 		let mut doc = String::new();
-		for reg_fn in fns {
+		for reg_fn in &fns {
 			doc.push_str(&render_fn(reg_fn));
 		}
+
+		if !all_ref_keys.is_empty() {
+			let mut sorted_keys: Vec<&String> = all_ref_keys.iter().collect();
+			sorted_keys.sort();
+			doc.push_str("## Shared Types\n\n```ts\n");
+			for key in sorted_keys {
+				if let Some(def_schema) = definitions.get(key) {
+					doc.push_str(&render_type_block(def_schema, key));
+					doc.push('\n');
+				}
+			}
+			doc.push_str("```\n");
+		}
+
 		Ok(doc)
 	}
 }
@@ -53,6 +78,23 @@ fn render_fn(reg_fn: &AipRegisteredFn) -> String {
 	s.push_str(&error_type);
 	s.push_str("```\n\n");
 	s
+}
+
+/// Collect `$defs` keys and definitions from a schema for shared type generation.
+fn collect_schema_info(schema: &Schema, ref_keys: &mut HashSet<String>, definitions: &mut HashMap<String, Schema>) {
+	let schema_ref = SchemaRef::new(schema);
+	for key in schema_ref.ref_keys() {
+		ref_keys.insert(key.to_string());
+	}
+	if let Some(obj) = schema.as_value().as_object()
+		&& let Some(defs) = obj.get("$defs").and_then(|v| v.as_object())
+	{
+		for (k, v) in defs {
+			if let Ok(s) = Schema::try_from(v.clone()) {
+				definitions.entry(k.clone()).or_insert_with(|| s);
+			}
+		}
+	}
 }
 
 /// Helper that renders a type alias block.
@@ -184,11 +226,15 @@ fn render_object_schema(map: &serde_json::Map<String, Value>) -> String {
 		Err(_) => return "{}".to_string(),
 	};
 	let schema_ref = SchemaRef::new(&schema);
-	let mut out = String::new();
-	out.push_str("{\n");
 
 	let mut props = schema_ref.properties();
+	if props.is_empty() {
+		return "{}".to_string();
+	}
 	props.sort_by(|a, b| a.name().cmp(b.name()));
+
+	let mut out = String::new();
+	out.push_str("{\n");
 
 	for prop in props {
 		if let Some(desc) = prop.desc() {
@@ -246,3 +292,54 @@ fn render_enum(enum_val: &Value) -> String {
 mod tests;
 
 // endregion: --- Tests
+
+// region:    --- Shared Types Tests (inlined)
+
+#[cfg(test)]
+mod shared_types_tests {
+	use crate::{AipFnKind, AipRegisteredFn, AipRegistry, ScriptEngine};
+	use schemars::Schema;
+	use serde_json::json;
+
+	#[test]
+	fn test_generate_doc_shared_types() -> Result<(), Box<dyn std::error::Error>> {
+		let params_schema: Schema = Schema::try_from(json!({
+			"type": "object",
+			"properties": {
+				"config": { "$ref": "#/$defs/SharedConfig" }
+			},
+			"required": ["config"],
+			"$defs": {
+				"SharedConfig": {
+					"description": "A shared configuration object",
+					"type": "object",
+					"properties": {
+						"port": { "type": "integer", "default": 8080 }
+					}
+				}
+			}
+		}))
+		.expect("Invalid schema");
+		let output_schema: Schema = Schema::try_from(json!(true)).expect("Invalid schema");
+		let error_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
+
+		let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+		engine.registered_fns.push(AipRegisteredFn {
+			path: "test.fn".to_string(),
+			params_schema,
+			output_schema,
+			error_schema,
+			kind: AipFnKind::Sync,
+		});
+
+		let doc = engine.generate_doc()?;
+		assert!(doc.contains("### test.fn"));
+		assert!(doc.contains("## Shared Types"));
+		assert!(doc.contains("type SharedConfig"));
+		assert!(doc.contains("// A shared configuration object"));
+		assert!(doc.contains("// default: 8080"));
+		Ok(())
+	}
+}
+
+// endregion: --- Shared Types Tests
