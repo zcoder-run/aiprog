@@ -106,8 +106,8 @@ macro_rules! impl_lua_serde_traits {
 			fn from_lua(_lua: &mlua::Lua, value: mlua::Value) -> $crate::Result<Self> {
 				let serde_value = $crate::LuaJsonExt::x_to_json_value(&value)
 					.map_err(|e| $crate::Error::custom(format!("Invalid params: {e}")))?;
-				let serde_value = serde_value
-					.ok_or_else(|| $crate::Error::custom("expected JSON value, got nil".to_string()))?;
+				let serde_value =
+					serde_value.ok_or_else(|| $crate::Error::custom("expected JSON value, got nil".to_string()))?;
 				Ok(serde_json::from_value(serde_value).map_err(|e| format!("deserialization error: {e}"))?)
 			}
 		}
@@ -332,8 +332,8 @@ mod tests {
 		let l = lua();
 		let number_val = mlua::Value::Integer(1);
 		let err = String::from_lua(&l, number_val).unwrap_err();
-	let msg = err.to_string();
-	assert!(msg.contains("expected string"));
+		let msg = err.to_string();
+		assert!(msg.contains("expected string"));
 	}
 
 	#[test]
@@ -341,8 +341,8 @@ mod tests {
 		let l = lua();
 		let str_val = mlua::Value::String(l.create_string("nope").unwrap());
 		let err = i64::from_lua(&l, str_val).unwrap_err();
-	let msg = err.to_string();
-	assert!(msg.contains("expected integer"));
+		let msg = err.to_string();
+		assert!(msg.contains("expected integer"));
 	}
 
 	// endregion: --- Error cases

@@ -222,7 +222,7 @@ pub fn file_stats_into_lua(stats: &FileStats, lua: &Lua) -> crate::Result<Value>
 
 /// Create a `HandlerError::Custom` with the given error code and message.
 pub fn aip_file_error(code: impl Into<String>, message: &str) -> HandlerError {
-    HandlerError::custom(format!("[{}] {}", code.into(), message))
+	HandlerError::custom(format!("[{}] {}", code.into(), message))
 }
 
 /// Validate that the given glob patterns are well-formed.

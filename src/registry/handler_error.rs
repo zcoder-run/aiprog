@@ -1,8 +1,7 @@
-use std::borrow::Cow;
-
-use derive_more::From;
+use derive_more::{Display, From};
 use lazy_regex::regex;
 use serde::Serialize;
+use std::borrow::Cow;
 
 pub type HandlerResult<T> = core::result::Result<T, HandlerError>;
 

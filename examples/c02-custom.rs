@@ -1,4 +1,4 @@
-use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, HandlerResult, Error, LuaExt, ScriptEngine};
+use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerResult, LuaExt, ScriptEngine};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use value_ext::JsonValueExt as _;

@@ -134,68 +134,70 @@ fn test_schema_schema_prop_ref_methods() -> Result<()> {
 
 #[test]
 fn test_schema_ref_typ_with_type() -> Result<()> {
-    // -- Setup & Fixtures
-    let schema = Schema::try_from(json!({"type": "object"})).unwrap();
-    let schema_ref = SchemaRef::new(&schema);
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({"type": "object"})).unwrap();
+	let schema_ref = SchemaRef::new(&schema);
 
-    // -- Exec
-    let typ = schema_ref.typ();
+	// -- Exec
+	let typ = schema_ref.typ();
 
-    // -- Check
-    assert_eq!(typ, Some("object"), "Should return the type field");
-    Ok(())
+	// -- Check
+	assert_eq!(typ, Some("object"), "Should return the type field");
+	Ok(())
 }
 
 #[test]
 fn test_schema_ref_typ_without_type() -> Result<()> {
-    // -- Setup & Fixtures
-    let schema = Schema::try_from(json!({})).unwrap();
-    let schema_ref = SchemaRef::new(&schema);
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({})).unwrap();
+	let schema_ref = SchemaRef::new(&schema);
 
-    // -- Exec
-    let typ = schema_ref.typ();
+	// -- Exec
+	let typ = schema_ref.typ();
 
-    // -- Check
-    assert!(typ.is_none(), "Should return None when no type");
-    Ok(())
+	// -- Check
+	assert!(typ.is_none(), "Should return None when no type");
+	Ok(())
 }
 
 #[test]
 fn test_schema_prop_ref_typ() -> Result<()> {
-    // -- Setup & Fixtures
-    let schema = Schema::try_from(json!({
-        "properties": {
-            "count": {"type": "integer"}
-        }
-    })).unwrap();
-    let schema_ref = SchemaRef::new(&schema);
-    let props = schema_ref.properties();
-    let prop = &props[0];
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"properties": {
+			"count": {"type": "integer"}
+		}
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+	let props = schema_ref.properties();
+	let prop = &props[0];
 
-    // -- Exec
-    let typ = prop.typ();
+	// -- Exec
+	let typ = prop.typ();
 
-    // -- Check
-    assert_eq!(typ, Some("integer"), "Property should have type");
-    Ok(())
+	// -- Check
+	assert_eq!(typ, Some("integer"), "Property should have type");
+	Ok(())
 }
 
 #[test]
 fn test_schema_prop_ref_typ_without_type() -> Result<()> {
-    // -- Setup & Fixtures
-    let schema = Schema::try_from(json!({
-        "properties": {
-            "count": {}
-        }
-    })).unwrap();
-    let schema_ref = SchemaRef::new(&schema);
-    let props = schema_ref.properties();
-    let prop = &props[0];
+	// -- Setup & Fixtures
+	let schema = Schema::try_from(json!({
+		"properties": {
+			"count": {}
+		}
+	}))
+	.unwrap();
+	let schema_ref = SchemaRef::new(&schema);
+	let props = schema_ref.properties();
+	let prop = &props[0];
 
-    // -- Exec
-    let typ = prop.typ();
+	// -- Exec
+	let typ = prop.typ();
 
-    // -- Check
-    assert!(typ.is_none(), "Property should not have type");
-    Ok(())
+	// -- Check
+	assert!(typ.is_none(), "Property should not have type");
+	Ok(())
 }

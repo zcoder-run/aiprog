@@ -4,7 +4,7 @@ use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
 	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
-use crate::{HandlerResult, AipFromLua, AipIntoLua, LuaExt};
+use crate::{AipFromLua, AipIntoLua, HandlerResult, LuaExt};
 use mlua::{Lua, Value};
 
 /// Register all read-related handlers into the given `AipRegistry`.
@@ -468,7 +468,10 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> Handle
 	Ok(AipFileListOutput { data: infos })
 }
 
-fn aip_file_list_read_handler(params: AipFileListReadParams, ctx: &FileContext) -> HandlerResult<AipFileListReadOutput> {
+fn aip_file_list_read_handler(
+	params: AipFileListReadParams,
+	ctx: &FileContext,
+) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
@@ -589,7 +592,7 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> Hand
 
 // region:    --- Support: Lua value helpers
 
-	fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> crate::Result<FileGlobs> {
+fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> crate::Result<FileGlobs> {
 	let val: Value = table.get(key)?;
 	if let Some(s) = val.x_as_lua_str() {
 		Ok(FileGlobs::Single(s.to_string()))
@@ -598,7 +601,7 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> Hand
 		for v in &list {
 			let s = v
 				.x_as_lua_str()
-			.ok_or_else(|| crate::Error::custom("globs entry must be a string"))?;
+				.ok_or_else(|| crate::Error::custom("globs entry must be a string"))?;
 			vec.push(s.to_string());
 		}
 		if vec.is_empty() {
@@ -610,7 +613,7 @@ fn aip_file_stats_handler(params: AipFileStatsParams, ctx: &FileContext) -> Hand
 	}
 }
 
-	fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> crate::Result<Option<FileGlobs>> {
+fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> crate::Result<Option<FileGlobs>> {
 	let val: Value = table.get(key)?;
 	if val.is_nil() || val.x_is_null() {
 		return Ok(None);

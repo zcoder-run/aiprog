@@ -96,7 +96,9 @@ impl LuaJsonExt for Value {
 
 	fn x_to_json_value(&self) -> crate::Result<Option<serde_json::Value>> {
 		fn number_from_f64(v: f64) -> crate::Result<serde_json::Number> {
-			serde_json::Number::from_f64(v).ok_or(crate::Error::custom("Cannot convert non-finite Lua number to JSON (NaN or Infinity)"))
+			serde_json::Number::from_f64(v).ok_or(crate::Error::custom(
+				"Cannot convert non-finite Lua number to JSON (NaN or Infinity)",
+			))
 		}
 
 		fn convert_table(table: mlua::Table) -> crate::Result<serde_json::Value> {
