@@ -1,7 +1,10 @@
 use super::*;
-use crate::AipFnKind;
+use crate::{AipFnKind, AipRegistry};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
 // -- Test schemas
 
@@ -91,7 +94,7 @@ fn test_render_type_object_with_description() {
 	let result = render_type(&schema);
 	// Ensure comment appears exactly once.
 	assert_eq!(
-		result.matches("// A description on the name field.").count(),
+        result.matches("  // A description on the name field.").count(),
 		1,
 		"Expected exactly one comment; got:\n{}",
 		result
@@ -105,6 +108,13 @@ fn test_render_type_object_with_required() {
 	// name is required (no `?`), age is optional.
 	assert!(result.contains("name: string;"));
 	assert!(result.contains("age?: number;"));
+	// Verify required property appears before optional property.
+	let name_pos = result.find("name:").expect("name field missing");
+	let age_pos = result.find("age?:").expect("age field missing");
+	assert!(
+		name_pos < age_pos,
+		"Required field 'name' should appear before optional 'age'"
+	);
 }
 
 // -- Array
@@ -170,6 +180,8 @@ fn test_render_fn_basic() {
 
 	let result = render_fn(&reg_fn, None);
 	assert!(result.contains("### my_func\n"));
+	// The root description should appear as function-level text, not as a comment
+	assert!(!result.contains("// Root description for the params."));
 	assert!(result.contains("Root description for the params."));
 	assert!(result.contains("Signature: `my_func(params: Params): Output`"));
 	assert!(result.contains("```ts\n"));
@@ -183,11 +195,12 @@ fn test_render_fn_basic() {
 #[test]
 fn test_render_type_block_multi_line_root_description() {
 	let schema = schema_for!(MultiLineRootDesc);
-	let result = render_type_block(&schema, "Params");
-	// Each line of the root description should be prefixed with "// "
+    let result = render_type_block(&schema, "Params", true);
+	// Multi-line root descriptions now use // single-line comments.
 	assert!(result.contains("// First line.\n"));
 	assert!(result.contains("// Second line.\n"));
 	assert!(result.contains("// Third line.\n"));
+	assert!(!result.contains("/*"));
 }
 
 #[test]
@@ -195,9 +208,9 @@ fn test_render_value_multi_line_property_description() {
 	let schema = schema_for!(MultiLinePropDesc);
 	let result = render_value(&serde_json::to_value(&schema).unwrap());
 	// Property comment should contain each line prefixed
-	assert!(result.contains("// First line.\n"));
-	assert!(result.contains("// Second line.\n"));
-	assert!(result.contains("// Third line.\n"));
+    assert!(result.contains("  // First line.\n"));
+    assert!(result.contains("  // Second line.\n"));
+    assert!(result.contains("  // Third line.\n"));
 }
 
 // -- Ref simplification
@@ -229,4 +242,96 @@ fn test_render_value_ref_nested() {
 	let value = Value::Object(map);
 	let result = render_value(&value);
 	assert_eq!(result, "Type");
+}
+
+#[test]
+fn test_generate_doc_shared_types() -> TestResult {
+	let params_schema: Schema = Schema::try_from(json!({
+		"type": "object",
+		"properties": {
+			"config": { "$ref": "#/$defs/SharedConfig" }
+		},
+		"required": ["config"],
+		"$defs": {
+			"SharedConfig": {
+				"description": "A shared configuration object",
+				"type": "object",
+				"properties": {
+					"port": { "type": "integer", "default": 8080 }
+				}
+			}
+		}
+	}))
+	.expect("Invalid schema");
+	let output_schema: Schema = Schema::try_from(json!(true)).expect("Invalid schema");
+	let error_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
+
+	let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+	engine.registered_fns.push(AipRegisteredFn {
+		path: "test.fn".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+	});
+
+	let doc = engine.generate_doc()?;
+	assert!(doc.contains("### test.fn"));
+	assert!(doc.contains("## Shared Types"));
+	assert!(doc.contains("type SharedConfig"));
+	assert!(doc.contains("// A shared configuration object"));
+	assert!(
+        doc.contains("// default: 8080"),
+        "Output should contain default comment for port"
+	);
+	Ok(())
+}
+
+#[test]
+fn test_generate_doc_inline_kind_none_error() -> TestResult {
+	let params_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
+	let output_schema: Schema = Schema::try_from(json!({"type": "number"})).expect("Invalid schema");
+	let error_schema: Schema = Schema::try_from(json!({
+		"type": "object",
+		"properties": {
+			"kind": { "$ref": "#/$defs/KindNone" },
+			"message": { "type": "string" }
+		},
+		"required": ["kind", "message"],
+		"$defs": {
+			"KindNone": {
+				"type": "object",
+				"properties": {}
+			}
+		}
+	}))
+	.expect("Invalid schema");
+
+	let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+	engine.registered_fns.push(AipRegisteredFn {
+		path: "test.inline_error".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+	});
+
+	let doc = engine.generate_doc()?;
+
+	let expected_error = "type Error = {\n  message: string;\n};";
+	assert!(
+		doc.contains(expected_error),
+		"Expected inlined error type, got:\n{}",
+		doc
+	);
+	assert!(!doc.contains("KindNone"), "KindNone should not be in output:\n{}", doc);
+	Ok(())
+}
+
+#[test]
+fn test_render_type_block_include_desc_false() {
+    let schema = schema_for!(ParamsWithRootDesc);
+    let result = render_type_block(&schema, "Params", false);
+    assert!(!result.contains("// Root description"));
+    assert!(result.contains("type Params = {"));
 }

@@ -53,7 +53,7 @@ impl ScriptEngine {
 			doc.push_str("## Shared Types\n\n```ts\n");
 			for key in sorted_keys {
 				if let Some(def_schema) = definitions.get(key) {
-					doc.push_str(&render_type_block(def_schema, key));
+					doc.push_str(&render_type_block(def_schema, key, true));
 					doc.push('\n');
 				}
 			}
@@ -72,10 +72,10 @@ impl ScriptEngine {
 fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String {
 	let path = &reg_fn.path;
 	let desc = SchemaRef::new(&reg_fn.params_schema).desc().map(String::from);
-	let params_type = render_type_block(&reg_fn.params_schema, "Params");
-	let output_type = render_type_block(&reg_fn.output_schema, "Output");
+	let params_type = render_type_block(&reg_fn.params_schema, "Params", false);
+	let output_type = render_type_block(&reg_fn.output_schema, "Output", false);
 	let effective_error_schema = error_schema.unwrap_or(&reg_fn.error_schema);
-	let error_type = render_type_block(effective_error_schema, "Error");
+	let error_type = render_type_block(effective_error_schema, "Error", true);
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
@@ -111,12 +111,12 @@ fn collect_schema_info(schema: &Schema, ref_keys: &mut HashSet<String>, definiti
 }
 
 /// Helper that renders a type alias block.
-fn render_type_block(schema: &Schema, name: &str) -> String {
+fn render_type_block(schema: &Schema, name: &str, include_desc: bool) -> String {
 	let description = SchemaRef::new(schema).desc().map(String::from);
 	let value = serde_json::to_value(schema).unwrap_or(Value::Null);
 	let type_expr = render_value(&value);
 	let mut s = String::new();
-	if let Some(desc) = description {
+	if include_desc && let Some(desc) = description {
 		for line in desc.lines() {
 			s.push_str(&format!("// {}\n", line));
 		}
@@ -246,7 +246,11 @@ fn render_object_schema(map: &serde_json::Map<String, Value>) -> String {
 	if props.is_empty() {
 		return "{}".to_string();
 	}
-	props.sort_by(|a, b| a.name().cmp(b.name()));
+	props.sort_by(|a, b| match (a.is_required(), b.is_required()) {
+		(true, false) => std::cmp::Ordering::Less,
+		(false, true) => std::cmp::Ordering::Greater,
+		_ => a.name().cmp(b.name()),
+	});
 
 	let mut out = String::new();
 	out.push_str("{\n");
@@ -338,95 +342,3 @@ fn inline_error_schema() -> Schema {
 mod tests;
 
 // endregion: --- Tests
-
-// region:    --- Shared Types Tests (inlined)
-
-#[cfg(test)]
-mod shared_types_tests {
-	use crate::{AipFnKind, AipRegisteredFn, AipRegistry, ScriptEngine};
-	use schemars::Schema;
-	use serde_json::json;
-
-	#[test]
-	fn test_generate_doc_shared_types() -> Result<(), Box<dyn std::error::Error>> {
-		let params_schema: Schema = Schema::try_from(json!({
-			"type": "object",
-			"properties": {
-				"config": { "$ref": "#/$defs/SharedConfig" }
-			},
-			"required": ["config"],
-			"$defs": {
-				"SharedConfig": {
-					"description": "A shared configuration object",
-					"type": "object",
-					"properties": {
-						"port": { "type": "integer", "default": 8080 }
-					}
-				}
-			}
-		}))
-		.expect("Invalid schema");
-		let output_schema: Schema = Schema::try_from(json!(true)).expect("Invalid schema");
-		let error_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
-
-		let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
-		engine.registered_fns.push(AipRegisteredFn {
-			path: "test.fn".to_string(),
-			params_schema,
-			output_schema,
-			error_schema,
-			kind: AipFnKind::Sync,
-		});
-
-		let doc = engine.generate_doc()?;
-		assert!(doc.contains("### test.fn"));
-		assert!(doc.contains("## Shared Types"));
-		assert!(doc.contains("type SharedConfig"));
-		assert!(doc.contains("// A shared configuration object"));
-		assert!(doc.contains("// default: 8080"));
-		Ok(())
-	}
-
-	#[test]
-	fn test_generate_doc_inline_kind_none_error() -> Result<(), Box<dyn std::error::Error>> {
-		let params_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
-		let output_schema: Schema = Schema::try_from(json!({"type": "number"})).expect("Invalid schema");
-		let error_schema: Schema = Schema::try_from(json!({
-			"type": "object",
-			"properties": {
-				"kind": { "$ref": "#/$defs/KindNone" },
-				"message": { "type": "string" }
-			},
-			"required": ["kind", "message"],
-			"$defs": {
-				"KindNone": {
-					"type": "object",
-					"properties": {}
-				}
-			}
-		}))
-		.expect("Invalid schema");
-
-		let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
-		engine.registered_fns.push(AipRegisteredFn {
-			path: "test.inline_error".to_string(),
-			params_schema,
-			output_schema,
-			error_schema,
-			kind: AipFnKind::Sync,
-		});
-
-		let doc = engine.generate_doc()?;
-
-		let expected_error = "type Error = {\n  message: string;\n};";
-		assert!(
-			doc.contains(expected_error),
-			"Expected inlined error type, got:\n{}",
-			doc
-		);
-		assert!(!doc.contains("KindNone"), "KindNone should not be in output:\n{}", doc);
-		Ok(())
-	}
-}
-
-// endregion: --- Shared Types Tests
