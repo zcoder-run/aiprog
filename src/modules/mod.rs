@@ -3,6 +3,7 @@ use crate::AipRegistry;
 // region:    --- Modules
 
 mod aip_file;
+mod aip_html;
 mod aip_json;
 mod aip_web;
 
@@ -25,6 +26,9 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 
 	let file_registry = aip_file::register::init_registry(None)?;
 	combined.merge(file_registry)?;
+
+	let html_registry = aip_html::init_registry()?;
+	combined.merge(html_registry)?;
 
 	Ok(combined)
 }

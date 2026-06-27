@@ -1,0 +1,86 @@
+//! Defines the `html` module, used in the lua engine.
+//!
+//! ---
+//!
+//! ## Lua documentation
+//!
+//! The `aip.html` module provides functions for processing HTML content.
+//!
+//! ### Functions
+//!
+//! - `aip.html.slim(params: { html: string }) -> string`
+//!
+//! ---
+//!
+
+use crate::LuaExt;
+use crate::registry::HandlerResult;
+use crate::{AipFromLua, AipIntoLua, AipParams};
+use crate::{AipOutput, AipRegistry};
+use mlua::Lua;
+
+/// Build and return an [`AipRegistry`] containing all `aip.html` handlers.
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::from_empty();
+	registry.register_sync::<_, _, _>("aip.html.slim", aip_html_slim_handler)?;
+	Ok(registry)
+}
+
+// region:    --- aip.html.slim
+
+/// Parameters for `aip.html.slim`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+pub struct AipHtmlSlimParams {
+	/// The HTML string to slim.
+	pub html: String,
+
+	/// The indent number of chars (spaces)
+	pub indent: Option<i64>,
+}
+
+impl AipFromLua for AipHtmlSlimParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let html = table
+			.x_get_string("html")
+			.ok_or_else(|| crate::Error::custom("Missing 'html' field"))?;
+
+		let indent = table.x_get_i64("indent");
+
+		Ok(AipHtmlSlimParams { html, indent })
+	}
+}
+
+impl AipParams for AipHtmlSlimParams {}
+
+/// Output type for `aip.html.slim`.
+///
+/// The slimmed HTML string is returned directly to Lua as a string.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipHtmlSlimOutput(pub String);
+
+impl AipIntoLua for AipHtmlSlimOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
+
+impl AipOutput for AipHtmlSlimOutput {}
+
+fn aip_html_slim_handler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
+	let indent = params.indent.unwrap_or(2);
+	let opts = htmlr::SlimOptions::from_indent(indent as u8);
+	let slimmed = htmlr::slim(&params.html, opts).map_err(|e| format!("aip.html.slim failed. {e}"))?;
+	Ok(AipHtmlSlimOutput(slimmed))
+}
+
+// endregion: --- aip.html.slim
+
+// region:    --- Tests
+
+// #[cfg(test)]
+// #[path = "aip_html_tests.rs"]
+// mod tests;
+
+// endregion: --- Tests

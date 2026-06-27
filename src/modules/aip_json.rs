@@ -32,23 +32,27 @@ use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader as parse_jsonl_from_reader;
 use std::io::BufReader;
 
+/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
+///
+/// This is the recommended way to obtain a registry for this module.
+/// Use [`register`](register) if you need to add the handlers into an
+/// existing registry.
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistry::from_empty();
+	register(&mut registry)?;
+	Ok(registry)
+}
+
+fn register(registry: &mut AipRegistry) -> crate::Result<()> {
+	registry.register_sync::<_, _, _>("aip.json.parse", aip_json_parse_handler)?;
+	registry.register_sync::<_, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	registry.register_sync::<_, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
+	Ok(())
+}
+
 // region:    --- Response Types (new single-value returns)
 
 // region:    --- Output Types (new single-value returns)
-
-/// Output type for `aip.json.parse`.
-///
-/// The parsed JSON value is returned directly to Lua without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseOutput(pub serde_json::Value);
-
-impl AipIntoLua for AipJsonParseOutput {
-	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		self.0.into_lua(lua)
-	}
-}
-
-impl AipOutput for AipJsonParseOutput {}
 
 /// Output type for `aip.json.stringify`.
 ///
@@ -84,24 +88,6 @@ impl AipIntoLua for AipJsonParseJsonlOutput {
 
 // endregion: --- Output Types
 
-/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
-///
-/// This is the recommended way to obtain a registry for this module.
-/// Use [`register`](register) if you need to add the handlers into an
-/// existing registry.
-pub fn init_registry() -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::from_empty();
-	register(&mut registry)?;
-	Ok(registry)
-}
-
-fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-	registry.register_sync::<_, _, _>("aip.json.parse", aip_json_parse_handler)?;
-	registry.register_sync::<_, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	registry.register_sync::<_, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
-	Ok(())
-}
-
 // region:    --- aip.json.parse
 
 // Parse a json string into a json/lua object
@@ -122,6 +108,20 @@ impl AipFromLua for AipJsonParseParams {
 }
 
 impl AipParams for AipJsonParseParams {}
+
+/// Output type for `aip.json.parse`.
+///
+/// The parsed JSON value is returned directly to Lua without a wrapper table.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipJsonParseOutput(pub serde_json::Value);
+
+impl AipIntoLua for AipJsonParseOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
+
+impl AipOutput for AipJsonParseOutput {}
 
 fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {

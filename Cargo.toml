@@ -81,7 +81,7 @@ simple-fs = { version = "0.12.1", features = ["with-json"]}
 size = "0.5.0"
 glob = "0.3"
 # -- HTML & XML
-htmlr = { version = "0.1.1" }
+htmlr = { version = "0.1.2" }
 url = "2.5.7"
 quick-xml = "0.40"
 # -- Others
