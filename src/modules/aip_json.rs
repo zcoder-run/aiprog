@@ -105,11 +105,11 @@ fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 // region:    --- aip.json.parse
 
 // Parse a json string into a json/lua object
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipJsonParseParams {
 	// The JSON string to parse.
 	// Can be strict json, or jsonc, or relaxed json
-	#[serde(default)]
 	pub text: Option<String>,
 }
 
@@ -140,10 +140,10 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonPa
 // region:    --- aip.json.parse_jsonl
 
 /// Parameters for the `parse_jsonl` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipJsonParseJsonlParams {
 	/// The JSONL string to parse.
-	#[serde(default)]
 	pub text: Option<String>,
 }
 
@@ -173,7 +173,8 @@ fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResul
 // region:    --- aip.json.stringify
 
 /// Parameters for the `stringify` and `stringify_pretty` functions.
-#[derive(Debug, Clone, Default, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipJsonStringifyParams {
 	/// The value to serialize to JSON.
 	pub data: serde_json::Value,

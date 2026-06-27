@@ -70,7 +70,8 @@ pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
 // region:    --- aip.web.get
 
 /// Parameters for the `get` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipWebGetParams {
 	/// The URL to request.
 	pub url: String,
@@ -148,7 +149,7 @@ impl AipFromLua for AipWebGetParams {
 impl crate::AipParams for AipWebGetParams {}
 
 /// User-Agent option for the `get` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum AipWebUserAgent {
 	Bool(bool),
@@ -156,7 +157,7 @@ pub enum AipWebUserAgent {
 }
 
 /// Header value option for the `get` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum AipWebHeaderValue {
 	Single(String),
@@ -165,6 +166,7 @@ pub enum AipWebHeaderValue {
 
 /// Output of a web request.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipWebOutput {
 	/// The response body as a string, or parsed JSON when `parse` is true and the response is JSON.
 	pub data: serde_json::Value,
@@ -179,14 +181,12 @@ pub struct AipWebOutput {
 	pub url: String,
 
 	/// The response Content-Type header, if present.
-	#[serde(skip_serializing_if = "Option::is_none")]
 	pub content_type: Option<String>,
 
 	/// Response headers keyed by lower-case header name.
 	pub headers: HashMap<String, String>,
 
 	/// Status error text for non-success HTTP status codes.
-	#[serde(skip_serializing_if = "Option::is_none")]
 	pub error: Option<String>,
 }
 
@@ -212,7 +212,8 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOut
 // region:    --- aip.web.post
 
 /// Parameters for the `post` function.
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
 pub struct AipWebPostParams {
 	/// The URL to request.
 	pub data: String,

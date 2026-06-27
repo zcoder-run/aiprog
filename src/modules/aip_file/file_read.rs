@@ -73,10 +73,10 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 
 // region:    --- AipFileReadParams
 
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileReadParams {
 	pub path: String,
-	#[serde(default)]
 	pub base_dir: Option<String>,
 }
 
@@ -110,18 +110,16 @@ impl AipOutput for AipFileReadOutput {}
 
 // region:    --- AipFileListParams
 
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileListParams {
 	pub globs: FileGlobs,
-	#[serde(default)]
 	pub base_dir: Option<String>,
-	#[serde(default)]
 	pub absolute: Option<bool>,
-	#[serde(default)]
 	pub with_meta: Option<bool>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum FileGlobs {
 	Single(String),
@@ -201,10 +199,10 @@ impl AipOutput for AipFileListReadOutput {}
 
 // region:    --- AipFileInfoParams
 
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileInfoParams {
 	pub path: String,
-	#[serde(default)]
 	pub base_dir: Option<String>,
 }
 
@@ -242,10 +240,10 @@ impl AipOutput for AipFileInfoOutput {}
 // region:    --- AipFileExistsParams
 
 /// Returns true if the file path exist
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileExistsParams {
 	pub path: String,
-	#[serde(default)]
 	pub base_dir: Option<String>,
 }
 
@@ -297,11 +295,10 @@ impl AipOutput for AipFileFirstOutput {}
 
 // region:    --- AipFileStatsParams
 
-#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileStatsParams {
-	#[serde(default)]
 	pub globs: Option<FileGlobs>,
-	#[serde(default)]
 	pub base_dir: Option<String>,
 }
 
