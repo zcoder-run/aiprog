@@ -23,6 +23,7 @@ use mlua::Lua;
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
 	registry.register_sync::<_, _, _>("aip.html.slim", aip_html_slim_handler)?;
+	registry.register_sync::<_, _, _>("aip.html.to_md", aip_html_to_md_handler)?;
 	Ok(registry)
 }
 
@@ -76,6 +77,50 @@ fn aip_html_slim_handler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlim
 }
 
 // endregion: --- aip.html.slim
+
+// region:    --- aip.html.to_md
+
+/// Function that render a html into a markdown.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+pub struct AipHtmlToMdParams {
+	/// The HTML string to convert to Markdown.
+	pub html: String,
+}
+
+impl AipFromLua for AipHtmlToMdParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let html = table
+			.x_get_string("html")
+			.ok_or_else(|| crate::Error::custom("Missing 'html' field"))?;
+
+		Ok(AipHtmlToMdParams { html })
+	}
+}
+
+impl AipParams for AipHtmlToMdParams {}
+
+/// Output type for `aip.html.to_md`.
+///
+/// The Markdown string is returned directly to Lua as a string.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipHtmlToMdOutput(pub String);
+
+impl AipIntoLua for AipHtmlToMdOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
+
+impl AipOutput for AipHtmlToMdOutput {}
+
+fn aip_html_to_md_handler(params: AipHtmlToMdParams) -> HandlerResult<AipHtmlToMdOutput> {
+	let md = htmlr::to_md(&params.html, None).map_err(|e| e.to_string())?;
+	Ok(AipHtmlToMdOutput(md))
+}
+
+// endregion: --- aip.html.to_md
 
 // region:    --- Tests
 

@@ -2,6 +2,8 @@ extern crate proc_macro;
 
 mod derive;
 
+// region:    --- Derives
+
 #[proc_macro_derive(AipFromLua)]
 pub fn aip_from_lua_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	derive::aip_from_lua_derive(input)
@@ -26,3 +28,5 @@ pub fn aip_output_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 pub fn aip_error_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	derive::aip_error_derive(input)
 }
+
+// endregion: --- Derives

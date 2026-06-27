@@ -356,6 +356,7 @@ fn aip_file_read_handler(params: AipFileReadParams, ctx: &FileContext) -> Handle
 	Ok(AipFileReadOutput(record))
 }
 
+/// Will list the files for the given file globs
 fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
@@ -374,6 +375,7 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> Handle
 	Ok(AipFileListOutput(infos))
 }
 
+/// Will list and read the files for the given file globs
 fn aip_file_list_read_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;

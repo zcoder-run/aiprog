@@ -1,4 +1,5 @@
 use aiprog::ScriptEngine;
+use value_ext::JsonValueExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let script_engine = ScriptEngine::new()?;
@@ -11,13 +12,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <a class="blink" style="background: red" href="https://example.com">good&nbsp;link</a><script>some_stuff()</script></body></html>
 		]]
 
-		local html_slimmed = aip.html.slim({html = html_string, indent = 12})
-		return html_slimmed
+		local slimmed = aip.html.slim({html = html_string, indent = 12})
+
+		local md = aip.html.to_md({html = slimmed})
+
+		return {
+			slimmed = slimmed,
+			md = md
+		}
 		"#,
 	)?;
 
-	let res = res.as_str().ok_or("No string response")?;
-	println!("{res}");
+	let slimmed = res.x_get_str("slimmed")?;
+	let md = res.x_get_str("md")?;
+
+	println!("=== slimmed:\n{slimmed}");
+
+	println!("\n\n=== md:\n{md}");
 
 	Ok(())
 }
