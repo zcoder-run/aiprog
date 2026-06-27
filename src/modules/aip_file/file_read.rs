@@ -241,6 +241,7 @@ impl AipOutput for AipFileInfoOutput {}
 
 // region:    --- AipFileExistsParams
 
+/// Returns true if the file path exist
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileExistsParams {
 	pub path: String,
@@ -376,10 +377,7 @@ fn aip_file_list_handler(params: AipFileListParams, ctx: &FileContext) -> Handle
 	Ok(AipFileListOutput(infos))
 }
 
-fn aip_file_list_read_handler(
-	params: AipFileListParams,
-	ctx: &FileContext,
-) -> HandlerResult<AipFileListReadOutput> {
+fn aip_file_list_read_handler(params: AipFileListParams, ctx: &FileContext) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);

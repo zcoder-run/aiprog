@@ -29,7 +29,7 @@ use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
 use mlua::Lua;
-use simple_fs::parse_ndjson_from_reader;
+use simple_fs::parse_ndjson_from_reader as parse_jsonl_from_reader;
 use std::io::BufReader;
 
 // region:    --- Response Types (new single-value returns)
@@ -137,12 +137,12 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonPa
 
 // endregion: --- aip.json.parse
 
-// region:    --- aip.json.parse_ndjson
+// region:    --- aip.json.parse_jsonl
 
-/// Parameters for the `parse_ndjson` function.
+/// Parameters for the `parse_jsonl` function.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipJsonParseJsonlParams {
-	/// The NDJSON string to parse.
+	/// The JSONL string to parse.
 	#[serde(default)]
 	pub text: Option<String>,
 }
@@ -162,13 +162,13 @@ fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResul
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
 	let reader = BufReader::new(content.as_bytes());
-	match parse_ndjson_from_reader(reader) {
+	match parse_jsonl_from_reader(reader) {
 		Ok(values) => Ok(AipJsonParseJsonlOutput(values)),
 		Err(err) => Err(HandlerError::custom(format!("aip.json.parse_jsonl failed. {err}"))),
 	}
 }
 
-// endregion: --- aip.json.parse_ndjson
+// endregion: --- aip.json.parse_jsonl
 
 // region:    --- aip.json.stringify
 
