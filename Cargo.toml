@@ -1,6 +1,6 @@
 [package]
 name = "aiprog"
-version = "0.0.2-WIP"
+version = "0.0.2"
 edition = "2024"
 description = "Rust engine for moving from AI tool calls to AI program execution"
 license = "MIT OR Apache-2.0"
@@ -29,9 +29,16 @@ doctest = false
 unsafe_code = "forbid"
 # unused = { level = "allow", priority = -1 } # For exploratory dev.
 
+[workspace]
+members = [
+    ".",
+    "crates/aiprog-macros",
+]
+resolver = "3"
+
 [dependencies]
 # -- Macros
-aiprog-macros = { path = "crates/aiprog-macros" }
+aiprog-macros = { version = "0.0.2", path = "crates/aiprog-macros" }
 # -- Async
 tokio = { version = "1", features = ["full"] }
 # -- Json & Data Formats

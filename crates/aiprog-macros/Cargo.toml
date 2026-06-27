@@ -1,7 +1,22 @@
 [package]
 name = "aiprog-macros"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
+description = "Rust engine for moving from AI tool calls to AI program execution"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/zcoder-run/aiprog"
+repository = "https://github.com/zcoder-run/aiprog"
+categories = [
+  "development-tools",
+  "api-bindings"
+]
+keywords = [
+  "ai",
+  "lua",
+  "mcp",
+  "llm",
+  "agent"
+]
 
 [lib]
 proc-macro = true
