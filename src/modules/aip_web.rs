@@ -19,11 +19,8 @@
 //! ---
 //!
 
-#![allow(non_snake_case)]
-
 use crate::AipRegistry;
 use crate::LuaJsonExt;
-use crate::aip_handler;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::webc;
 use crate::{AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
@@ -42,8 +39,8 @@ const DEFAULT_UA_BROWSER: &str =
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler::<AipWebGetHandler>("aip.web.get")?;
-	registry.register_handler::<AipWebPostHandler>("aip.web.post")?;
+	registry.register_async("aip.web.get", aip_web_get_handler)?;
+	registry.register_async("aip.web.post", aip_web_post_handler)?;
 	Ok(registry)
 }
 
@@ -188,8 +185,7 @@ pub struct AipWebOutput {
 	pub error: Option<String>,
 }
 
-#[aip_handler]
-async fn AipWebGetHandler(params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -314,8 +310,7 @@ impl AipFromLua for AipWebPostParams {
 
 impl crate::AipParams for AipWebPostParams {}
 
-#[aip_handler]
-async fn AipWebPostHandler(params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),

@@ -1,13 +1,12 @@
-#![allow(non_snake_case)]
 use super::*;
-use crate::{AipFnKind, AipRegistry};
-use schemars::{JsonSchema, schema_for};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use crate::aip_handler;
 use crate::impl_lua_serde_traits;
 use crate::registry::HandlerResult;
-use crate::{AipParams, AipOutput};
+use crate::{AipFnKind, AipRegistry};
+use crate::{AipOutput, AipParams};
+use schemars::{JsonSchema, schema_for};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -23,63 +22,63 @@ struct SimpleParams {
 
 #[test]
 fn test_render_fn_with_handler_description() {
-    let params_schema = schema_for!(MultiLinePropDesc);
-    let output_schema = schema_for!(String);
-    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+	let params_schema = schema_for!(MultiLinePropDesc);
+	let output_schema = schema_for!(String);
+	let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
 
-    let reg_fn = AipRegisteredFn {
-        path: "my_func".to_string(),
-        params_schema,
-        output_schema,
-        error_schema,
-        kind: AipFnKind::Sync,
-        description: Some("Custom description".to_string()),
-        title: None,
-    };
+	let reg_fn = AipRegisteredFn {
+		path: "my_func".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("Custom description".to_string()),
+		title: None,
+	};
 
-    let result = render_fn(&reg_fn, None);
-    assert!(result.contains("Custom description\n\n"));
+	let result = render_fn(&reg_fn, None);
+	assert!(result.contains("Custom description\n\n"));
 }
 
 #[test]
 fn test_render_fn_with_handler_title() {
-    let params_schema = schema_for!(MultiLinePropDesc);
-    let output_schema = schema_for!(String);
-    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+	let params_schema = schema_for!(MultiLinePropDesc);
+	let output_schema = schema_for!(String);
+	let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
 
-    let reg_fn = AipRegisteredFn {
-        path: "my_func".to_string(),
-        params_schema,
-        output_schema,
-        error_schema,
-        kind: AipFnKind::Sync,
-        description: Some("Custom description".to_string()),
-        title: Some("Custom Title".to_string()),
-    };
+	let reg_fn = AipRegisteredFn {
+		path: "my_func".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("Custom description".to_string()),
+		title: Some("Custom Title".to_string()),
+	};
 
-    let result = render_fn(&reg_fn, None);
-    assert!(result.contains("#### Custom Title\n\n"));
-    assert!(result.contains("Custom description\n\n"));
+	let result = render_fn(&reg_fn, None);
+	assert!(result.contains("#### Custom Title\n\n"));
+	assert!(result.contains("Custom description\n\n"));
 }
 
 #[test]
 fn test_render_fn_fallback_to_schema_description() {
-    let params_schema = schema_for!(ParamsWithRootDesc);
-    let output_schema = schema_for!(String);
-    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+	let params_schema = schema_for!(ParamsWithRootDesc);
+	let output_schema = schema_for!(String);
+	let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
 
-    let reg_fn = AipRegisteredFn {
-        path: "my_func".to_string(),
-        params_schema,
-        output_schema,
-        error_schema,
-        kind: AipFnKind::Sync,
-        description: None,
-        title: None,
-    };
+	let reg_fn = AipRegisteredFn {
+		path: "my_func".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
+	};
 
-    let result = render_fn(&reg_fn, None);
-    assert!(result.contains("Root description for the params."));
+	let result = render_fn(&reg_fn, None);
+	assert!(result.contains("Root description for the params."));
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -162,7 +161,7 @@ fn test_render_type_object_with_description() {
 	let result = render_type(&schema);
 	// Ensure comment appears exactly once.
 	assert_eq!(
-        result.matches("  // A description on the name field.").count(),
+		result.matches("  // A description on the name field.").count(),
 		1,
 		"Expected exactly one comment; got:\n{}",
 		result
@@ -265,7 +264,7 @@ fn test_render_fn_basic() {
 #[test]
 fn test_render_type_block_multi_line_root_description() {
 	let schema = schema_for!(MultiLineRootDesc);
-    let result = render_type_block(&schema, "Params", true);
+	let result = render_type_block(&schema, "Params", true);
 	// Multi-line root descriptions now use // single-line comments.
 	assert!(result.contains("// First line.\n"));
 	assert!(result.contains("// Second line.\n"));
@@ -278,9 +277,9 @@ fn test_render_value_multi_line_property_description() {
 	let schema = schema_for!(MultiLinePropDesc);
 	let result = render_value(&serde_json::to_value(&schema).unwrap());
 	// Property comment should contain each line prefixed
-    assert!(result.contains("  // First line.\n"));
-    assert!(result.contains("  // Second line.\n"));
-    assert!(result.contains("  // Third line.\n"));
+	assert!(result.contains("  // First line.\n"));
+	assert!(result.contains("  // Second line.\n"));
+	assert!(result.contains("  // Third line.\n"));
 }
 
 // -- Ref simplification
@@ -353,8 +352,8 @@ fn test_generate_doc_shared_types() -> TestResult {
 	assert!(doc.contains("type SharedConfig"));
 	assert!(doc.contains("// A shared configuration object"));
 	assert!(
-        doc.contains("// default: 8080"),
-        "Output should contain default comment for port"
+		doc.contains("// default: 8080"),
+		"Output should contain default comment for port"
 	);
 	Ok(())
 }
@@ -404,10 +403,10 @@ fn test_generate_doc_inline_kind_none_error() -> TestResult {
 
 #[test]
 fn test_render_type_block_include_desc_false() {
-    let schema = schema_for!(ParamsWithRootDesc);
-    let result = render_type_block(&schema, "Params", false);
-    assert!(!result.contains("// Root description"));
-    assert!(result.contains("type Params = {"));
+	let schema = schema_for!(ParamsWithRootDesc);
+	let result = render_type_block(&schema, "Params", false);
+	assert!(!result.contains("// Root description"));
+	assert!(result.contains("type Params = {"));
 }
 
 // region:    --- Integration tests for macro and registration
@@ -452,6 +451,7 @@ impl AipParams for ParamsWithRootDesc {}
 ///
 /// Sync handler description text.
 #[aip_handler]
+#[allow(non_snake_case)]
 fn DocSyncHandler(params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
 	Ok(DocSyncOutput {
 		greeting: format!("Hello, {}!", params.name),
@@ -462,6 +462,7 @@ fn DocSyncHandler(params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
 ///
 /// Async handler description.
 #[aip_handler]
+#[allow(non_snake_case)]
 async fn DocAsyncHandler(params: DocAsyncParams) -> HandlerResult<DocAsyncOutput> {
 	Ok(DocAsyncOutput {
 		doubled: params.value * 2,

@@ -13,20 +13,17 @@
 //! ---
 //!
 
-#![allow(non_snake_case)]
-
 use crate::LuaExt;
 use crate::registry::HandlerResult;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
-use crate::aip_handler;
 use mlua::Lua;
 
 /// Build and return an [`AipRegistry`] containing all `aip.html` handlers.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler::<AipHtmlSlimHandler>("aip.html.slim")?;
-	registry.register_handler::<AipHtmlToMdHandler>("aip.html.to_md")?;
+	registry.register_sync("aip.html.slim", aip_html_slim_handler)?;
+	registry.register_sync("aip.html.to_md", aip_html_to_md_handler)?;
 	Ok(registry)
 }
 
@@ -72,8 +69,7 @@ impl AipIntoLua for AipHtmlSlimOutput {
 
 impl AipOutput for AipHtmlSlimOutput {}
 
-#[aip_handler]
-fn AipHtmlSlimHandler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
+fn aip_html_slim_handler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
 	let indent = params.indent.unwrap_or(2);
 	let opts = htmlr::SlimOptions::from_indent(indent as u8);
 	let slimmed = htmlr::slim(&params.html, opts).map_err(|e| format!("aip.html.slim failed. {e}"))?;
@@ -119,8 +115,7 @@ impl AipIntoLua for AipHtmlToMdOutput {
 
 impl AipOutput for AipHtmlToMdOutput {}
 
-#[aip_handler]
-fn AipHtmlToMdHandler(params: AipHtmlToMdParams) -> HandlerResult<AipHtmlToMdOutput> {
+fn aip_html_to_md_handler(params: AipHtmlToMdParams) -> HandlerResult<AipHtmlToMdOutput> {
 	let md = htmlr::to_md(&params.html, None).map_err(|e| e.to_string())?;
 	Ok(AipHtmlToMdOutput(md))
 }

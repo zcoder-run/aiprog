@@ -23,10 +23,7 @@
 //! ---
 //!
 
-#![allow(non_snake_case)]
-
 use crate::LuaExt;
-use crate::aip_handler;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
@@ -42,9 +39,9 @@ use std::io::BufReader;
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler::<AipJsonParseHandler>("aip.json.parse")?;
-	registry.register_handler::<AipJsonParseJsonlHandler>("aip.json.parse_jsonl")?;
-	registry.register_handler::<AipJsonStringifyHandler>("aip.json.stringify")?;
+	registry.register_sync("aip.json.parse", aip_json_parse_handler)?;
+	registry.register_sync("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	registry.register_sync("aip.json.stringify", aip_json_stringify_handler)?;
 	Ok(registry)
 }
 
@@ -100,8 +97,7 @@ impl AipIntoLua for AipJsonParseOutput {
 
 impl AipOutput for AipJsonParseOutput {}
 
-#[aip_handler]
-fn AipJsonParseHandler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
+fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
 	};
@@ -135,8 +131,7 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
-#[aip_handler]
-fn AipJsonParseJsonlHandler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
+fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
@@ -196,8 +191,7 @@ impl AipIntoLua for AipJsonStringifyOutput {
 
 impl AipOutput for AipJsonStringifyOutput {}
 
-#[aip_handler]
-fn AipJsonStringifyHandler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
+fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {

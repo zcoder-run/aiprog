@@ -1,7 +1,5 @@
-#![allow(non_snake_case)]
-
+use crate::AipRegistry;
 use crate::{AipOutput, AipParams};
-use crate::{AipRegistry, aip_handler};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
@@ -20,13 +18,13 @@ pub fn init_registry_with_ctx(ctx: FileContext) -> crate::Result<AipRegistry> {
 
 	let mut registry = AipRegistry::from_empty();
 
-	registry.register_handler::<AipFileReadHandler>("aip.file.read")?;
-	registry.register_handler::<AipFileListHandler>("aip.file.list")?;
-	registry.register_handler::<AipFileListReadHandler>("aip.file.list_read")?;
-	registry.register_handler::<AipFileFirstHandler>("aip.file.first")?;
-	registry.register_handler::<AipFileInfoHandler>("aip.file.info")?;
-	registry.register_handler::<AipFileExistsHandler>("aip.file.exists")?;
-	registry.register_handler::<AipFileStatsHandler>("aip.file.stats")?;
+	registry.register_sync("aip.file.read", aip_file_read_handler)?;
+	registry.register_sync("aip.file.list", aip_file_list_handler)?;
+	registry.register_sync("aip.file.list_read", aip_file_list_read_handler)?;
+	registry.register_sync("aip.file.first", aip_file_first_handler)?;
+	registry.register_sync("aip.file.info", aip_file_info_handler)?;
+	registry.register_sync("aip.file.exists", aip_file_exists_handler)?;
+	registry.register_sync("aip.file.stats", aip_file_stats_handler)?;
 
 	Ok(registry)
 }
@@ -291,8 +289,7 @@ impl AipOutput for AipFileStatsOutput {}
 
 // region:    --- Handler functions
 
-#[aip_handler]
-fn AipFileReadHandler(params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
+fn aip_file_read_handler(params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
 	let ctx = support::get_file_context();
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
@@ -315,8 +312,7 @@ fn AipFileReadHandler(params: AipFileReadParams) -> HandlerResult<AipFileReadOut
 }
 
 /// Will list the files for the given file globs
-#[aip_handler]
-fn AipFileListHandler(params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
+fn aip_file_list_handler(params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let ctx = support::get_file_context();
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
@@ -336,8 +332,7 @@ fn AipFileListHandler(params: AipFileListParams) -> HandlerResult<AipFileListOut
 }
 
 /// Will list and read the files for the given file globs
-#[aip_handler]
-fn AipFileListReadHandler(params: AipFileListParams) -> HandlerResult<AipFileListReadOutput> {
+fn aip_file_list_read_handler(params: AipFileListParams) -> HandlerResult<AipFileListReadOutput> {
 	let ctx = support::get_file_context();
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
@@ -359,8 +354,7 @@ fn AipFileListReadHandler(params: AipFileListParams) -> HandlerResult<AipFileLis
 	Ok(AipFileListReadOutput(records))
 }
 
-#[aip_handler]
-fn AipFileInfoHandler(params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
+fn aip_file_info_handler(params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
 	let ctx = support::get_file_context();
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
@@ -378,8 +372,7 @@ fn AipFileInfoHandler(params: AipFileInfoParams) -> HandlerResult<AipFileInfoOut
 	Ok(AipFileInfoOutput(data))
 }
 
-#[aip_handler]
-fn AipFileExistsHandler(params: AipFileExistsParams) -> HandlerResult<AipFileExistsOutput> {
+fn aip_file_exists_handler(params: AipFileExistsParams) -> HandlerResult<AipFileExistsOutput> {
 	let ctx = support::get_file_context();
 	let resolved = ctx
 		.resolve(&params.path, params.base_dir.as_deref())
@@ -388,8 +381,7 @@ fn AipFileExistsHandler(params: AipFileExistsParams) -> HandlerResult<AipFileExi
 	Ok(AipFileExistsOutput(exists))
 }
 
-#[aip_handler]
-fn AipFileFirstHandler(params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
+fn aip_file_first_handler(params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
 	let ctx = support::get_file_context();
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
@@ -409,8 +401,7 @@ fn AipFileFirstHandler(params: AipFileListParams) -> HandlerResult<AipFileFirstO
 	Ok(AipFileFirstOutput(data))
 }
 
-#[aip_handler]
-fn AipFileStatsHandler(params: AipFileStatsParams) -> HandlerResult<AipFileStatsOutput> {
+fn aip_file_stats_handler(params: AipFileStatsParams) -> HandlerResult<AipFileStatsOutput> {
 	let ctx = support::get_file_context();
 	let globs = match params.globs {
 		Some(g) => {
