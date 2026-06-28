@@ -184,13 +184,9 @@ impl LuaJsonExt for Value {
 			Value::Number(n) => Ok(Some(serde_json::Value::Number(number_from_f64(n)?))),
 			Value::String(s) => Ok(Some(serde_json::Value::String(s.to_str()?.to_string()))),
 			Value::Table(t) => Ok(Some(convert_table(t)?)),
-			Value::LightUserData(ldata) => {
-				if Value::LightUserData(ldata) == Value::NULL {
-					Ok(Some(serde_json::Value::Null))
-				} else {
-					// for now, still null
-					Ok(Some(serde_json::Value::Null))
-				}
+			Value::LightUserData(_ldata) => {
+				// for now, still null (treat all LightUserData as null)
+				Ok(Some(serde_json::Value::Null))
 			}
 			Value::Function(_) | Value::Thread(_) | Value::UserData(_) => Err(crate::Error::custom(
 				"Cannot serialize Lua value to JSON: unsupported type (Function/LightUserData/UserData)",

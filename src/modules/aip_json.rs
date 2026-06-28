@@ -23,6 +23,8 @@
 //! ---
 //!
 
+#![allow(non_snake_case)]
+
 use crate::LuaExt;
 use crate::aip_handler;
 use crate::registry::{HandlerError, HandlerResult};
@@ -45,9 +47,9 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 }
 
 fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-    registry.register_handler::<aip_json_parse_handler>("aip.json.parse")?;
-    registry.register_handler::<aip_json_parse_jsonl_handler>("aip.json.parse_jsonl")?;
-    registry.register_handler::<aip_json_stringify_handler>("aip.json.stringify")?;
+    registry.register_handler::<AipJsonParseHandler>("aip.json.parse")?;
+    registry.register_handler::<AipJsonParseJsonlHandler>("aip.json.parse_jsonl")?;
+    registry.register_handler::<AipJsonStringifyHandler>("aip.json.stringify")?;
 	Ok(())
 }
 
@@ -125,7 +127,7 @@ impl AipIntoLua for AipJsonParseOutput {
 impl AipOutput for AipJsonParseOutput {}
 
 #[aip_handler]
-fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
+fn AipJsonParseHandler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
 	};
@@ -160,7 +162,7 @@ impl AipFromLua for AipJsonParseJsonlParams {
 impl AipParams for AipJsonParseJsonlParams {}
 
 #[aip_handler]
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
+fn AipJsonParseJsonlHandler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
@@ -206,7 +208,7 @@ impl AipFromLua for AipJsonStringifyParams {
 impl AipParams for AipJsonStringifyParams {}
 
 #[aip_handler]
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
+fn AipJsonStringifyHandler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {
