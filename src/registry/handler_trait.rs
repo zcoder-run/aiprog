@@ -1,4 +1,4 @@
-use super::handler_traits::{AipParams, AipOutput};
+use super::handler_traits::{AipHandlerMeta, AipParams, AipOutput};
 use super::registry_internal::RegistryEntry;
 
 /// Trait for handlers that can be registered in the AIP registry.
@@ -20,15 +20,14 @@ pub trait AipHandler {
 	/// The typed output type.
 	type Output: AipOutput;
 
-	/// Optional human-readable description of the handler, typically from doc comments.
-	fn handler_desc() -> Option<&'static str> {
-		None
-	}
-
-	/// Optional title of the handler, e.g. extracted from the first ATX heading
-	/// in the doc comments.
-	fn handler_title() -> Option<&'static str> {
-		None
+	/// Returns the metadata (title and description) extracted from the handler's
+	/// doc comments. The default returns empty metadata; the `#[aip_handler]`
+	/// macro overrides this to provide the actual values.
+	fn handler_meta() -> AipHandlerMeta {
+		AipHandlerMeta {
+			description: None,
+			title: None,
+		}
 	}
 
 	/// Construct a [`RegistryEntry`] for the given path, wrapping the handler

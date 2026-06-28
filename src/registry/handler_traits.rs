@@ -22,3 +22,17 @@ pub trait AipParams: AipFromLua + JsonSchema + Send + Sync + 'static {}
 pub trait AipOutput: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 
 // endregion: --- AipOutput
+
+// region:    --- AipHandlerMeta
+
+/// Metadata extracted from handler doc comments.
+///
+/// Carries the optional title (first ATX heading) and description
+/// (remaining doc lines). The `#[aip_handler]` proc-macro populates
+/// this via a generated `__aiprog_meta_<ident>()` helper.
+pub struct AipHandlerMeta {
+    pub(crate) description: Option<String>,
+    pub(crate) title: Option<String>,
+}
+
+// endregion: --- AipHandlerMeta

@@ -139,7 +139,7 @@ impl AipRegistry {
 	/// Register a handler using the [`AipHandler`] trait.
 	///
 	/// The handler's metadata and closure are obtained from `H::create_entry`.
-	pub fn register_handler<H: AipHandler>(&mut self, path: &str) -> AipRegistryResult<()> {
+	pub fn register_handler<H: AipHandler>(&mut self, path: &str, _handler: H) -> AipRegistryResult<()> {
 		validate_path(path)?;
 		if self.registered_paths.contains(path) {
 			return Err(AipRegistryError::DuplicatePath(path.to_string()));

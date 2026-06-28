@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ItemFn, Visibility, parse_macro_input};
+use syn::{ItemFn, parse_macro_input};
 
 pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(item as ItemFn);
@@ -28,19 +28,18 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	}
 
 	// Partition attributes: doc attrs → struct; everything else → impl fn.
-	let (struct_attrs, impl_attrs): (Vec<_>, Vec<_>) =
+	// Partition attributes: doc attrs are consumed as metadata; everything else
+	// stays on the function.
+	let (_struct_attrs, impl_attrs): (Vec<_>, Vec<_>) =
 		input.attrs.iter().cloned().partition(|attr| attr.path().is_ident("doc"));
 
-	// Build the private implementation function by renaming the original.
-	let mut impl_fn = input.clone();
-	impl_fn.attrs = impl_attrs;
-	impl_fn.vis = Visibility::Inherited;
-	let original_ident = impl_fn.sig.ident.clone();
-	let impl_fn_ident = syn::Ident::new(&format!("__{}_impl", original_ident), original_ident.span());
-	impl_fn.sig.ident = impl_fn_ident.clone();
-
-	let struct_vis = input.vis.clone();
-	let struct_name = original_ident;
+	// The output function is the original function, keeping only non-doc attributes.
+	// The hidden function keeps non-doc attributes, renamed to avoid collision with the struct.
+	let original_ident = input.sig.ident.clone();
+	let hidden_ident = syn::Ident::new(&format!("__aiprog_{}", original_ident), original_ident.span());
+	let mut hidden_fn = input.clone();
+	hidden_fn.attrs = impl_attrs;
+	hidden_fn.sig.ident = hidden_ident.clone();
 
 	// Extract trait associated types.
 	let params_ty = if is_async {
@@ -50,34 +49,42 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	};
 	let output_ty = get_output_inner_type(&input.sig);
 
-	// Build static string literal tokens for title/description.
-	let desc_tokens = if let Some(s) = &desc {
-		let lit = syn::LitStr::new(s, struct_name.span());
-		quote! { ::core::option::Option::Some(#lit) }
-	} else {
-		quote! { ::core::option::Option::None }
-	};
-	let title_tokens = if let Some(s) = &title {
-		let lit = syn::LitStr::new(s, struct_name.span());
-		quote! { ::core::option::Option::Some(#lit) }
-	} else {
-		quote! { ::core::option::Option::None }
-	};
-
 	let marker = if is_async {
 		quote! { crate::registry::handler_types::AsyncMarker }
 	} else {
 		quote! { crate::registry::handler_types::SyncMarker }
 	};
 
-	let expanded = if is_async {
+	let desc_owned_tokens = if let Some(s) = &desc {
+		let lit = syn::LitStr::new(s, original_ident.span());
+		quote! { ::core::option::Option::Some(#lit.to_string()) }
+	} else {
+		quote! { ::core::option::Option::None }
+	};
+	let title_owned_tokens = if let Some(s) = &title {
+		let lit = syn::LitStr::new(s, original_ident.span());
+		quote! { ::core::option::Option::Some(#lit.to_string()) }
+	} else {
+		quote! { ::core::option::Option::None }
+	};
+
+	let meta_fn_ident = syn::Ident::new(&format!("__aiprog_meta_{}", original_ident), original_ident.span());
+	let meta_fn = quote! {
+		fn #meta_fn_ident() -> crate::registry::AipHandlerMeta {
+			crate::registry::AipHandlerMeta {
+				description: #desc_owned_tokens,
+				title: #title_owned_tokens,
+			}
+		}
+	};
+
+	let struct_def = quote! {
+		struct #original_ident;
+	};
+
+	let impl_block = if is_async {
 		quote! {
-			#impl_fn
-
-			#( #struct_attrs )*
-			#struct_vis struct #struct_name;
-
-			impl crate::registry::AipHandler for #struct_name
+			impl crate::registry::AipHandler for #original_ident
 			where
 				#output_ty : serde::Serialize,
 			{
@@ -85,11 +92,8 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 				type Params = #params_ty;
 				type Output = #output_ty;
 
-				fn handler_desc() -> Option<&'static str> {
-					#desc_tokens
-				}
-				fn handler_title() -> Option<&'static str> {
-					#title_tokens
+				fn handler_meta() -> crate::registry::AipHandlerMeta {
+					#meta_fn_ident()
 				}
 
 				fn create_entry(path: &str) -> crate::registry::registry_internal::RegistryEntry {
@@ -105,7 +109,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						};
 
 						Box::pin(async move {
-							match #impl_fn_ident(params).await {
+							match #hidden_ident(params).await {
 								Ok(output) => serde_json::to_value(output)
 									.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
 								Err(e) => Err(e.into_lua_error()),
@@ -113,6 +117,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						})
 					});
 
+					let meta = Self::handler_meta();
 					crate::registry::registry_internal::RegistryEntry {
 						path: path.to_string(),
 						kind: crate::registry::AipFnKind::Async,
@@ -120,29 +125,21 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						params_schema,
 						output_schema,
 						error_schema,
-						description: Self::handler_desc().map(|s| s.to_string()),
-						title: Self::handler_title().map(|s| s.to_string()),
+						description: meta.description,
+						title: meta.title,
 					}
 				}
 			}
 		}
 	} else {
 		quote! {
-			#impl_fn
-
-			#( #struct_attrs )*
-			#struct_vis struct #struct_name;
-
-			impl crate::registry::AipHandler for #struct_name {
+			impl crate::registry::AipHandler for #original_ident {
 				type Marker = #marker;
 				type Params = #params_ty;
 				type Output = #output_ty;
 
-				fn handler_desc() -> Option<&'static str> {
-					#desc_tokens
-				}
-				fn handler_title() -> Option<&'static str> {
-					#title_tokens
+				fn handler_meta() -> crate::registry::AipHandlerMeta {
+					#meta_fn_ident()
 				}
 
 				fn create_entry(path: &str) -> crate::registry::registry_internal::RegistryEntry {
@@ -153,7 +150,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 					let closure: crate::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
 						let params = <#params_ty as crate::AipFromLua>::from_lua(&lua, value)
 							.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))?;
-						let result = #impl_fn_ident(params);
+						let result = #hidden_ident(params);
 						match result {
 							Ok(output) => {
 								<#output_ty as crate::AipIntoLua>::into_lua(output, &lua)
@@ -166,6 +163,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						}
 					});
 
+					let meta = Self::handler_meta();
 					crate::registry::registry_internal::RegistryEntry {
 						path: path.to_string(),
 						kind: crate::registry::AipFnKind::Sync,
@@ -173,12 +171,19 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						params_schema,
 						output_schema,
 						error_schema,
-						description: Self::handler_desc().map(|s| s.to_string()),
-						title: Self::handler_title().map(|s| s.to_string()),
+						description: meta.description,
+						title: meta.title,
 					}
 				}
 			}
 		}
+	};
+
+	let expanded = quote! {
+		#hidden_fn
+		#meta_fn
+		#struct_def
+		#impl_block
 	};
 
 	TokenStream::from(expanded)
@@ -281,7 +286,10 @@ mod tests {
 			}
 		};
 		let result = aip_handler_attr(TokenStream::new(), input.into());
-		assert!(!result.is_empty());
+		let output_str = result.to_string();
+		assert!(output_str.contains("impl crate::registry::AipHandler for my_parse_handler"));
+		assert!(output_str.contains("struct"));
+		assert!(output_str.contains("__aiprog_meta_my_parse_handler"));
 	}
 
 	#[test]
@@ -295,9 +303,10 @@ mod tests {
 			}
 		};
 		let result = aip_handler_attr(TokenStream::new(), input.into());
-		assert!(!result.is_empty());
 		let output_str = result.to_string();
 		assert!(output_str.contains("AsyncMarker"));
+		assert!(output_str.contains("struct"));
+		assert!(output_str.contains("__aiprog_meta_my_async_handler"));
 	}
 }
 
