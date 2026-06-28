@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use super::HandlerError;
 use super::registry_internal::{AipHandlerClosure, LuaAsyncClosure, LuaSyncClosure, RegistryEntry};
+use super::handler_trait::AipHandler;
 use super::registry_types::*;
 use super::support::validate_path;
 
@@ -75,6 +76,8 @@ impl AipRegistry {
 			params_schema,
 			output_schema,
 			error_schema,
+			description: None,
+			title: None,
 		});
 
 		Ok(())
@@ -97,7 +100,7 @@ impl AipRegistry {
 
 		let handler_arc = Arc::new(handler);
 		let closure: LuaAsyncClosure = Box::new(
-			move |lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>> + Send>> {
+			move |lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>>>> {
 				let handler = Arc::clone(&handler_arc);
 
 				let params = match P::from_lua(lua, value) {
@@ -126,8 +129,24 @@ impl AipRegistry {
 			params_schema,
 			output_schema,
 			error_schema,
+			description: None,
+			title: None,
 		});
 
+		Ok(())
+	}
+
+	/// Register a handler using the [`AipHandler`] trait.
+	///
+	/// The handler's metadata and closure are obtained from `H::create_entry`.
+	pub fn register_handler<H: AipHandler>(&mut self, path: &str) -> AipRegistryResult<()> {
+		validate_path(path)?;
+		if self.registered_paths.contains(path) {
+			return Err(AipRegistryError::DuplicatePath(path.to_string()));
+		}
+		let entry = H::create_entry(path);
+		self.registered_paths.insert(path.to_string());
+		self.entries.push(entry);
 		Ok(())
 	}
 
@@ -156,6 +175,8 @@ impl AipRegistry {
 				output_schema: entry.output_schema.clone(),
 				error_schema: entry.error_schema.clone(),
 				kind: entry.kind,
+				description: entry.description.clone(),
+				title: entry.title.clone(),
 			})
 			.collect()
 	}

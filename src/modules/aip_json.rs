@@ -24,6 +24,7 @@
 //!
 
 use crate::LuaExt;
+use crate::aip_handler;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
@@ -44,9 +45,9 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 }
 
 fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-	registry.register_sync::<_, _, _>("aip.json.parse", aip_json_parse_handler)?;
-	registry.register_sync::<_, _, _>("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	registry.register_sync::<_, _, _>("aip.json.stringify", aip_json_stringify_handler)?;
+    registry.register_handler::<aip_json_parse_handler>("aip.json.parse")?;
+    registry.register_handler::<aip_json_parse_jsonl_handler>("aip.json.parse_jsonl")?;
+    registry.register_handler::<aip_json_stringify_handler>("aip.json.stringify")?;
 	Ok(())
 }
 
@@ -123,6 +124,7 @@ impl AipIntoLua for AipJsonParseOutput {
 
 impl AipOutput for AipJsonParseOutput {}
 
+#[aip_handler]
 fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
@@ -157,6 +159,7 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
+#[aip_handler]
 fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
@@ -202,6 +205,7 @@ impl AipFromLua for AipJsonStringifyParams {
 
 impl AipParams for AipJsonStringifyParams {}
 
+#[aip_handler]
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)

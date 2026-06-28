@@ -32,3 +32,6 @@ pub mod derive {
 }
 
 // endregion: --- Modules
+
+// -- Re-export handler attribute macro
+pub use aiprog_macros::aip_handler;

@@ -3,6 +3,10 @@ use crate::{AipFnKind, AipRegistry};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use crate::aip_handler;
+use crate::impl_lua_serde_traits;
+use crate::registry::HandlerResult;
+use crate::{AipParams, AipOutput};
 
 type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -12,6 +16,69 @@ type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 struct SimpleParams {
 	name: String,
 	age: Option<i64>,
+}
+
+// region:    --- Handler metadata tests
+
+#[test]
+fn test_render_fn_with_handler_description() {
+    let params_schema = schema_for!(MultiLinePropDesc);
+    let output_schema = schema_for!(String);
+    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+    let reg_fn = AipRegisteredFn {
+        path: "my_func".to_string(),
+        params_schema,
+        output_schema,
+        error_schema,
+        kind: AipFnKind::Sync,
+        description: Some("Custom description".to_string()),
+        title: None,
+    };
+
+    let result = render_fn(&reg_fn, None);
+    assert!(result.contains("Custom description\n\n"));
+}
+
+#[test]
+fn test_render_fn_with_handler_title() {
+    let params_schema = schema_for!(MultiLinePropDesc);
+    let output_schema = schema_for!(String);
+    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+    let reg_fn = AipRegisteredFn {
+        path: "my_func".to_string(),
+        params_schema,
+        output_schema,
+        error_schema,
+        kind: AipFnKind::Sync,
+        description: Some("Custom description".to_string()),
+        title: Some("Custom Title".to_string()),
+    };
+
+    let result = render_fn(&reg_fn, None);
+    assert!(result.contains("#### Custom Title\n\n"));
+    assert!(result.contains("Custom description\n\n"));
+}
+
+#[test]
+fn test_render_fn_fallback_to_schema_description() {
+    let params_schema = schema_for!(ParamsWithRootDesc);
+    let output_schema = schema_for!(String);
+    let error_schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+    let reg_fn = AipRegisteredFn {
+        path: "my_func".to_string(),
+        params_schema,
+        output_schema,
+        error_schema,
+        kind: AipFnKind::Sync,
+        description: None,
+        title: None,
+    };
+
+    let result = render_fn(&reg_fn, None);
+    assert!(result.contains("Root description for the params."));
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -176,6 +243,8 @@ fn test_render_fn_basic() {
 		output_schema,
 		error_schema,
 		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
 	};
 
 	let result = render_fn(&reg_fn, None);
@@ -273,6 +342,8 @@ fn test_generate_doc_shared_types() -> TestResult {
 		output_schema,
 		error_schema,
 		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
 	});
 
 	let doc = engine.generate_doc()?;
@@ -314,6 +385,8 @@ fn test_generate_doc_inline_kind_none_error() -> TestResult {
 		output_schema,
 		error_schema,
 		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
 	});
 
 	let doc = engine.generate_doc()?;
@@ -335,3 +408,164 @@ fn test_render_type_block_include_desc_false() {
     assert!(!result.contains("// Root description"));
     assert!(result.contains("type Params = {"));
 }
+
+// region:    --- Integration tests for macro and registration
+
+// -- Types for integration tests
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct DocSyncParams {
+	name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct DocSyncOutput {
+	greeting: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct DocAsyncParams {
+	value: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct DocAsyncOutput {
+	doubled: i64,
+}
+
+impl_lua_serde_traits!(DocSyncParams);
+impl_lua_serde_traits!(DocSyncOutput);
+impl_lua_serde_traits!(DocAsyncParams);
+impl_lua_serde_traits!(DocAsyncOutput);
+impl_lua_serde_traits!(ParamsWithRootDesc);
+
+impl AipParams for DocSyncParams {}
+impl AipOutput for DocSyncOutput {}
+impl AipParams for DocAsyncParams {}
+impl AipOutput for DocAsyncOutput {}
+impl AipParams for ParamsWithRootDesc {}
+
+// -- Handler definitions
+
+/// # Sync handler title
+///
+/// Sync handler description text.
+#[aip_handler]
+fn DocSyncHandler(params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
+	Ok(DocSyncOutput {
+		greeting: format!("Hello, {}!", params.name),
+	})
+}
+
+/// # Async handler title
+///
+/// Async handler description.
+#[aip_handler]
+async fn DocAsyncHandler(params: DocAsyncParams) -> HandlerResult<DocAsyncOutput> {
+	Ok(DocAsyncOutput {
+		doubled: params.value * 2,
+	})
+}
+
+// -- Integration tests
+
+#[test]
+fn test_generate_doc_with_macro_sync_handler() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistry::from_empty();
+	registry.register_handler::<DocSyncHandler>("aip.doc.sync")?;
+	let engine = ScriptEngine::from_registry(registry)?;
+
+	// -- Exec
+	let doc = engine.generate_doc()?;
+
+	// -- Check
+	assert!(doc.contains("### aip.doc.sync"));
+	assert!(doc.contains("#### Sync handler title"));
+	assert!(doc.contains("Sync handler description text."));
+	assert!(doc.contains("type Params = {"));
+	assert!(doc.contains("name: string;"));
+	assert!(doc.contains("type Output = {"));
+	assert!(doc.contains("greeting: string;"));
+	Ok(())
+}
+
+#[test]
+fn test_generate_doc_with_macro_async_handler() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistry::from_empty();
+	registry.register_handler::<DocAsyncHandler>("aip.doc.async")?;
+	let engine = ScriptEngine::from_registry(registry)?;
+
+	// -- Exec
+	let doc = engine.generate_doc()?;
+
+	// -- Check
+	assert!(doc.contains("### aip.doc.async"));
+	assert!(doc.contains("#### Async handler title"));
+	assert!(doc.contains("Async handler description."));
+	assert!(doc.contains("type Params = {"));
+	assert!(doc.contains("value: number;"));
+	assert!(doc.contains("type Output = {"));
+	assert!(doc.contains("doubled: number;"));
+	Ok(())
+}
+
+#[test]
+fn test_generate_doc_fallback_to_params_desc() -> TestResult {
+	// -- Setup & Fixtures
+	fn fallback_impl(params: ParamsWithRootDesc) -> HandlerResult<DocSyncOutput> {
+		Ok(DocSyncOutput {
+			greeting: format!("Hi, {}!", params.name),
+		})
+	}
+
+	let mut registry = AipRegistry::from_empty();
+	registry.register_sync("aip.doc.fallback", fallback_impl)?;
+	let engine = ScriptEngine::from_registry(registry)?;
+
+	// -- Exec
+	let doc = engine.generate_doc()?;
+
+	// -- Check
+	assert!(doc.contains("### aip.doc.fallback"));
+	// Should fall back to Params schema description
+	assert!(doc.contains("Root description for the params."));
+	// Should NOT have a title heading (no handler metadata)
+	assert!(!doc.contains("#### "));
+	Ok(())
+}
+
+#[test]
+fn test_register_handler_duplicate_path() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistry::from_empty();
+	registry.register_handler::<DocSyncHandler>("aip.dup.test")?;
+
+	// -- Exec
+	let result = registry.register_handler::<DocSyncHandler>("aip.dup.test");
+
+	// -- Check
+	assert!(result.is_err());
+	let err = result.unwrap_err().to_string();
+	assert!(
+		err.contains("Duplicate") || err.contains("already registered") || err.contains("already exists"),
+		"Unexpected error message: {err}"
+	);
+	Ok(())
+}
+
+#[test]
+fn test_register_handler_invalid_path() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistry::from_empty();
+
+	// -- Exec
+	let result = registry.register_handler::<DocSyncHandler>("");
+
+	// -- Check
+	assert!(result.is_err());
+	Ok(())
+}
+
+// endregion: --- Integration tests for macro and registration

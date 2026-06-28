@@ -30,3 +30,12 @@ pub fn aip_error_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 }
 
 // endregion: --- Derives
+
+// region:    --- Attributes
+
+#[proc_macro_attribute]
+pub fn aip_handler(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    derive::aip_handler_attr(attr, item)
+}
+
+// endregion: --- Attributes

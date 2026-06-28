@@ -9,15 +9,18 @@ use super::registry_types::AipFnKind;
 pub(crate) type LuaSyncClosure = Box<dyn Fn(&Lua, Value) -> mlua::Result<Value> + Send + Sync>;
 
 pub(crate) type LuaAsyncClosure =
-	Box<dyn Fn(&Lua, Value) -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>> + Send>> + Send + Sync>;
+	Box<dyn Fn(&Lua, Value) -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>>>> + Send + Sync>;
 
-pub(crate) struct RegistryEntry {
+#[doc(hidden)]
+pub struct RegistryEntry {
 	pub path: String,
 	pub kind: AipFnKind,
-	pub handler: AipHandlerClosure,
+	pub(crate) handler: AipHandlerClosure,
 	pub params_schema: Schema,
 	pub output_schema: Schema,
 	pub error_schema: Schema,
+	pub description: Option<String>,
+	pub title: Option<String>,
 }
 
 pub(crate) enum AipHandlerClosure {

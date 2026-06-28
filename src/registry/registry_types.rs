@@ -59,6 +59,8 @@ pub struct AipRegisteredFn {
 	pub output_schema: Schema,
 	pub error_schema: Schema,
 	pub kind: AipFnKind,
+	pub description: Option<String>,
+	pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
