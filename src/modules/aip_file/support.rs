@@ -252,3 +252,24 @@ pub fn validate_glob_patterns(globs: &[String]) -> HandlerResult<()> {
 }
 
 // endregion: --- Error helpers
+
+// region:    --- Thread-local FileContext
+
+thread_local! {
+	static FILE_CONTEXT: std::cell::RefCell<Option<FileContext>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Set the thread-local FileContext.
+pub(crate) fn set_file_context(ctx: FileContext) {
+	FILE_CONTEXT.with(|c| *c.borrow_mut() = Some(ctx));
+}
+
+/// Get a clone of the thread-local FileContext.
+///
+/// # Panics
+/// Panics if the context has not been set.
+pub(crate) fn get_file_context() -> FileContext {
+	FILE_CONTEXT.with(|c| c.borrow().clone().expect("FileContext not set"))
+}
+
+// endregion: --- Thread-local FileContext
