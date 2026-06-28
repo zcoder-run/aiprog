@@ -8,7 +8,7 @@ use serde_json::json;
 #[tokio::test]
 async fn test_api_json_parse_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}'
             return aip.json.parse({ text = content })
@@ -26,7 +26,7 @@ async fn test_api_json_parse_simple() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_roundtrip() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}'
             local json_value = aip.json.parse({ text = content })
@@ -46,7 +46,7 @@ async fn test_api_json_parse_roundtrip() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_with_comment() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local content = [[
 						// Some comment
@@ -67,7 +67,7 @@ async fn test_api_json_parse_with_comment() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_nil() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             return aip.json.parse({})
         "#;
@@ -83,7 +83,7 @@ async fn test_api_json_parse_nil() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_invalid() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local ok, err = pcall(aip.json.parse, { text = "{invalid_json}" })
             if ok then
@@ -107,7 +107,7 @@ async fn test_api_json_parse_invalid() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_jsonl_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local content = '{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}'
             return aip.json.parse_jsonl({ text = content })
@@ -128,7 +128,7 @@ async fn test_api_json_parse_jsonl_simple() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_jsonl_empty_lines() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local content = '{"id": 1}\n\n{"id": 2}\n   \n{"id": 3}'
             return aip.json.parse_jsonl({ text = content })
@@ -150,7 +150,7 @@ async fn test_api_json_parse_jsonl_empty_lines() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_jsonl_nil() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             return aip.json.parse_jsonl({})
         "#;
@@ -166,7 +166,7 @@ async fn test_api_json_parse_jsonl_nil() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_jsonl_invalid_json() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local ok, err = pcall(aip.json.parse_jsonl, { text = '{"id": 1}\n{invalid_json}\n{"id": 3}' })
             if ok then
@@ -189,7 +189,7 @@ async fn test_api_json_parse_jsonl_invalid_json() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_pretty_basic() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local obj = {
                 name = "John",
@@ -213,7 +213,7 @@ async fn test_api_json_stringify_pretty_basic() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_pretty_complex() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local obj = {
                 name = "John",
@@ -246,7 +246,7 @@ async fn test_api_json_stringify_pretty_complex() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local obj = {
                 name = "John",
@@ -273,7 +273,7 @@ async fn test_api_json_stringify_simple() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_new_api() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local res = aip.json.parse({ text = '{"name": "John", "age": 30}' })
             return res
@@ -291,7 +291,7 @@ async fn test_api_json_parse_new_api() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_new_api_error() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local ok, res = pcall(aip.json.parse, { text = '{"invalid' })
             if not ok then
@@ -312,7 +312,7 @@ async fn test_api_json_parse_new_api_error() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_parse_jsonl_new_api() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local res = aip.json.parse_jsonl({ text = '{"name": "John"}\n{"name": "Jane"}' })
             return res
@@ -333,7 +333,7 @@ async fn test_api_json_parse_jsonl_new_api() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_new_api() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local res = aip.json.stringify({ data = { name = "John", age = 30 } })
             return res
@@ -351,7 +351,7 @@ async fn test_api_json_stringify_new_api() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_pretty_new_api() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             local res = aip.json.stringify({ data = { name = "John", age = 30 }, pretty = true })
             return res
@@ -369,7 +369,7 @@ async fn test_api_json_stringify_pretty_new_api() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_stringify_to_line_alias_removed() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
             return aip.json.stringify_to_line == nil
         "#;
@@ -384,7 +384,7 @@ async fn test_api_json_stringify_to_line_alias_removed() -> Result<()> {
 #[tokio::test]
 async fn test_api_json_chained_stringify_and_parse() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_json::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
 	let script = r#"
         local obj = { name = "John", age = 30 }
         local stringified = aip.json.stringify({ data = obj })

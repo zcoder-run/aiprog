@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Write-related handlers for the `aip.file` module.
 //!
 //! Currently, write operations are not yet implemented. This file is a
@@ -11,10 +12,4 @@ use crate::Result;
 
 use super::support::FileContext;
 
-/// Register write-related handlers (currently none).
-///
-/// When write handlers are added, this function will register them the same
-/// way `file_read::register_read` does.
-pub fn register_write(_registry: &mut AipRegistry, _ctx: FileContext) -> Result<()> {
-	Ok(())
-}
+// TO IMPLEMENT

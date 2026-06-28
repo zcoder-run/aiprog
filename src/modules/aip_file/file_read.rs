@@ -1,12 +1,11 @@
 #![allow(non_snake_case)]
 
 use crate::{AipOutput, AipParams};
-use crate::aip_handler;
+use crate::{AipRegistry, aip_handler};
 
 use super::file_types::{FileInfo, FileRecord, FileStats};
 use super::support::{
-	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching,
-	validate_glob_patterns,
+	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
 use crate::{AipFromLua, AipIntoLua, HandlerResult, LuaExt};
 use mlua::{Lua, Value};
@@ -15,8 +14,11 @@ use mlua::{Lua, Value};
 ///
 /// This function captures the provided `FileContext` and wraps each handler so
 /// that it receives the context automatically.
-pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> crate::Result<()> {
+pub fn init_registry_with_ctx(ctx: FileContext) -> crate::Result<AipRegistry> {
+	// TODO: This is not the right way to do this
 	support::set_file_context(ctx);
+
+	let mut registry = AipRegistry::from_empty();
 
 	registry.register_handler::<AipFileReadHandler>("aip.file.read")?;
 	registry.register_handler::<AipFileListHandler>("aip.file.list")?;
@@ -26,10 +28,10 @@ pub fn register_read(registry: &mut crate::AipRegistry, ctx: FileContext) -> cra
 	registry.register_handler::<AipFileExistsHandler>("aip.file.exists")?;
 	registry.register_handler::<AipFileStatsHandler>("aip.file.stats")?;
 
-	Ok(())
+	Ok(registry)
 }
 
-// region:    --- AipFileReadParams
+// region:    --- aip.file.read
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -49,10 +51,6 @@ impl AipFromLua for AipFileReadParams {
 
 impl AipParams for AipFileReadParams {}
 
-// endregion: --- AipFileReadParams
-
-// region:    --- AipFileReadOutput
-
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipFileReadOutput(pub FileRecord);
 
@@ -64,7 +62,7 @@ impl AipIntoLua for AipFileReadOutput {
 
 impl AipOutput for AipFileReadOutput {}
 
-// endregion: --- AipFileReadOutput
+// endregion: --- aip.file.read
 
 // region:    --- AipFileListParams
 
@@ -501,44 +499,7 @@ fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> crate::Re
 // region:    --- Tests
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::AipRegistry;
-	use crate::LuaJsonExt;
-	use serde_json::json;
-	use tempfile::TempDir;
-
-	type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
-
-	#[tokio::test]
-	async fn test_read_file_ok() -> TestResult<()> {
-		let tmp = TempDir::new()?;
-		let file_path = tmp.path().join("hello.txt");
-		std::fs::write(&file_path, "world")?;
-
-		let lua = mlua::Lua::new();
-
-		// Build FileContext using SPath
-		let workspace =
-			simple_fs::SPath::from_std_path(tmp.path()).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-		let ctx = FileContext::new(workspace);
-		let mut registry = AipRegistry::from_empty();
-
-		// Register the single handler directly via the registry (for unit test)
-		super::register_read(&mut registry, ctx)?;
-
-		let params_lua = mlua::Value::x_from_json_value(&lua, json!({ "path": "hello.txt" }))
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-
-		let value = registry.call(lua.clone(), "aip.file.read", params_lua).await?;
-		let back = value
-			.x_to_json_value()
-			.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
-			.ok_or_else(|| mlua::Error::RuntimeError("expected JSON value".to_string()))?;
-
-		assert_eq!(back["content"], json!("world"));
-		Ok(())
-	}
-}
+#[path = "file_read_tests.rs"]
+mod tests;
 
 // endregion: --- Tests

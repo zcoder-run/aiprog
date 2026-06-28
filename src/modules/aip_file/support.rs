@@ -255,6 +255,9 @@ pub fn validate_glob_patterns(globs: &[String]) -> HandlerResult<()> {
 
 // region:    --- Thread-local FileContext
 
+// NOTE: This FileContext scheme will change completely (not good as it is, it is too static)
+// NOTE: thread_local is almost always a bad design, and it is definitely in this case.
+
 thread_local! {
 	static FILE_CONTEXT: std::cell::RefCell<Option<FileContext>> = const { std::cell::RefCell::new(None) };
 }

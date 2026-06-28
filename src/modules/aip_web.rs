@@ -23,12 +23,12 @@
 
 use crate::AipRegistry;
 use crate::LuaJsonExt;
+use crate::aip_handler;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::webc;
 use crate::{AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
-use crate::aip_handler;
 
 const DEFAULT_UA_AIPROG: &str = "aiprog";
 #[allow(dead_code)]
@@ -42,14 +42,9 @@ const DEFAULT_UA_BROWSER: &str =
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	register(&mut registry)?;
-	Ok(registry)
-}
-
-fn register(registry: &mut AipRegistry) -> crate::Result<()> {
 	registry.register_handler::<AipWebGetHandler>("aip.web.get")?;
 	registry.register_handler::<AipWebPostHandler>("aip.web.post")?;
-	Ok(())
+	Ok(registry)
 }
 
 /// Install the web module constants (`UA_AIPROG`, `UA_BROWSER`) into Lua.
@@ -558,7 +553,7 @@ fn aip_web_error(
 	if let Some(c) = &cause {
 		msg.push_str(&format!("\nCause: {c}"));
 	}
-    HandlerError::custom(msg)
+	HandlerError::custom(msg)
 }
 
 fn webc_error_to_aip(url: &str, err: webc::Error) -> HandlerError {

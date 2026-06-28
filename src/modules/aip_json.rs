@@ -42,54 +42,11 @@ use std::io::BufReader;
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	register(&mut registry)?;
+	registry.register_handler::<AipJsonParseHandler>("aip.json.parse")?;
+	registry.register_handler::<AipJsonParseJsonlHandler>("aip.json.parse_jsonl")?;
+	registry.register_handler::<AipJsonStringifyHandler>("aip.json.stringify")?;
 	Ok(registry)
 }
-
-fn register(registry: &mut AipRegistry) -> crate::Result<()> {
-    registry.register_handler::<AipJsonParseHandler>("aip.json.parse")?;
-    registry.register_handler::<AipJsonParseJsonlHandler>("aip.json.parse_jsonl")?;
-    registry.register_handler::<AipJsonStringifyHandler>("aip.json.stringify")?;
-	Ok(())
-}
-
-// region:    --- Response Types (new single-value returns)
-
-// region:    --- Output Types (new single-value returns)
-
-/// Output type for `aip.json.stringify`.
-///
-/// The serialized JSON string is returned directly to Lua as a Lua string,
-/// without a wrapper table.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyOutput(pub String);
-
-impl AipIntoLua for AipJsonStringifyOutput {
-	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		self.0.into_lua(lua)
-	}
-}
-
-impl AipOutput for AipJsonStringifyOutput {}
-
-/// Output type for `aip.json.parse_jsonl`.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseJsonlOutput(pub Vec<serde_json::Value>);
-
-impl AipOutput for AipJsonParseJsonlOutput {}
-
-impl AipIntoLua for AipJsonParseJsonlOutput {
-	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		let seq = lua.create_table().map_err(|e| crate::Error::custom(e.to_string()))?;
-		for (i, item) in self.0.into_iter().enumerate() {
-			let item_lua = item.into_lua(lua)?;
-			seq.set(i + 1, item_lua).map_err(|e| crate::Error::custom(e.to_string()))?;
-		}
-		Ok(mlua::Value::Table(seq))
-	}
-}
-
-// endregion: --- Output Types
 
 // region:    --- aip.json.parse
 
@@ -111,6 +68,23 @@ impl AipFromLua for AipJsonParseParams {
 }
 
 impl AipParams for AipJsonParseParams {}
+
+/// Output type for `aip.json.parse_jsonl`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipJsonParseJsonlOutput(pub Vec<serde_json::Value>);
+
+impl AipOutput for AipJsonParseJsonlOutput {}
+
+impl AipIntoLua for AipJsonParseJsonlOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		let seq = lua.create_table().map_err(|e| crate::Error::custom(e.to_string()))?;
+		for (i, item) in self.0.into_iter().enumerate() {
+			let item_lua = item.into_lua(lua)?;
+			seq.set(i + 1, item_lua).map_err(|e| crate::Error::custom(e.to_string()))?;
+		}
+		Ok(mlua::Value::Table(seq))
+	}
+}
 
 /// Output type for `aip.json.parse`.
 ///
@@ -206,6 +180,21 @@ impl AipFromLua for AipJsonStringifyParams {
 }
 
 impl AipParams for AipJsonStringifyParams {}
+
+/// Output type for `aip.json.stringify`.
+///
+/// The serialized JSON string is returned directly to Lua as a Lua string,
+/// without a wrapper table.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipJsonStringifyOutput(pub String);
+
+impl AipIntoLua for AipJsonStringifyOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		self.0.into_lua(lua)
+	}
+}
+
+impl AipOutput for AipJsonStringifyOutput {}
 
 #[aip_handler]
 fn AipJsonStringifyHandler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {

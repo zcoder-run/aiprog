@@ -8,7 +8,7 @@ use crate::modules;
 #[tokio::test]
 async fn test_api_web_constants() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_web::init_registry)?;
 	// Install the constants (must be done after the functions are installed)
 	modules::aip_web::install_constants(&engine)?;
 
@@ -33,7 +33,7 @@ async fn test_api_web_constants() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_get_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_web::init_registry)?;
 	modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
@@ -67,7 +67,7 @@ async fn test_api_web_get_simple() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_json() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_web::init_registry)?;
 	modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
@@ -105,7 +105,7 @@ async fn test_api_web_post_json() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_body() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_web::init_registry)?;
 	modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
@@ -141,7 +141,7 @@ async fn test_api_web_post_body() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_error() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_script_engine(modules::aip_web::register)?;
+	let engine = _test_support::setup_script_engine(modules::aip_web::init_registry)?;
 	modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new().start().await?;

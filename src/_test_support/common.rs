@@ -1,4 +1,5 @@
 use crate::_test_support::lua_evals::process_lua_eval_result;
+use crate::AipRegistry;
 use crate::LuaJsonExt;
 use crate::Result;
 use mlua::{Lua, Table};
@@ -32,12 +33,11 @@ where
 	Ok(lua)
 }
 
-pub fn setup_script_engine<F>(register_fn: F) -> crate::Result<crate::ScriptEngine>
+pub fn setup_script_engine<F>(registry_provider: F) -> crate::Result<crate::ScriptEngine>
 where
-	F: FnOnce(&mut crate::AipRegistry) -> crate::Result<()>,
+	F: FnOnce() -> crate::Result<AipRegistry>,
 {
-	let mut registry = crate::AipRegistry::from_empty();
-	register_fn(&mut registry)?;
+	let registry = registry_provider()?;
 	crate::ScriptEngine::from_registry(registry)
 }
 
