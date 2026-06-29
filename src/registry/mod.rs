@@ -6,13 +6,14 @@ mod support;
 
 mod handler_error;
 mod handler_traits;
-pub(crate) mod handler_types;
+pub mod handler_types;
 mod handler_trait;
 mod registry_impl;
-pub(crate) mod registry_internal;
+pub mod registry_internal;
 mod registry_types;
 
-pub(crate) use registry_internal::{AipHandlerClosure, RegistryEntry};
+pub(crate) use registry_internal::AipHandlerClosure;
+pub use registry_internal::RegistryEntry;
 
 pub use handler_error::*;
 pub use handler_traits::*;

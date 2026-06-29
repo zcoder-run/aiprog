@@ -59,7 +59,7 @@ fn test_render_fn_with_handler_title() {
 	};
 
 	let result = render_fn(&reg_fn, None);
-	assert!(result.contains("#### Custom Title\n\n"));
+	assert!(!result.contains("Custom Title"));
 	assert!(result.contains("Custom description\n\n"));
 }
 
@@ -254,7 +254,6 @@ fn test_render_fn_basic() {
 	// The root description should appear as function-level text, not as a comment
 	assert!(!result.contains("// Root description for the params."));
 	assert!(result.contains("Root description for the params."));
-	assert!(result.contains("Signature: `my_func(params: Params): Output`"));
 	assert!(result.contains("```ts\n"));
 	assert!(result.contains("type Params = "));
 	assert!(result.contains("type Output = string;\n"));
@@ -485,7 +484,7 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 
 	// -- Check
 	assert!(doc.contains("### aip.doc.sync"));
-	assert!(doc.contains("#### Sync handler title"));
+	assert!(!doc.contains("Sync handler title"));
 	assert!(doc.contains("Sync handler description text."));
 	assert!(doc.contains("type Params = {"));
 	assert!(doc.contains("name: string;"));
@@ -506,7 +505,7 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 
 	// -- Check
 	assert!(doc.contains("### aip.doc.async"));
-	assert!(doc.contains("#### Async handler title"));
+	assert!(!doc.contains("Async handler title"));
 	assert!(doc.contains("Async handler description."));
 	assert!(doc.contains("type Params = {"));
 	assert!(doc.contains("value: number;"));

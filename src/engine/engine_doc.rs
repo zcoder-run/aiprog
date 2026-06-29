@@ -71,9 +71,10 @@ impl ScriptEngine {
 /// Render a single registered function as a Markdown documentation section.
 fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String {
 	let path = &reg_fn.path;
-	let desc: Option<String> = reg_fn.description.clone()
+	let desc: Option<String> = reg_fn
+		.description
+		.clone()
 		.or_else(|| SchemaRef::new(&reg_fn.params_schema).desc().map(String::from));
-	let title: Option<&String> = reg_fn.title.as_ref();
 
 	let params_type = render_type_block(&reg_fn.params_schema, "Params", false);
 	let output_type = render_type_block(&reg_fn.output_schema, "Output", false);
@@ -82,13 +83,13 @@ fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String 
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
-	if let Some(t) = title {
-		s.push_str(&format!("#### {}\n\n", t));
-	}
+
+	s.push_str(&format!("`{}(params: Params): Output`\n\n", path));
+
 	if let Some(d) = desc {
 		s.push_str(&format!("{}\n\n", d));
 	}
-	s.push_str(&format!("Signature: `{}(params: Params): Output`\n\n", path));
+
 	s.push_str("```ts\n");
 	s.push_str(&params_type);
 	s.push('\n');

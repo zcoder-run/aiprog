@@ -23,11 +23,14 @@
 //! ---
 //!
 
+#![allow(non_camel_case_types)]
+
 use crate::LuaExt;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
+use aiprog_macros::aip_handler;
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader as parse_jsonl_from_reader;
 use std::io::BufReader;
@@ -39,9 +42,9 @@ use std::io::BufReader;
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.json.parse", aip_json_parse_handler)?;
-	registry.register_sync("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	registry.register_sync("aip.json.stringify", aip_json_stringify_handler)?;
+	registry.register_handler("aip.json.parse", aip_json_parse_handler)?;
+	registry.register_handler("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	registry.register_handler("aip.json.stringify", aip_json_stringify_handler)?;
 	Ok(registry)
 }
 
@@ -97,6 +100,10 @@ impl AipIntoLua for AipJsonParseOutput {
 
 impl AipOutput for AipJsonParseOutput {}
 
+/// Parses a JSON string into a Lua value.
+///
+/// If `text` is nil, returns nil. Supports jsonc (JSON with comments).
+#[aip_handler]
 fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(serde_json::Value::Null));
@@ -131,6 +138,10 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
+/// Parses a JSONL string into a list of JSON values (one per line).
+///
+/// Empty lines are skipped. If `text` is nil, returns an empty list.
+#[aip_handler]
 fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
@@ -153,7 +164,7 @@ pub struct AipJsonStringifyParams {
 	/// The value to serialize to JSON.
 	pub data: serde_json::Value,
 
-	/// Tell to format the json
+	/// Tell to format the json with indent (default false, i.e. single line)
 	pub pretty: Option<bool>,
 }
 
@@ -191,6 +202,8 @@ impl AipIntoLua for AipJsonStringifyOutput {
 
 impl AipOutput for AipJsonStringifyOutput {}
 
+/// Serializes a Lua value to a JSON string.
+#[aip_handler]
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)

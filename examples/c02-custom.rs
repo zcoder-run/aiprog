@@ -1,4 +1,6 @@
-use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerResult, LuaExt, ScriptEngine};
+#![allow(non_camel_case_types)]
+
+ use aiprog::{AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerResult, LuaExt, ScriptEngine, aip_handler};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use value_ext::JsonValueExt as _;
@@ -33,6 +35,8 @@ impl AipIntoLua for GreetingResult {
 
 impl AipOutput for GreetingResult {}
 
+/// Custom greeting handler.
+#[aip_handler]
 fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingResult> {
 	Ok(GreetingResult(format!("Hello {}", params.name)))
 }
@@ -43,7 +47,7 @@ fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingResult> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let mut registry = AipRegistry::from_aip_modules()?;
-	registry.register_sync("custom.greeting", custom_greetings)?;
+	registry.register_handler("custom.greeting", custom_greetings)?;
 
 	let script_engine = ScriptEngine::from_registry(registry)?;
 

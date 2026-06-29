@@ -302,8 +302,6 @@ fn test_generate_doc_content() -> Result<()> {
 	// Check for expected sections
 	assert!(doc.contains("### aip.test.echo"));
 	assert!(doc.contains("### aip.test.echo_async"));
-	assert!(doc.contains("Signature: `aip.test.echo(params: Params): Output`"));
-	assert!(doc.contains("Signature: `aip.test.echo_async(params: Params): Output`"));
 	// Verify TypeScript block is present
 	assert!(doc.contains("```ts"));
 	assert!(doc.contains("type Params"));

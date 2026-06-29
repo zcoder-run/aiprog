@@ -11,7 +11,7 @@ mod support;
 mod engine;
 mod error;
 mod lua_exts;
-mod registry;
+pub mod registry;
 
 pub use error::{Error, Result};
 

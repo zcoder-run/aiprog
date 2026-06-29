@@ -6,16 +6,16 @@ use schemars::Schema;
 
 use super::registry_types::AipFnKind;
 
-pub(crate) type LuaSyncClosure = Box<dyn Fn(&Lua, Value) -> mlua::Result<Value> + Send + Sync>;
+pub type LuaSyncClosure = Box<dyn Fn(&Lua, Value) -> mlua::Result<Value> + Send + Sync>;
 
-pub(crate) type LuaAsyncClosure =
+pub type LuaAsyncClosure =
 	Box<dyn Fn(&Lua, Value) -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>>>> + Send + Sync>;
 
 #[doc(hidden)]
 pub struct RegistryEntry {
 	pub path: String,
 	pub kind: AipFnKind,
-	pub(crate) handler: AipHandlerClosure,
+    pub handler: AipHandlerClosure,
 	pub params_schema: Schema,
 	pub output_schema: Schema,
 	pub error_schema: Schema,
@@ -23,7 +23,7 @@ pub struct RegistryEntry {
 	pub title: Option<String>,
 }
 
-pub(crate) enum AipHandlerClosure {
+pub enum AipHandlerClosure {
 	Sync(LuaSyncClosure),
 	Async(LuaAsyncClosure),
 }

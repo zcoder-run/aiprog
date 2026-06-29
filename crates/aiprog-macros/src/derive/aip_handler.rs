@@ -50,9 +50,9 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let output_ty = get_output_inner_type(&input.sig);
 
 	let marker = if is_async {
-		quote! { crate::registry::handler_types::AsyncMarker }
+		quote! { ::aiprog::registry::handler_types::AsyncMarker }
 	} else {
-		quote! { crate::registry::handler_types::SyncMarker }
+		quote! { ::aiprog::registry::handler_types::SyncMarker }
 	};
 
 	let desc_owned_tokens = if let Some(s) = &desc {
@@ -70,8 +70,8 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	let meta_fn_ident = syn::Ident::new(&format!("__aiprog_meta_{}", original_ident), original_ident.span());
 	let meta_fn = quote! {
-		fn #meta_fn_ident() -> crate::registry::AipHandlerMeta {
-			crate::registry::AipHandlerMeta {
+		fn #meta_fn_ident() -> ::aiprog::registry::AipHandlerMeta {
+			::aiprog::registry::AipHandlerMeta {
 				description: #desc_owned_tokens,
 				title: #title_owned_tokens,
 			}
@@ -79,12 +79,13 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	};
 
 	let struct_def = quote! {
+		#[allow(non_camel_case_types)]
 		struct #original_ident;
 	};
 
 	let impl_block = if is_async {
 		quote! {
-			impl crate::registry::AipHandler for #original_ident
+			impl ::aiprog::registry::AipHandler for #original_ident
 			where
 				#output_ty : serde::Serialize,
 			{
@@ -92,17 +93,17 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 				type Params = #params_ty;
 				type Output = #output_ty;
 
-				fn handler_meta() -> crate::registry::AipHandlerMeta {
+				fn handler_meta() -> ::aiprog::registry::AipHandlerMeta {
 					#meta_fn_ident()
 				}
 
-				fn create_entry(path: &str) -> crate::registry::registry_internal::RegistryEntry {
+				fn create_entry(path: &str) -> ::aiprog::registry::registry_internal::RegistryEntry {
 					let params_schema = schemars::schema_for!(#params_ty);
 					let output_schema = schemars::schema_for!(#output_ty);
-					let error_schema = schemars::schema_for!(crate::HandlerError);
+					let error_schema = schemars::schema_for!(::aiprog::HandlerError);
 
-					let closure: crate::registry::registry_internal::LuaAsyncClosure = Box::new(move |lua: &mlua::Lua, value: mlua::Value| {
-						let params = match <#params_ty as crate::AipFromLua>::from_lua(lua, value)
+					let closure: ::aiprog::registry::registry_internal::LuaAsyncClosure = Box::new(move |lua: &mlua::Lua, value: mlua::Value| {
+						let params = match <#params_ty as ::aiprog::AipFromLua>::from_lua(lua, value)
 							.map_err(|e| mlua::Error::ExternalError(::std::sync::Arc::new(e))) {
 							Ok(p) => p,
 							Err(e) => return Box::pin(async move { Err(e) }),
@@ -118,10 +119,10 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 					});
 
 					let meta = Self::handler_meta();
-					crate::registry::registry_internal::RegistryEntry {
+					::aiprog::registry::registry_internal::RegistryEntry {
 						path: path.to_string(),
-						kind: crate::registry::AipFnKind::Async,
-						handler: crate::registry::registry_internal::AipHandlerClosure::Async(closure),
+						kind: ::aiprog::registry::AipFnKind::Async,
+						handler: ::aiprog::registry::registry_internal::AipHandlerClosure::Async(closure),
 						params_schema,
 						output_schema,
 						error_schema,
@@ -133,41 +134,41 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		}
 	} else {
 		quote! {
-			impl crate::registry::AipHandler for #original_ident {
+			impl ::aiprog::registry::AipHandler for #original_ident {
 				type Marker = #marker;
 				type Params = #params_ty;
 				type Output = #output_ty;
 
-				fn handler_meta() -> crate::registry::AipHandlerMeta {
+				fn handler_meta() -> ::aiprog::registry::AipHandlerMeta {
 					#meta_fn_ident()
 				}
 
-				fn create_entry(path: &str) -> crate::registry::registry_internal::RegistryEntry {
+				fn create_entry(path: &str) -> ::aiprog::registry::registry_internal::RegistryEntry {
 					let params_schema = schemars::schema_for!(#params_ty);
 					let output_schema = schemars::schema_for!(#output_ty);
-					let error_schema = schemars::schema_for!(crate::HandlerError);
+					let error_schema = schemars::schema_for!(::aiprog::HandlerError);
 
-					let closure: crate::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
-						let params = <#params_ty as crate::AipFromLua>::from_lua(&lua, value)
+					let closure: ::aiprog::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
+						let params = <#params_ty as ::aiprog::AipFromLua>::from_lua(&lua, value)
 							.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))?;
 						let result = #hidden_ident(params);
 						match result {
 							Ok(output) => {
-								<#output_ty as crate::AipIntoLua>::into_lua(output, &lua)
+								<#output_ty as ::aiprog::AipIntoLua>::into_lua(output, &lua)
 									.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))
 							}
 							Err(e) => {
-								let err: crate::Error = e.into();
+								let err: ::aiprog::Error = e.into();
 								Err(mlua::Error::ExternalError(std::sync::Arc::new(err)))
 							}
 						}
 					});
 
 					let meta = Self::handler_meta();
-					crate::registry::registry_internal::RegistryEntry {
+					::aiprog::registry::registry_internal::RegistryEntry {
 						path: path.to_string(),
-						kind: crate::registry::AipFnKind::Sync,
-						handler: crate::registry::registry_internal::AipHandlerClosure::Sync(closure),
+						kind: ::aiprog::registry::AipFnKind::Sync,
+						handler: ::aiprog::registry::registry_internal::AipHandlerClosure::Sync(closure),
 						params_schema,
 						output_schema,
 						error_schema,
