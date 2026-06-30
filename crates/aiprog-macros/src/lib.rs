@@ -1,6 +1,8 @@
 extern crate proc_macro;
 
+mod aip_handler;
 mod derive;
+mod register_handler;
 
 // region:    --- Derives
 
@@ -35,7 +37,16 @@ pub fn aip_error_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
 #[proc_macro_attribute]
 pub fn aip_handler(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    derive::aip_handler_attr(attr, item)
+	aip_handler::aip_handler_attr(attr, item)
 }
 
 // endregion: --- Attributes
+
+// region:    --- Function-like macros
+
+#[proc_macro]
+pub fn register_handler(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	register_handler::register_handler_impl(input)
+}
+
+// endregion: --- Function-like macros

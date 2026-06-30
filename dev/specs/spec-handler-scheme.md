@@ -125,6 +125,59 @@ fn handler_name(lua: &Lua, params: AipParams) -> HandlerResult<AipOutput> {
 
 The `AipOutput` derive macro provides the necessary boilerplate for the output type to integrate with the handler framework.
 
+### Handler Registration
+
+Every API function is registered into the global `AipRegistry` under a path such as `"json.parse"`. There are two equivalent ways to perform registration.
+
+**Common parts** regardless of method:
+
+- A params type `P` implementing `AipFromLua + JsonSchema + Send + Sync + 'static` (automatically satisfied by any type that derives `AipParams` and the necessary traits).
+- An output type `O` implementing `AipIntoLua + JsonSchema + Send + Sync + 'static` (often via `#[derive(AipOutput, AipIntoLua)]`).
+- Schemas for params, output, and `HandlerError` are computed automatically and stored in the registry entry.
+
+**Option 1 — Manual registration with `register_sync` / `register_async`:**
+
+The handler function (or closure) is passed directly to `register_sync` or `register_async`. This style gives full control and is useful for handwritten glue code.
+
+```rust
+// Example: register a sync handler
+registry.register_sync::<MyParams, MyOutput, _>(
+    "my_module.my_fn",
+    MyHandler::new(),
+)?;
+
+// The handler impl (via AipSyncFnWrapper or AipAsyncFnWrapper) is provided by
+// a blanket impl for closures that match the signature.
+```
+
+The `register_sync` call requires that the handler type implement `AipSyncFnWrapper<P, O>`; similarly `register_async` expects `AipAsyncFnWrapper<P, O>`. Typically you pass a closure or an object that implements the appropriate callable.
+
+**Option 2 — Attribute‑based registration with `#[aip_handler]` and `register_handler`:**
+
+The `#[aip_handler]` proc‑macro automatically generates a unit struct that implements the `AipHandler` trait, extracting metadata (title, description) from doc comments and constructing the registry entry. The handler itself is written as a plain Rust function with a single typed argument and `HandlerResult<O>` return.
+
+```rust
+/// # Parse JSON text
+/// Parses a JSON string and returns the parsed value.
+#[aip_handler]
+fn parse(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
+    // implementation
+    Ok(AipJsonParseOutput(serde_json::Value::Null))
+}
+
+// Register it:
+registry.register_handler("json.parse", parse)?;
+```
+
+The macro creates a hidden struct `__AiprogHandler_<fn_name>` that implements `AipHandler`. Calling `register_handler` consumes the function as a marker; the resulting `RegistryEntry` is identical in structure to one created by `register_sync`/`register_async`.
+
+**Choosing a style:**
+
+- Use `#[aip_handler]` and `register_handler` for the majority of cases — it provides automatic metadata extraction and reduces boilerplate.
+- Use `register_sync`/`register_async` when you need to keep a stateful handler, share logic across paths, or implement custom lifecycle in the handler object.
+
+Both styles produce the same registry schema and are fully interoperable.
+
 ### Error Handling
 
 

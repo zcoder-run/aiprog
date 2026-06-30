@@ -35,3 +35,4 @@ pub mod derive {
 
 // -- Re-export handler attribute macro
 pub use aiprog_macros::aip_handler;
+pub use aiprog_macros::register_handler;

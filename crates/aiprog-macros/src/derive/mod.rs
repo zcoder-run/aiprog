@@ -9,6 +9,3 @@ pub use aip_from_lua::*;
 pub use aip_into_lua::*;
 pub use aip_output::*;
 pub use aip_params::*;
-mod aip_handler;
-pub use aip_handler::*;
-

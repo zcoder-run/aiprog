@@ -27,21 +27,17 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		}
 	}
 
-	// Partition attributes: doc attrs → struct; everything else → impl fn.
-	// Partition attributes: doc attrs are consumed as metadata; everything else
-	// stays on the function.
-	let (_struct_attrs, impl_attrs): (Vec<_>, Vec<_>) =
-		input.attrs.iter().cloned().partition(|attr| attr.path().is_ident("doc"));
-
-	// The output function is the original function, keeping only non-doc attributes.
-	// The hidden function keeps non-doc attributes, renamed to avoid collision with the struct.
-	let original_ident = input.sig.ident.clone();
-	let hidden_ident = syn::Ident::new(&format!("__aiprog_{}", original_ident), original_ident.span());
-	let mut hidden_fn = input.clone();
-	hidden_fn.attrs = impl_attrs;
-	hidden_fn.sig.ident = hidden_ident.clone();
+	// Keep the original function unchanged, but remove the #[aip_handler] attribute.
+	let mut output_fn = input.clone();
+	output_fn.attrs = input
+		.attrs
+		.iter()
+		.filter(|attr| !attr.path().is_ident("aip_handler"))
+		.cloned()
+		.collect();
 
 	// Extract trait associated types.
+	let original_ident = input.sig.ident.clone();
 	let params_ty = if is_async {
 		get_params_ty_async(&input.sig)
 	} else {
@@ -54,6 +50,8 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	} else {
 		quote! { ::aiprog::registry::handler_types::SyncMarker }
 	};
+
+	let handler_struct_ident = syn::Ident::new(&format!("__AiprogHandler_{}", original_ident), original_ident.span());
 
 	let desc_owned_tokens = if let Some(s) = &desc {
 		let lit = syn::LitStr::new(s, original_ident.span());
@@ -80,12 +78,12 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	let struct_def = quote! {
 		#[allow(non_camel_case_types)]
-		struct #original_ident;
+		struct #handler_struct_ident;
 	};
 
 	let impl_block = if is_async {
 		quote! {
-			impl ::aiprog::registry::AipHandler for #original_ident
+			impl ::aiprog::registry::AipHandler for #handler_struct_ident
 			where
 				#output_ty : serde::Serialize,
 			{
@@ -110,7 +108,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 						};
 
 						Box::pin(async move {
-							match #hidden_ident(params).await {
+							match #original_ident(params).await {
 								Ok(output) => serde_json::to_value(output)
 									.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
 								Err(e) => Err(e.into_lua_error()),
@@ -134,7 +132,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		}
 	} else {
 		quote! {
-			impl ::aiprog::registry::AipHandler for #original_ident {
+			impl ::aiprog::registry::AipHandler for #handler_struct_ident {
 				type Marker = #marker;
 				type Params = #params_ty;
 				type Output = #output_ty;
@@ -151,7 +149,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 					let closure: ::aiprog::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
 						let params = <#params_ty as ::aiprog::AipFromLua>::from_lua(&lua, value)
 							.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))?;
-						let result = #hidden_ident(params);
+						let result = #original_ident(params);
 						match result {
 							Ok(output) => {
 								<#output_ty as ::aiprog::AipIntoLua>::into_lua(output, &lua)
@@ -181,7 +179,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	};
 
 	let expanded = quote! {
-		#hidden_fn
+		#output_fn
 		#meta_fn
 		#struct_def
 		#impl_block
@@ -288,7 +286,7 @@ mod tests {
 		};
 		let result = aip_handler_attr(TokenStream::new(), input.into());
 		let output_str = result.to_string();
-		assert!(output_str.contains("impl crate::registry::AipHandler for my_parse_handler"));
+		assert!(output_str.contains("__AiprogHandler_my_parse_handler"));
 		assert!(output_str.contains("struct"));
 		assert!(output_str.contains("__aiprog_meta_my_parse_handler"));
 	}
@@ -306,6 +304,7 @@ mod tests {
 		let result = aip_handler_attr(TokenStream::new(), input.into());
 		let output_str = result.to_string();
 		assert!(output_str.contains("AsyncMarker"));
+		assert!(output_str.contains("__AiprogHandler_my_async_handler"));
 		assert!(output_str.contains("struct"));
 		assert!(output_str.contains("__aiprog_meta_my_async_handler"));
 	}

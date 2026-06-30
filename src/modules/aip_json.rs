@@ -31,6 +31,7 @@ use crate::support::jsons;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
 use aiprog_macros::aip_handler;
+use aiprog_macros::register_handler;
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader as parse_jsonl_from_reader;
 use std::io::BufReader;
@@ -42,9 +43,9 @@ use std::io::BufReader;
 /// existing registry.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler("aip.json.parse", aip_json_parse_handler)?;
-	registry.register_handler("aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	registry.register_handler("aip.json.stringify", aip_json_stringify_handler)?;
+	register_handler!(registry, "aip.json.parse", aip_json_parse_handler)?;
+	register_handler!(registry, "aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+	register_handler!(registry, "aip.json.stringify", aip_json_stringify_handler)?;
 	Ok(registry)
 }
 

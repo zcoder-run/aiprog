@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::aip_handler;
+use crate::register_handler;
 use crate::impl_lua_serde_traits;
 use crate::registry::HandlerResult;
 use crate::{AipFnKind, AipRegistry};
@@ -476,7 +477,7 @@ async fn DocAsyncHandler(params: DocAsyncParams) -> HandlerResult<DocAsyncOutput
 fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler("aip.doc.sync", DocSyncHandler)?;
+	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -497,7 +498,7 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler("aip.doc.async", DocAsyncHandler)?;
+	register_handler!(registry, "aip.doc.async", DocAsyncHandler)?;
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -543,10 +544,10 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 fn test_register_handler_duplicate_path() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistry::from_empty();
-	registry.register_handler("aip.dup.test", DocSyncHandler)?;
+	register_handler!(registry, "aip.dup.test", DocSyncHandler)?;
 
 	// -- Exec
-	let result = registry.register_handler("aip.dup.test", DocSyncHandler);
+	let result = register_handler!(registry, "aip.dup.test", DocSyncHandler);
 
 	// -- Check
 	assert!(result.is_err());
@@ -564,7 +565,7 @@ fn test_register_handler_invalid_path() -> TestResult {
 	let mut registry = AipRegistry::from_empty();
 
 	// -- Exec
-	let result = registry.register_handler("", DocSyncHandler);
+	let result = register_handler!(registry, "", DocSyncHandler);
 
 	// -- Check
 	assert!(result.is_err());
