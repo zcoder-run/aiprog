@@ -1,227 +1,116 @@
-# aip API Scheme
-
-This document describes the idiomatic pattern used for Lua APIs under the `aip` namespace, as implemented in `aip.json` and `aip.web`. It serves as a reference for adding new modules or functions that follow the same conventions.
+# Handler and Registry Scheme
 
 ## Intent
 
-Provide a consistent, self-documenting Lua API surface where:
+The handler scheme provides a type-safe bridge between Rust functions and Lua scripts. It defines:
 
-- Every function lives under a `aip.<module>.<function>` path.
-- Each function accepts a single table argument carrying typed parameters.
-- Each function returns a Lua value appropriate for its result:
-  - Simple results (e.g., a parsed JSON value, a string, a number) are returned directly as the native Lua type.
-  - Structured results that carry metadata (e.g., HTTP response details) are returned as a Lua table with a `data` field and optional metadata.
-- Errors are raised as standard Lua errors with a plain string message. There is no structured error code system.
-- TypeScript-style type definitions accompany the implementation so that autocompletion and documentation tools can leverage them.
+- A central registry (`AipRegistry`) for registering functions under hierarchical paths (`namespace.module.function`) and invoking them with Lua data.
+- A strict contract: each handler receives a single typed parameters struct (`AipParams`) and returns a typed result (`AipOutput`) or a typed error (`AipError`), with automatic schema generation.
+- Marker traits that enforce Lua/Rust conversion boundaries, keeping the two domains decoupled.
+- Flexible registration: handlers can be registered manually or via the `#[aip_handler]` attribute macro.
 
-## Code Design
+## Registry and Handler Context
 
-### Namespace and Module Convention
+The `AipRegistry` maintains a collection of registered function entries. Each entry maps a unique function path to a handler closure and associated JSON schemas for its parameters, output, and error types.
 
-All Lua APIs are grouped under the global `aip` table. Modules are sub-tables (e.g., `aip.json`, `aip.web`), and each function is a direct key inside its module table.
+A handler is a Rust implementation that bridges typed Rust data and Lua values. Handlers are invoked by the registry, which passes deserialized parameters from Lua, runs the handler logic, and converts the typed result back to a Lua value or raises a normalized error. The registry decouples function dispatch from Lua execution, providing a centralized mechanism for discovering, invoking, and documenting API functions.
 
-Examples:
+## Function Path Scheme
 
-- `aip.json.parse`
-- `aip.json.stringify`
-- `aip.web.get`
-- `aip.web.post`
+All registered functions follow a hierarchical naming convention:
 
-Constants belonging to a module are attached to the module table as regular keys (e.g., `aip.web.UA_AIPROG`). They are installed separately after the module table is created.
+`<namespace>.<module>.<function>`
 
-### Function Parameter Pattern
+- `namespace`: The top-level scope. Built-in functions use `aip` (e.g., `aip.json.parse`). Users can also register functions under custom namespaces or share the `aip` namespace.
+- `module`: Groups related functions (e.g., `json`, `web`, `file`).
+- `function`: The specific operation (e.g., `parse`, `get`).
 
-Every function expects a single argument, which is a Lua table. The table serves as a named-parameter mechanism and its structure is defined by a corresponding `...Params` type.
-
-Naming convention:
-
-- `Aip<Module><Function>Params` — e.g., `AipJsonParseParams`, `AipWebGetParams`.
-- When the same set of parameters is needed by multiple functions, the Params type may be shared. For example, `AipJsonStringifyParams` is reused by both `stringify` and `stringify_pretty`.
-
-The Params type exposes optional fields for optional behaviour, and required fields for mandatory inputs. All fields are available as top-level keys of the Lua table.
+Each function call adheres to a strict input/output contract:
+- **Input**: A single typed `Params` argument (deserialized from a Lua table).
+- **Output**: A typed `Output` value (converted back to a Lua table/value), or a typed `Error` if the operation fails.
 
 Example:
-
-```typescript
-interface AipJsonParseParams {
-  /** The JSONC string to parse. Omit or set to nil to receive null. */
-  text?: string;
-}
-```
-
-In Rust, the Params struct is deserialized manually from the Lua table via the `AipFromLua` trait; the trait implementation maps table keys to Rust fields.
-
-
-### Return Type and Data Wrapping
-
- Each handler returns a `HandlerResult<T>`, which is a type alias for `core::result::Result<T, HandlerError>`. `HandlerError` is described in the Error Handling section. The output type `T` determines how the value is rendered in Lua.
-
-#### Structured outputs (table with `data` field)
-
-When additional metadata must accompany the result (e.g., HTTP status code, headers), the output type is a named struct with fields. The struct implements `AipIntoLua` (typically via `#[derive(AipIntoLua)]`, which uses serde to convert to a Lua table). The resulting Lua table always contains a `data` key holding the primary payload, along with any other defined fields.
-
-Naming convention: `Aip<Module><Function>Output` or `Aip<Module>Output` when shared (e.g., `AipWebOutput`).
-
-Example:
-
-```rust
-struct AipWebOutput {
-    data: serde_json::Value,
-    success: bool,
-    status: u16,
-    // ...
-}
-```
-
-In Lua, the caller receives:
-
 ```lua
-local res = aip.web.get({ url = "..." })
-print(res.data, res.status)
+-- Lua usage for a built-in function
+local result = aip.json.parse({ text = '{"key": "value"}' })
+-- result is the typed Output or throws a typed Error
 ```
 
-#### Single‑value responses (raw value)
+## Type System and Marker Traits
 
-For functions whose natural result is a single value with no needed metadata, the output type is a newtype wrapper (single‑field tuple struct) around the value type. The wrapper implements `AipIntoLua` by delegating directly to the inner type's conversion; the Lua caller receives the value itself, not a table.
+The handler framework uses marker traits to enforce type safety and schema generation. Concrete parameter, output, and error types must implement these traits to be accepted in the handler.
 
-Naming convention: `Aip<Module><Function>Output`.
+### `AipParams` (Input Type)
+- Enforces that a type can be deserialized from Lua (`AipFromLua`).
+- Requires `schemars::JsonSchema` so the registry can store and expose the parameter schema.
+- Requires `Send + Sync + 'static` for thread safety across the async runtime.
 
-Example:
+### `AipOutput` (Output Type)
+- Enforces that a type can be serialized to Lua (`AipIntoLua`).
+- Requires `schemars::JsonSchema` for schema generation.
+- Requires `Send + Sync + 'static` for thread safety.
+
+### `AipError` (Error Type)
+- Marks types that can be converted into a normalized `HandlerError` and propagated to Lua.
+- Requires `schemars::JsonSchema` so the error schema is included in the registry entry.
+
+When registering a function, the generic bounds `P: AipParams`, `O: AipOutput`, and the error type implementing `AipError` ensure that the closure logic remains decoupled from Lua while guaranteeing type-safe conversions at the registry boundary.
+
+## Handler Function Signature
+
+A handler is a Rust function that implements the business logic for a registry entry.
 
 ```rust
-/// Output type for `aip.json.parse`.
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipIntoLua, AipOutput)]
-pub struct AipJsonParseOutput(pub serde_json::Value);
+fn handler_name(params: P) -> HandlerResult<O>
+// or for async
+async fn handler_name(params: P) -> HandlerResult<O>
 ```
 
-In Lua:
+- `P`: The concrete `Params` type.
+- `O`: The concrete `Output` type.
+- `HandlerResult<O>`: A type alias for `Result<O, HandlerError>`.
 
-```lua
-local val = aip.json.parse({ text = "..." })
--- val is the Lua representation of the JSON (table, string, …)
-```
+The conversion from Lua to `P` and from `O` to Lua is handled automatically by the registration macros and closures.
 
-The `#[derive(AipIntoLua)]` macro detects single‑field tuple structs and generates a direct delegation `self.0.into_lua(lua)`, bypassing the serde round‑trip. For structs with multiple fields, the existing serde‑based table conversion is used.
+## Registration Methods
 
-The `AipOutput` derive macro is typically used alongside `AipIntoLua` to generate framework‑required trait implementations for output types.
+There are two ways to register a function in the `AipRegistry`: manual registration and attribute-based registration. Both produce identical registry entries with schemas and closures.
 
-> **Note**: Inner types must implement `AipIntoLua`. Standard library types (`serde_json::Value`, `String`, primitive numbers, `Vec<T>` where `T: AipIntoLua`) already do so.
+### 1. Manual Registration (`register_sync` / `register_async`)
 
-### Handler Function Signature
-
-A handler function is the Rust implementation of a Lua API function. It follows this signature:
+Handlers are passed directly as closures or stateful objects. This approach is useful for complex handlers, shared state, or custom lifecycle management.
 
 ```rust
-fn handler_name(lua: &Lua, params: AipParams) -> HandlerResult<AipOutput> {
-    // ... implementation
-    Ok(AipOutput(...))
-}
+registry.register_sync::<MyParams, MyOutput, _>("namespace.module.func", handler)?;
+registry.register_async::<MyParams, MyOutput, _>("namespace.module.func", handler)?;
 ```
 
-- `lua` is the `mlua::Lua` context.
-- `params` is the deserialized parameters (extracted via `AipFromLua`). For functions without parameters, `()` is used.
-- `AipOutput` is the output type (must implement `AipIntoLua` and typically uses `#[derive(AipOutput, AipIntoLua)]`).
-- The function returns `HandlerResult<AipOutput>`. On success, it wraps the output in `Ok(...)`. On failure, it may return `Err(HandlerError::custom("...".into()))`.
+The macros generate the necessary `LuaSyncClosure` or `LuaAsyncClosure` internally, but the user provides the typed handler directly.
 
-The `AipOutput` derive macro provides the necessary boilerplate for the output type to integrate with the handler framework.
+### 2. Attribute-Based Registration (`#[aip_handler]` + `register_handler`)
 
-### Handler Registration
-
-Every API function is registered into the global `AipRegistry` under a path such as `"json.parse"`. There are two equivalent ways to perform registration.
-
-**Common parts** regardless of method:
-
-- A params type `P` implementing `AipFromLua + JsonSchema + Send + Sync + 'static` (automatically satisfied by any type that derives `AipParams` and the necessary traits).
-- An output type `O` implementing `AipIntoLua + JsonSchema + Send + Sync + 'static` (often via `#[derive(AipOutput, AipIntoLua)]`).
-- Schemas for params, output, and `HandlerError` are computed automatically and stored in the registry entry.
-
-**Option 1 — Manual registration with `register_sync` / `register_async`:**
-
-The handler function (or closure) is passed directly to `register_sync` or `register_async`. This style gives full control and is useful for handwritten glue code.
+The preferred approach for standard handlers. The `#[aip_handler]` proc-macro analyzes the function signature, extracts documentation metadata, and generates a hidden unit struct that implements the `AipHandler` trait.
 
 ```rust
-// Example: register a sync handler
-registry.register_sync::<MyParams, MyOutput, _>(
-    "my_module.my_fn",
-    MyHandler::new(),
-)?;
-
-// The handler impl (via AipSyncFnWrapper or AipAsyncFnWrapper) is provided by
-// a blanket impl for closures that match the signature.
-```
-
-The `register_sync` call requires that the handler type implement `AipSyncFnWrapper<P, O>`; similarly `register_async` expects `AipAsyncFnWrapper<P, O>`. Typically you pass a closure or an object that implements the appropriate callable.
-
-**Option 2 — Attribute‑based registration with `#[aip_handler]` and `register_handler`:**
-
-The `#[aip_handler]` proc‑macro automatically generates a unit struct that implements the `AipHandler` trait, extracting metadata (title, description) from doc comments and constructing the registry entry. The handler itself is written as a plain Rust function with a single typed argument and `HandlerResult<O>` return.
-
-```rust
-/// # Parse JSON text
-/// Parses a JSON string and returns the parsed value.
+/// # My Function
+/// Description here.
 #[aip_handler]
-fn parse(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
-    // implementation
-    Ok(AipJsonParseOutput(serde_json::Value::Null))
+async fn my_handler(params: MyParams) -> HandlerResult<MyOutput> {
+    // logic
 }
-
-// Register it:
-registry.register_handler("json.parse", parse)?;
 ```
 
-The macro creates a hidden struct `__AiprogHandler_<fn_name>` that implements `AipHandler`. Calling `register_handler` consumes the function as a marker; the resulting `RegistryEntry` is identical in structure to one created by `register_sync`/`register_async`.
-
-**Choosing a style:**
-
-- Use `#[aip_handler]` and `register_handler` for the majority of cases — it provides automatic metadata extraction and reduces boilerplate.
-- Use `register_sync`/`register_async` when you need to keep a stateful handler, share logic across paths, or implement custom lifecycle in the handler object.
-
-Both styles produce the same registry schema and are fully interoperable.
-
-### Error Handling
-
-
-All handler errors use the `HandlerError` type, a simple string-based error. The Rust definition is an enum with a single `Custom(String)` variant (other variants may be added in the future). This keeps error handling lightweight and avoids introducing a complex error taxonomy.
+Registration is simplified to:
 
 ```rust
-// Simplified representation (actual Rust enum in handler_error.rs)
-enum HandlerError {
-    Custom(String),
-}
+registry.register_handler("namespace.module.func", my_handler)?;
 ```
 
-On the Lua side, errors are raised as a standard Lua error with a plain string message. There is no structured error table or machine‑readable error code to inspect; the Lua script receives the error as a human‑readable string via the usual `pcall` mechanism.
-
-Because there is no error code system, module‑specific error codes (like `"PARSE_FAILED"`) and module‑level error constant tables are not defined. When additional error information is needed, the string message should be descriptive enough to convey the context.
-
-### TypeScript Type Definitions
-
-The API types are described in TypeScript for conciseness. The definitions mirror the Rust structs, with `?` for optional fields and basic JSON types for `serde_json::Value`.
-
-All types follow the naming schema:
-
-```
-Aip<Module><Function><Role>
-```
-
-Where `<Role>` is one of `Params` or `Output`.
-
-Examples:
-
-- `AipJsonParseParams`
-- `AipJsonParseOutput`
-- `AipJsonStringifyOutput`
-- `AipWebGetParams`
-- `AipWebOutput`
-
-When a type is reused, the name may drop the function part (e.g., `AipWebOutput` instead of `AipWebGetOutput`). All output types use the `Output` suffix. This is clearly documented per function.
+The macro handles schema generation, closure boxing, and metadata extraction automatically.
 
 ## Design Considerations
 
-- **Single table argument**: Lua functions that accept many positional arguments can become hard to read. Using a single named-parameter table makes the API explicit and future-proof, as new optional fields can be added without breaking callers.
-- **Return value shape**: Functions that produce a single value without additional metadata return that value directly, so callers can use it without unwrapping. Functions that need to provide metadata alongside the result use a table with a `data` field and additional fields, keeping the primary result accessible via `res.data`. This balances simplicity for common cases with clarity for more complex results.
-- **Shared types**: When two functions have identical inputs or outputs, sharing the type reduces duplication and keeps the API consistent. The naming convention should still suggest the primary use or module.
-
-- **Error representation**: Errors are raised as standard Lua errors with a descriptive string message. The Rust `HandlerError` type is a simple string-based error, keeping the API lightweight and avoiding a complex error taxonomy. Lua scripts can handle errors via `pcall` and inspect the error message string.
-
-- **TypeScript documentation**: TypeScript interfaces provide a familiar, tool-friendly way to document the API shape without tying it to a particular language. They are used in the standard documentation (e.g., `doc-aip-json.md`).
+- **Unified Input Contract**: Passing a single typed table simplifies Lua API calls, allows optional fields, and avoids positional argument ambiguity.
+- **Typed Boundaries**: Marker traits (`AipParams`, `AipOutput`, `AipError`) enforce strict type conversions at the registry boundary, keeping Lua and Rust domains cleanly separated while providing automatic schema generation for documentation and validation.
+- **Registration Flexibility**: Offering both manual and attribute-based registration balances developer control (for advanced cases) with reduced boilerplate (for standard cases).
+- **Path Hierarchies**: The `<namespace>.<module>.<function>` scheme provides a clear, scalable structure for both built-in and user-defined APIs.
