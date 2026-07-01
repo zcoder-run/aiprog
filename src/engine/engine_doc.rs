@@ -77,14 +77,19 @@ fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String 
 		.or_else(|| SchemaRef::new(&reg_fn.params_schema).desc().map(String::from));
 
 	let params_type = render_type_block(&reg_fn.params_schema, "Params", false);
-	let output_type = render_type_block(&reg_fn.output_schema, "Output", false);
+	let output_inlineable = is_inlineable_type(&reg_fn.output_schema);
 	let effective_error_schema = error_schema.unwrap_or(&reg_fn.error_schema);
 	let error_type = render_type_block(effective_error_schema, "Error", true);
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
 
-	s.push_str(&format!("`{}(params: Params): Output`\n\n", path));
+	if output_inlineable {
+		let output_expr = render_type(&reg_fn.output_schema);
+		s.push_str(&format!("`{}(params: Params): {}`\n\n", path, output_expr));
+	} else {
+		s.push_str(&format!("`{}(params: Params): Output`\n\n", path));
+	}
 
 	if let Some(d) = desc {
 		s.push_str(&format!("{}\n\n", d));
@@ -93,11 +98,44 @@ fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String 
 	s.push_str("```ts\n");
 	s.push_str(&params_type);
 	s.push('\n');
-	s.push_str(&output_type);
-	s.push('\n');
+	if !output_inlineable {
+		let output_type = render_type_block(&reg_fn.output_schema, "Output", false);
+		s.push_str(&output_type);
+		s.push('\n');
+	}
 	s.push_str(&error_type);
 	s.push_str("```\n\n");
 	s
+}
+
+/// Returns true if the schema renders to a simple type expression that can be inlined
+/// directly in the function signature (primitives, refs, arrays, enums, unions).
+/// Objects are not inlineable and remain expanded in a type block.
+fn is_inlineable_type(schema: &Schema) -> bool {
+	let value = serde_json::to_value(schema).unwrap_or(Value::Null);
+	let Some(map) = value.as_object() else {
+		return true;
+	};
+
+	if map.contains_key("$ref") {
+		return true;
+	}
+	if map.contains_key("oneOf") || map.contains_key("anyOf") {
+		return true;
+	}
+	if map.contains_key("enum") {
+		return true;
+	}
+
+	if let Some(typ) = map.get("type") {
+		match typ {
+			Value::String(s) => return s != "object",
+			Value::Array(_) => return true,
+			_ => {}
+		}
+	}
+
+	true
 }
 
 /// Collect `$defs` keys and definitions from a schema for shared type generation.
@@ -132,7 +170,6 @@ fn render_type_block(schema: &Schema, name: &str, include_desc: bool) -> String 
 	s
 }
 
-#[allow(dead_code)]
 /// Convert a `Schema` into a TypeScript-like type expression.
 fn render_type(schema: &Schema) -> String {
 	let value = serde_json::to_value(schema).unwrap_or(Value::Null);

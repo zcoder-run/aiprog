@@ -257,7 +257,8 @@ fn test_render_fn_basic() {
 	assert!(result.contains("Root description for the params."));
 	assert!(result.contains("```ts\n"));
 	assert!(result.contains("type Params = "));
-	assert!(result.contains("type Output = string;\n"));
+	assert!(result.contains("params: Params): string"));
+	assert!(!result.contains("type Output"));
 	assert!(result.contains("type Error = any;\n"));
 	assert!(result.contains("```\n"));
 }
