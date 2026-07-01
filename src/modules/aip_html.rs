@@ -9,6 +9,7 @@
 //! ### Functions
 //!
 //! - `aip.html.slim(params: { html: string }) -> string`
+//! - `aip.html.to_md(params: { html: string }) -> string`
 //!
 //! ---
 //!
@@ -18,12 +19,13 @@ use crate::registry::HandlerResult;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
 use mlua::Lua;
+use aiprog_macros::{aip_handler, register_handler};
 
 /// Build and return an [`AipRegistry`] containing all `aip.html` handlers.
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.html.slim", aip_html_slim_handler)?;
-	registry.register_sync("aip.html.to_md", aip_html_to_md_handler)?;
+	register_handler!(registry, "aip.html.slim", aip_html_slim_handler)?;
+	register_handler!(registry, "aip.html.to_md", aip_html_to_md_handler)?;
 	Ok(registry)
 }
 
@@ -69,6 +71,8 @@ impl AipIntoLua for AipHtmlSlimOutput {
 
 impl AipOutput for AipHtmlSlimOutput {}
 
+/// Slims an HTML string by removing extra whitespace and indentation, returning the slimmed result.
+#[aip_handler]
 fn aip_html_slim_handler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
 	let indent = params.indent.unwrap_or(2);
 	let opts = htmlr::SlimOptions::from_indent(indent as u8);
@@ -80,7 +84,6 @@ fn aip_html_slim_handler(params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlim
 
 // region:    --- aip.html.to_md
 
-/// Function that render a html into a markdown.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipHtmlToMdParams {
@@ -115,6 +118,8 @@ impl AipIntoLua for AipHtmlToMdOutput {
 
 impl AipOutput for AipHtmlToMdOutput {}
 
+/// Converts an HTML string to Markdown.
+#[aip_handler]
 fn aip_html_to_md_handler(params: AipHtmlToMdParams) -> HandlerResult<AipHtmlToMdOutput> {
 	let md = htmlr::to_md(&params.html, None).map_err(|e| e.to_string())?;
 	Ok(AipHtmlToMdOutput(md))

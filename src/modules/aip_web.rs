@@ -64,7 +64,6 @@ pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
 
 // region:    --- aip.web.get
 
-/// Parameters for the `get` function.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipWebGetParams {
@@ -185,6 +184,7 @@ pub struct AipWebOutput {
 	pub error: Option<String>,
 }
 
+/// Performs an HTTP GET request and returns the response.
 async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
@@ -206,7 +206,6 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOut
 
 // region:    --- aip.web.post
 
-/// Parameters for the `post` function.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipWebPostParams {
@@ -310,6 +309,7 @@ impl AipFromLua for AipWebPostParams {
 
 impl crate::AipParams for AipWebPostParams {}
 
+/// Performs an HTTP POST request and returns the response.
 async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),

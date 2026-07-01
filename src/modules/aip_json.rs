@@ -158,7 +158,6 @@ fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResul
 
 // region:    --- aip.json.stringify
 
-/// Parameters for the `stringify` and `stringify_pretty` functions.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipJsonStringifyParams {
