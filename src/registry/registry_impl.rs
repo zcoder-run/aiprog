@@ -11,8 +11,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use super::HandlerError;
-use super::registry_internal::{AipHandlerClosure, LuaAsyncClosure, LuaSyncClosure, RegistryEntry};
 use super::handler_trait::AipHandler;
+use super::registry_internal::{AipHandlerClosure, LuaAsyncClosure, LuaSyncClosure, RegistryEntry};
 use super::registry_types::*;
 use super::support::validate_path;
 

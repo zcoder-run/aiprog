@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::aip_handler;
-use crate::register_handler;
 use crate::impl_lua_serde_traits;
+use crate::register_handler;
 use crate::registry::HandlerResult;
 use crate::{AipFnKind, AipRegistry};
 use crate::{AipOutput, AipParams};
@@ -553,10 +553,7 @@ fn test_generate_doc_includes_preamble() -> TestResult {
 	let doc = engine.generate_doc()?;
 
 	// -- Check
-	assert!(
-		doc.contains("# AIP Script Engine API"),
-		"Preamble heading missing"
-	);
+	assert!(doc.contains("# AIP Script Engine API"), "Preamble heading missing");
 	assert!(
 		doc.contains("## Function Signatures"),
 		"Function Signatures section missing"

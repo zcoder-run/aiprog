@@ -15,7 +15,7 @@ pub type LuaAsyncClosure =
 pub struct RegistryEntry {
 	pub path: String,
 	pub kind: AipFnKind,
-    pub handler: AipHandlerClosure,
+	pub handler: AipHandlerClosure,
 	pub params_schema: Schema,
 	pub output_schema: Schema,
 	pub error_schema: Schema,

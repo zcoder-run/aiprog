@@ -1,4 +1,4 @@
-use super::handler_traits::{AipHandlerMeta, AipParams, AipOutput};
+use super::handler_traits::{AipHandlerMeta, AipOutput, AipParams};
 use super::registry_internal::RegistryEntry;
 
 /// Trait for handlers that can be registered in the AIP registry.

@@ -18,8 +18,8 @@ use crate::LuaExt;
 use crate::registry::HandlerResult;
 use crate::{AipFromLua, AipIntoLua, AipParams};
 use crate::{AipOutput, AipRegistry};
-use mlua::Lua;
 use aiprog_macros::{aip_handler, register_handler};
+use mlua::Lua;
 
 /// Build and return an [`AipRegistry`] containing all `aip.html` handlers.
 pub fn init_registry() -> crate::Result<AipRegistry> {

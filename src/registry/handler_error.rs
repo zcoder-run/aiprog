@@ -31,10 +31,7 @@ impl fmt::Display for KindNone {
 /// the output is `{"kind": "...", "message": "..."}`.
 #[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
 pub struct HandlerError<K: std::fmt::Display + 'static = KindNone> {
-	#[serde(
-		serialize_with = "serialize_kind",
-		skip_serializing_if = "kind_is_none"
-	)]
+	#[serde(serialize_with = "serialize_kind", skip_serializing_if = "kind_is_none")]
 	kind: K,
 	message: String,
 }

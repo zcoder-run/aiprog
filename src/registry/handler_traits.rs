@@ -31,8 +31,8 @@ pub trait AipOutput: AipIntoLua + JsonSchema + Send + Sync + 'static {}
 /// (remaining doc lines). The `#[aip_handler]` proc-macro populates
 /// this via a generated `__aiprog_meta_<ident>()` helper.
 pub struct AipHandlerMeta {
-    pub description: Option<String>,
-    pub title: Option<String>,
+	pub description: Option<String>,
+	pub title: Option<String>,
 }
 
 // endregion: --- AipHandlerMeta
