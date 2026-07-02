@@ -38,6 +38,7 @@ impl ScriptEngine {
 		}
 
 		let mut doc = String::new();
+		doc.push_str(include_str!("engine_doc_preamble.md"));
 		for (i, reg_fn) in fns.iter().enumerate() {
 			let error_schema = if use_inline_error[i] {
 				Some(&inline_error_schema)
@@ -78,8 +79,6 @@ fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String 
 
 	let params_type = render_type_block(&reg_fn.params_schema, "Params", false);
 	let output_inlineable = is_inlineable_type(&reg_fn.output_schema);
-	let effective_error_schema = error_schema.unwrap_or(&reg_fn.error_schema);
-	let error_type = render_type_block(effective_error_schema, "Error", true);
 
 	let mut s = String::new();
 	s.push_str(&format!("### {}\n\n", path));
@@ -103,7 +102,10 @@ fn render_fn(reg_fn: &AipRegisteredFn, error_schema: Option<&Schema>) -> String 
 		s.push_str(&output_type);
 		s.push('\n');
 	}
-	s.push_str(&error_type);
+	if error_schema.is_none() {
+		let error_type = render_type_block(&reg_fn.error_schema, "Error", true);
+		s.push_str(&error_type);
+	}
 	s.push_str("```\n\n");
 	s
 }

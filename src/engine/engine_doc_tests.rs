@@ -362,7 +362,7 @@ fn test_generate_doc_shared_types() -> TestResult {
 }
 
 #[test]
-fn test_generate_doc_inline_kind_none_error() -> TestResult {
+fn test_generate_doc_skips_common_error_block() -> TestResult {
 	let params_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
 	let output_schema: Schema = Schema::try_from(json!({"type": "number"})).expect("Invalid schema");
 	let error_schema: Schema = Schema::try_from(json!({
@@ -394,11 +394,12 @@ fn test_generate_doc_inline_kind_none_error() -> TestResult {
 
 	let doc = engine.generate_doc()?;
 
-	let expected_error = "type Error = {\n  message: string;\n};";
-	assert!(
-		doc.contains(expected_error),
-		"Expected inlined error type, got:\n{}",
-		doc
+	// The common error type should appear only in the preamble, not per-function.
+	let error_type_count = doc.matches("type Error = {\n  message: string;\n};").count();
+	assert_eq!(
+		error_type_count, 1,
+		"Common error type should appear only in preamble, not per-function; found {} occurrences:\n{}",
+		error_type_count, doc
 	);
 	assert!(!doc.contains("KindNone"), "KindNone should not be in output:\n{}", doc);
 	Ok(())
@@ -538,6 +539,37 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 	assert!(doc.contains("Root description for the params."));
 	// Should NOT have a title heading (no handler metadata)
 	assert!(!doc.contains("#### "));
+	Ok(())
+}
+
+#[test]
+fn test_generate_doc_includes_preamble() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistry::from_empty();
+	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
+	let engine = ScriptEngine::from_registry(registry)?;
+
+	// -- Exec
+	let doc = engine.generate_doc()?;
+
+	// -- Check
+	assert!(
+		doc.contains("# AIP Script Engine API"),
+		"Preamble heading missing"
+	);
+	assert!(
+		doc.contains("## Function Signatures"),
+		"Function Signatures section missing"
+	);
+	assert!(
+		doc.contains("## Common Error Type"),
+		"Common Error Type section missing"
+	);
+	// The common error type definition should appear in the preamble.
+	assert!(
+		doc.contains("type Error = {\n  message: string;\n};"),
+		"Common error type definition missing from preamble"
+	);
 	Ok(())
 }
 
