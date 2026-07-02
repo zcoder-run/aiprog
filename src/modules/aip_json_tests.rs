@@ -76,7 +76,7 @@ async fn test_api_json_parse_nil() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check
-    assert!(res.is_null());
+	assert!(res.is_null());
 	Ok(())
 }
 
