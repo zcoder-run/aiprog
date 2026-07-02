@@ -76,7 +76,7 @@ async fn test_api_json_parse_nil() -> Result<()> {
 	let res = _test_support::eval_script(&engine, script)?;
 
 	// -- Check
-	assert!(res.is_null());
+    assert!(res.is_null());
 	Ok(())
 }
 
@@ -398,5 +398,21 @@ async fn test_api_json_chained_stringify_and_parse() -> Result<()> {
 	// -- Check (the round‑tripped object should match the JSON representation)
 	assert_eq!(res["name"], "John");
 	assert_eq!(res["age"], 30);
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_api_json_stringify_nil_data() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = _test_support::setup_script_engine(modules::aip_json::init_registry)?;
+	let script = r#"
+            return aip.json.stringify({})
+        "#;
+
+	// -- Exec
+	let res = _test_support::eval_script(&engine, script)?;
+
+	// -- Check
+	assert!(res.is_null());
 	Ok(())
 }

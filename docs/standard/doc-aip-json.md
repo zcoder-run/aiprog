@@ -1,8 +1,7 @@
 # aip.json
 
-The `aip.json` module provides functions to parse and serialize JSON content. By default, the `parse` function supports JSONC (JSON with comments and trailing commas). Parsing functions return `nil`/`null` when the input is `nil`.
+The `aip.json` module provides functions to parse and serialize JSON content. By default, the `parse` function supports JSONC (JSON with comments and trailing commas). When the input is `nil`, absent, or the null sentinel, `parse` and `stringify` return `nil`.
 
-- [`aip.json.parse(params: AipJsonParseParams)`](#aipjsonparseparamsaipjsonparseparams) — Parses a JSONC string into a Lua value.
 - [`aip.json.parse_jsonl(params: AipJsonParseJsonlParams)`](#aipjsonparse_jsonlparamsaipjsonparsejsonlparams) — Parses an NDJSON (JSON Lines) string.
 - [`aip.json.stringify(params: AipJsonStringifyParams)`](#aipjsonstringifyparamsaipjsonstringifyparams) — Serializes a value to a compact JSON string.
 - [`aip.json.stringify_pretty(params: AipJsonStringifyParams)`](#aipjsonstringify_prettyparamsaipjsonstringifyparams) — Serializes a value to a pretty-printed JSON string.
@@ -11,8 +10,7 @@ The `aip.json` module provides functions to parse and serialize JSON content. By
 
 Parses a JSONC string (JSON with optional comments and trailing commas) into a Lua value.
 
-- **`text`** (optional, string) — The JSONC string to parse. When absent or `nil`, the result data is `null`.
- - **`text`** (optional, string) — The JSONC string to parse. When absent or `nil`, the result is `nil`.
+- **`text`** (optional, string) — The JSONC string to parse. When absent or `nil`, the result is `nil`.
 
  Returns the parsed Lua value directly. The value can be any JSON type, including `nil` for JSON null.
 
@@ -42,9 +40,9 @@ Parses an NDJSON (newline-delimited JSON) string. Empty lines are silently skipp
 
 Serializes a Lua value (table, array, primitive) into a single-line JSON string.
 
-- **`data`** (any) — The value to stringify.
+- **`data`** (any) — The value to stringify. When `data` is absent, `nil`, or the null sentinel, returns `nil`.
 
- Returns a compact JSON string.
+ Returns a compact JSON string, or `nil` if the data is missing or nil.
 
  **Example:**
 
@@ -57,9 +55,9 @@ Serializes a Lua value (table, array, primitive) into a single-line JSON string.
 
 Serializes a Lua value into a multi-line, indented JSON string.
 
-- **`data`** (any) — The value to stringify.
+- **`data`** (any) — The value to stringify. When `data` is absent, `nil`, or the null sentinel, returns `nil`.
 
- Returns a pretty-printed JSON string.
+ Returns a pretty-printed JSON string, or `nil` if the data is missing or nil.
 
  **Example:**
 

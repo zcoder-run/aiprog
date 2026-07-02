@@ -6,19 +6,17 @@
 //!
 //! The `aip.json` module exposes functions to parse and stringify JSON content.
 //!
-//! IMPORTANT: By default, this support the parsing of jsonc content, meaning json with optional comments
+//! IMPORTANT: By default, this supports the parsing of JSONC content, meaning JSON with optional comments.
 //!
-//! - Parse function will return nil if content is nil
-//! - stringify return a single line
-//! - use `stringify_pretty` for idented multi-line
+//! - Parse functions will return nil if content is nil or absent.
+//! - stringify will return nil if data is nil or absent.
+//! - stringify returns a single-line JSON string; use `pretty = true` for indented multi-line output.
 //!
 //! ### Functions
 //!
-//! - `aip.json.parse(params: { text?: string }) -> { data: any }`
-//! - `aip.json.parse_jsonl(params: { text?: string }) -> { data: any[] }`
+//! - `aip.json.parse(params: { text?: string }) -> any`
 //! - `aip.json.parse_jsonl(params: { text?: string }) -> any[]`
-//! - `aip.json.stringify(params: { data: any }) -> { text: string }`
-//! - `aip.json.stringify_pretty(params: { data: any }) -> { text: string }`
+//! - `aip.json.stringify(params: { data: any, pretty?: boolean }) -> string | nil`
 //!
 //! ---
 //!
@@ -56,7 +54,8 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 #[serde_with::skip_serializing_none]
 pub struct AipJsonParseParams {
 	// The JSON string to parse.
-	// Can be strict json, or jsonc, or relaxed json
+	// Can be strict json, or jsonc, or relaxed json.
+	// If nil/null will return null
 	pub text: Option<String>,
 }
 
@@ -90,29 +89,31 @@ impl AipIntoLua for AipJsonParseJsonlOutput {
 /// Output type for `aip.json.parse`.
 ///
 /// The parsed JSON value is returned directly to Lua without a wrapper table.
+/// When the text is nil/absent, returns Lua nil.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonParseOutput(pub serde_json::Value);
+pub struct AipJsonParseOutput(pub Option<serde_json::Value>);
 
 impl AipIntoLua for AipJsonParseOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		self.0.into_lua(lua)
+		match self.0 {
+			Some(v) => v.into_lua(lua),
+			None => Ok(mlua::Value::Nil),
+		}
 	}
 }
 
 impl AipOutput for AipJsonParseOutput {}
 
 /// Parses a JSON string into a Lua value.
-///
-/// If `text` is nil, returns nil. Supports jsonc (JSON with comments).
 #[aip_handler]
 fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
-		return Ok(AipJsonParseOutput(serde_json::Value::Null));
+		return Ok(AipJsonParseOutput(None));
 	};
 
 	match jsons::parse_jsonc_to_serde_value(&content) {
-		Ok(Some(json_val)) => Ok(AipJsonParseOutput(json_val)),
-		Ok(None) => Ok(AipJsonParseOutput(serde_json::Value::Null)),
+		Ok(Some(json_val)) => Ok(AipJsonParseOutput(Some(json_val))),
+		Ok(None) => Ok(AipJsonParseOutput(None)),
 		Err(err) => Err(HandlerError::custom(format!("aip.json.parse failed. {err}"))),
 	}
 }
@@ -126,6 +127,7 @@ fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonPa
 #[serde_with::skip_serializing_none]
 pub struct AipJsonParseJsonlParams {
 	/// The JSONL string to parse.
+	/// If nil/null will return nil
 	pub text: Option<String>,
 }
 
@@ -139,9 +141,8 @@ impl AipFromLua for AipJsonParseJsonlParams {
 
 impl AipParams for AipJsonParseJsonlParams {}
 
-/// Parses a JSONL string into a list of JSON values (one per line).
+/// Parses a JSONL content (json lines) into a list of JSON values (one per line).
 ///
-/// Empty lines are skipped. If `text` is nil, returns an empty list.
 #[aip_handler]
 fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
@@ -162,6 +163,7 @@ fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResul
 #[serde_with::skip_serializing_none]
 pub struct AipJsonStringifyParams {
 	/// The value to serialize to JSON.
+	/// If nil/null, will return nil
 	pub data: serde_json::Value,
 
 	/// Tell to format the json with indent (default false, i.e. single line)
@@ -191,20 +193,29 @@ impl AipParams for AipJsonStringifyParams {}
 ///
 /// The serialized JSON string is returned directly to Lua as a Lua string,
 /// without a wrapper table.
+/// When the data is nil/null/absent, the output is Lua `nil`.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-pub struct AipJsonStringifyOutput(pub String);
+pub struct AipJsonStringifyOutput(pub Option<String>);
 
 impl AipIntoLua for AipJsonStringifyOutput {
 	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
-		self.0.into_lua(lua)
+		match self.0 {
+			Some(s) => s.into_lua(lua),
+			None => Ok(mlua::Value::Nil),
+		}
 	}
 }
 
 impl AipOutput for AipJsonStringifyOutput {}
 
 /// Serializes a Lua value to a JSON string.
+/// Returns Lua `nil` when the data is nil/null/absent.
 #[aip_handler]
 fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
+	if params.data.is_null() {
+		return Ok(AipJsonStringifyOutput(None));
+	}
+
 	let res = if params.pretty.unwrap_or_default() {
 		serde_json::to_string_pretty(&params.data)
 	} else {
@@ -212,7 +223,7 @@ fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<A
 	};
 
 	match res {
-		Ok(str) => Ok(AipJsonStringifyOutput(str)),
+		Ok(str) => Ok(AipJsonStringifyOutput(Some(str))),
 		Err(err) => Err(HandlerError::custom(format!(
 			"aip.json.stringify fail to stringify. {err}"
 		))),
