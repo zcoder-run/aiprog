@@ -8,7 +8,7 @@ pub trait LuaExt {
 	/// return true if NULL, Nil, or None (for Option<Value>)
 	fn x_is_null(&self) -> bool;
 
-	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>>;
+	fn x_as_lua_str(&self) -> Option<BorrowedStr>;
 
 	/// Note: Will round if floating number
 	fn x_as_i64(&self) -> Option<i64>;
@@ -40,7 +40,7 @@ impl LuaExt for Value {
 		self == &Value::NULL || self == &Value::Nil
 	}
 
-	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>> {
+	fn x_as_lua_str(&self) -> Option<BorrowedStr> {
 		self.as_string().and_then(|s| s.to_str().ok())
 	}
 
@@ -111,7 +111,7 @@ impl LuaExt for Table {
 		false
 	}
 
-	fn x_as_lua_str(&self) -> Option<BorrowedStr<'_>> {
+	fn x_as_lua_str(&self) -> Option<BorrowedStr> {
 		None
 	}
 
