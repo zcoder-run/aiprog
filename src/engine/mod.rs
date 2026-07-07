@@ -3,6 +3,7 @@
 mod engine_doc;
 mod engine_impl;
 mod engine_internal;
+mod engine_native_fns;
 
 pub use engine_impl::*;
 

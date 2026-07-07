@@ -32,3 +32,26 @@ This common error shape applies to every handler in this document unless a handl
 
 Reusable types shared across multiple handlers (e.g., `FileGlobs`, `FileInfo`) are defined once in the `## Shared Types` section at the end of this document. Handlers reference these types by name in their signatures.
 
+
+## Additional Lua Native Functions
+
+In addition to the handlers exposed by registered modules, the Lua runtime provides a set of global utility functions. These are installed by the engine at initialization and are available in every script.
+
+The following functions follow the same signature notation outlined in [Function Signatures](#function-signatures). All are global functions and do not return errors.
+
+- `null` / `Null` / `NULL` — global constants that hold the engine's null sentinel. This sentinel is distinct from Lua's built-in `nil` and can be tested with the null-checking functions below.
+
+- `is_null(x: any): boolean` — returns `true` if `x` is `nil` or the engine's null sentinel.
+
+- `is_not_null(x: any): boolean` — returns `true` if `x` is neither `nil` nor the null sentinel.
+
+- `nil_if_null(x: any): any` — returns `x` if it is a meaningful value; otherwise returns `nil`. Useful for converting the null sentinel into Lua's `nil` for standard operations.
+
+- `value_or(value: any, alt: any): any` — returns `value` if it is not null/nil; otherwise returns `alt`. Provides a fallback pattern similar to `??` in many languages.
+
+- `is_table(x: any): boolean` — returns `true` if `x` is a Lua table (excluding `nil` and null).
+
+- `is_list(x: any): boolean` — returns `true` if `x` is a Lua table that appears to be an array-like list (its first numeric index is not `nil`).
+
+- `is_object(x: any): boolean` — returns `true` if `x` is a Lua table that appears to be a dictionary/object (its first numeric index is `nil`).
+

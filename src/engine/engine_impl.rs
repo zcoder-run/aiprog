@@ -21,7 +21,7 @@ impl ScriptEngine {
 			lua: Lua::new(),
 			registered_fns: Vec::new(),
 		};
-		engine.init_native_is()?;
+		engine.init_native_fns()?;
 		let registry = crate::modules::init_registry()?;
 		engine.register(registry)?;
 		Ok(engine)
@@ -32,7 +32,7 @@ impl ScriptEngine {
 			lua: Lua::new(),
 			registered_fns: Vec::new(),
 		};
-		engine.init_native_is()?;
+		engine.init_native_fns()?;
 		engine.register(registry)?;
 		Ok(engine)
 	}
