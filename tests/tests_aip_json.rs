@@ -1,0 +1,31 @@
+// Integration tests for Aiprog JSON handling via the AIProg Lua engine.
+
+use aiprog::ScriptEngine;
+use serde_json::json;
+
+type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+#[test]
+fn test_aiprog_run_json_simple_ok() -> TestResult {
+    // -- Setup & Fixtures
+    let lua_code = r#"
+        local file = aip.file.read({path = "tests/data/json/01-simple.json"})
+        local parsed = aip.json.parse({text = file.content})
+        return parsed
+    "#;
+
+    let engine = ScriptEngine::new()?;
+
+    // -- Exec
+    let result = engine.exec(lua_code)?;
+
+    // -- Check
+    let expected = json!({
+        "simple": "json",
+        "num": 123,
+        "extra": { "values": ["one", "two"] }
+    });
+    assert_eq!(result, expected);
+
+    Ok(())
+}

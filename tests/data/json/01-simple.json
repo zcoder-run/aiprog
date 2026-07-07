@@ -1,0 +1,7 @@
+{
+  "simple": "json",
+  "num": 123,
+  "extra": {
+    "values": ["one", "two"]
+  }
+}
