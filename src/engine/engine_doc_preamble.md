@@ -37,7 +37,7 @@ Reusable types shared across multiple handlers (e.g., `FileGlobs`, `FileInfo`) a
 
 In addition to the handlers exposed by registered modules, the Lua runtime provides a set of global utility functions. These are installed by the engine at initialization and are available in every script.
 
-The following functions follow the same signature notation outlined in [Function Signatures](#function-signatures). All are global functions and do not return errors.
+The following functions follow the same signature notation outlined in [Function Signatures](#function-signatures). All are global functions. Unless specified otherwise, they do not return errors.
 
 - `null` / `Null` / `NULL` — global constants that hold the engine's null sentinel. This sentinel is distinct from Lua's built-in `nil` and can be tested with the null-checking functions below.
 
@@ -55,3 +55,6 @@ The following functions follow the same signature notation outlined in [Function
 
 - `is_object(x: any): boolean` — returns `true` if `x` is a Lua table that appears to be a dictionary/object (its first numeric index is `nil`).
 
+- `merge(target: table, ...sources: table|nil|null): table` — Shallow merges source tables into `target`, overwriting existing keys. Arguments that are `nil` or `null` are skipped. Returns `target`. Raises an error if any source is not a table, `nil`, or `null`.
+
+- `merge_deep(target: table, ...sources: table|nil|null): table` — Deep merges source tables into `target`. When both `target[key]` and `source[key]` are tables, they are recursively merged; otherwise `target[key]` is overwritten. Arguments that are `nil` or `null` are skipped. Returns `target`. Raises an error if any source is not a table, `nil`, or `null`.

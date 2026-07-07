@@ -15,4 +15,8 @@ pub use engine_impl::*;
 #[path = "engine_tests.rs"]
 mod engine_tests;
 
+#[cfg(test)]
+#[path = "engine_native_fns_tests.rs"]
+mod engine_native_fns_tests;
+
 // endregion: --- Tests

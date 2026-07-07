@@ -93,6 +93,34 @@ is_object({a=1})    --> true
 is_object({10, 20}) --> false
 ```
 
+### `merge(target, ...sources)`
+
+Shallow merges `sources` into `target`. All arguments after `target` that are tables have their key-value pairs set on `target`, overwriting existing keys. Arguments that are `nil` or `null` are skipped.
+
+Returns `target` (modified in place).
+
+```lua
+local t = {a = 1}
+merge(t, {b = 2}, {a = 99})
+-- t is now {a = 99, b = 2}
+```
+
+If any source is not a table, `nil`, or `null`, an error is raised.
+
+### `merge_deep(target, ...sources)`
+
+Deep merges `sources` into `target`. When both `target[k]` and `source[k]` are tables, they are recursively deep‑merged; otherwise `target[k]` is overwritten by `source[k]`. Arguments that are `nil` or `null` are skipped.
+
+Returns `target` (modified in place).
+
+```lua
+local t = {a = {x = 1}}
+merge_deep(t, {a = {y = 2}, b = 3})
+-- t is now {a = {x = 1, y = 2}, b = 3}
+```
+
+If any source is not a table, `nil`, or `null`, an error is raised.
+
 ## Module Extensions
 
 Beyond the global helpers, AIP provides higher-level modules installed under the `aip` namespace:

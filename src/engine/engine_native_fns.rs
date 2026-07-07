@@ -9,6 +9,9 @@ impl ScriptEngine {
 		// is_object, is_list, is_table
 		self.init_is_type_fns()?;
 
+		// merge, merge_deep
+		self.init_merge_fns()?;
+
 		Ok(())
 	}
 }
@@ -111,4 +114,90 @@ impl ScriptEngine {
 
 		Ok(())
 	}
+
+	fn init_merge_fns(&self) -> mlua::Result<()> {
+		let globals = self.lua.globals();
+
+		// merge(target, ...sources)
+		globals.set(
+			"merge",
+			self.lua.create_function(|_lua, values: mlua::Variadic<mlua::Value>| {
+				if values.is_empty() {
+					return Err(mlua::Error::RuntimeError(
+						"merge requires at least a target table".into(),
+					));
+				}
+				let mut iter = values.into_iter();
+				let target = iter.next().unwrap();
+				let target_table = target
+					.as_table()
+					.ok_or_else(|| mlua::Error::RuntimeError("merge: target must be a table".into()))?;
+
+				for src in iter {
+					if src.is_nil() || src == Value::NULL {
+						continue;
+					}
+					if let Value::Table(ref src_table) = src {
+						for pair in src_table.pairs::<Value, Value>() {
+							let (key, val) = pair?;
+							target_table.set(key, val)?;
+						}
+					} else {
+						return Err(mlua::Error::RuntimeError("Cannot merge a non table type".into()));
+					}
+				}
+				Ok(target)
+			})?,
+		)?;
+
+		// merge_deep(target, ...sources)
+		globals.set(
+			"merge_deep",
+			self.lua.create_function(|_lua, values: mlua::Variadic<mlua::Value>| {
+				if values.is_empty() {
+					return Err(mlua::Error::RuntimeError(
+						"merge_deep requires at least a target table".into(),
+					));
+				}
+				let mut iter = values.into_iter();
+				let target = iter.next().unwrap();
+				let target_table = target
+					.as_table()
+					.ok_or_else(|| mlua::Error::RuntimeError("merge_deep: target must be a table".into()))?;
+
+				for src in iter {
+					if src.is_nil() || src == Value::NULL {
+						continue;
+					}
+					if let Value::Table(ref src_table) = src {
+						merge_tables_deep(target_table, src_table)?;
+					} else {
+						return Err(mlua::Error::RuntimeError("Cannot deep merge a non table type".into()));
+					}
+				}
+				Ok(target)
+			})?,
+		)?;
+
+		Ok(())
+	}
 }
+
+// region:    --- Support
+
+fn merge_tables_deep(target: &mlua::Table, source: &mlua::Table) -> mlua::Result<()> {
+	for pair in source.pairs::<mlua::Value, mlua::Value>() {
+		let (key, src_val) = pair?;
+		let tgt_val: mlua::Value = target.get(key.clone())?;
+		if let mlua::Value::Table(ref tgt_table) = tgt_val
+			&& let mlua::Value::Table(ref src_table) = src_val
+		{
+			merge_tables_deep(tgt_table, src_table)?;
+		} else {
+			target.set(key, src_val)?;
+		}
+	}
+	Ok(())
+}
+
+// endregion: --- Support
