@@ -1,5 +1,5 @@
 use crate::ScriptEngine;
-use mlua::{self, Value};
+use mlua::{self, Value, Variadic};
 
 impl ScriptEngine {
 	pub(super) fn init_native_fns(&self) -> mlua::Result<()> {
@@ -40,15 +40,16 @@ impl ScriptEngine {
 			})?,
 		)?;
 
-		// value_or(value, alt) -> value or alt
+		// value_or(value, alt, ...) -> first non-null value or nil
 		globals.set(
 			"value_or",
-			self.lua.create_function(|_, (v, alt): (Value, Value)| {
-				if matches!(v, Value::Nil) || v == Value::NULL {
-					Ok(alt)
-				} else {
-					Ok(v)
+			self.lua.create_function(|_, values: Variadic<Value>| {
+				for v in values {
+					if !matches!(v, Value::Nil) && v != Value::NULL {
+						return Ok(v);
+					}
 				}
+				Ok(Value::Nil)
 			})?,
 		)?;
 

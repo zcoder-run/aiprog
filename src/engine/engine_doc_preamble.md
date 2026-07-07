@@ -47,7 +47,7 @@ The following functions follow the same signature notation outlined in [Function
 
 - `nil_if_null(x: any): any` — returns `x` if it is a meaningful value; otherwise returns `nil`. Useful for converting the null sentinel into Lua's `nil` for standard operations.
 
-- `value_or(value: any, alt: any): any` — returns `value` if it is not null/nil; otherwise returns `alt`. Provides a fallback pattern similar to `??` in many languages.
+- `value_or(...values: any[]): any` — returns the first argument that is not null or the engine's null sentinel; returns `nil` if all arguments are null/nil or no arguments are provided. Provides a fallback pattern similar to `??` in many languages.
 
 - `is_table(x: any): boolean` — returns `true` if `x` is a Lua table (excluding `nil` and null).
 
