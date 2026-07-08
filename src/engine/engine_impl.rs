@@ -1,4 +1,4 @@
-use crate::{AipRegisteredFn, AipRegistry, LuaJsonExt as _, Result};
+use crate::{AipRegisteredFn, AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
 use mlua::Lua;
 
 pub struct ScriptEngine {
@@ -49,8 +49,15 @@ impl ScriptEngine {
 	pub async fn exec_raw(&self, script: &str) -> Result<mlua::Value> {
 		let lua = self.lua();
 
-		let func = lua.load(script).into_function()?;
-		let value: mlua::Value = func.call_async(()).await?;
+		let func = lua
+			.load(script)
+			.set_name("=script")
+			.into_function()
+			.map_err(|err| LuaErrorDetails::from_lua_error(&err, script))?;
+		let value: mlua::Value = func
+			.call_async(())
+			.await
+			.map_err(|err| LuaErrorDetails::from_lua_error(&err, script))?;
 		Ok(value)
 	}
 }

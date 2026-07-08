@@ -1,3 +1,4 @@
+use crate::LuaErrorDetails;
 use derive_more::{Display, From};
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -10,6 +11,10 @@ pub enum Error {
 
 	#[display("Error: {_0}\n\tCause: {_1}")]
 	CustomAndCause(String, String),
+
+	#[display("{_0}")]
+	#[from]
+	LuaScript(LuaErrorDetails),
 
 	// -- Externals
 	#[from]

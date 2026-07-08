@@ -29,14 +29,16 @@ impl ScriptEngine {
 					} else {
 						return Err("Mismatched handler kind for async entry".into());
 					};
+					let fn_path = entry.path.clone();
 
 					lua.create_async_function(move |lua: Lua, args: MultiValue| {
 						let arg = args.into_iter().next().unwrap_or(Value::Nil);
 						let response_fut = handler(&lua, arg);
+						let fn_path = fn_path.clone();
 						async move {
 							let response_json = response_fut.await?;
 							let response_lua = mlua::Value::x_from_json_value(&lua, response_json).map_err(|e| {
-								mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))
+								mlua::Error::RuntimeError(format!("{fn_path} - Failed to convert response to Lua: {e}"))
 							})?;
 							Ok::<Value, mlua::Error>(response_lua)
 						}

@@ -44,12 +44,17 @@ pub struct AipHtmlSlimParams {
 
 impl AipFromLua for AipHtmlSlimParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
 		let html = table
-			.x_get_string("html")
-			.ok_or_else(|| crate::Error::custom("Missing 'html' field"))?;
+			.x_try_get_string("html")?
+			.ok_or_else(|| crate::Error::custom("Missing required property 'html' of type 'string'"))?;
 
-		let indent = table.x_get_i64("indent");
+		let indent = table.x_try_get_i64("indent")?;
 
 		Ok(AipHtmlSlimParams { html, indent })
 	}
@@ -93,10 +98,15 @@ pub struct AipHtmlToMdParams {
 
 impl AipFromLua for AipHtmlToMdParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
 		let html = table
-			.x_get_string("html")
-			.ok_or_else(|| crate::Error::custom("Missing 'html' field"))?;
+			.x_try_get_string("html")?
+			.ok_or_else(|| crate::Error::custom("Missing required property 'html' of type 'string'"))?;
 
 		Ok(AipHtmlToMdParams { html })
 	}

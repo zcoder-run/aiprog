@@ -56,15 +56,16 @@ impl AipRegistry {
 		let output_schema = schema_for!(R);
 		let error_schema = schema_for!(HandlerError);
 
+		let fn_path = path.to_string();
 		let closure: LuaSyncClosure = Box::new(move |lua: &Lua, value: Value| -> mlua::Result<Value> {
-			let params: P =
-				P::from_lua(lua, value).map_err(|e| mlua::Error::RuntimeError(format!("Invalid params: {e}")))?;
+			let params: P = P::from_lua(lua, value)
+				.map_err(|e| mlua::Error::RuntimeError(format!("{fn_path} - Invalid params: {e}")))?;
 
 			match handler.call_sync(params) {
-				Ok(response) => response
-					.into_lua(lua)
-					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert response to Lua: {e}"))),
-				Err(err) => Err(err.into_lua_error()),
+				Ok(response) => response.into_lua(lua).map_err(|e| {
+					mlua::Error::RuntimeError(format!("{fn_path} - Failed to convert response to Lua: {e}"))
+				}),
+				Err(err) => Err(mlua::Error::RuntimeError(format!("{fn_path} - {err}"))),
 			}
 		});
 
@@ -99,23 +100,26 @@ impl AipRegistry {
 		let error_schema = schema_for!(HandlerError);
 
 		let handler_arc = Arc::new(handler);
+		let fn_path = path.to_string();
 		let closure: LuaAsyncClosure = Box::new(
 			move |lua: &Lua, value: Value| -> Pin<Box<dyn Future<Output = mlua::Result<serde_json::Value>>>> {
 				let handler = Arc::clone(&handler_arc);
+				let fn_path = fn_path.clone();
 
 				let params = match P::from_lua(lua, value) {
 					Ok(p) => p,
 					Err(e) => {
-						let err_msg = format!("Invalid params: {e}");
+						let err_msg = format!("{fn_path} - Invalid params: {e}");
 						return Box::pin(async move { Err(mlua::Error::RuntimeError(err_msg)) });
 					}
 				};
 
 				Box::pin(async move {
 					match handler.call_async(params).await {
-						Ok(response) => serde_json::to_value(response)
-							.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-						Err(err) => Err(err.into_lua_error()),
+						Ok(response) => serde_json::to_value(response).map_err(|e| {
+							mlua::Error::RuntimeError(format!("{fn_path} - Failed to serialize async response: {e}"))
+						}),
+						Err(err) => Err(mlua::Error::RuntimeError(format!("{fn_path} - {err}"))),
 					}
 				})
 			},
@@ -194,7 +198,7 @@ impl AipRegistry {
 				let json_value = handler(&lua, value).await?;
 				// Convert serde_json::Value back to Lua Value.
 				Value::x_from_json_value(&lua, json_value)
-					.map_err(|e| mlua::Error::RuntimeError(format!("Failed to convert JSON to Lua: {e}")))
+					.map_err(|e| mlua::Error::RuntimeError(format!("{path} - Failed to convert JSON to Lua: {e}")))
 			}
 		}
 	}

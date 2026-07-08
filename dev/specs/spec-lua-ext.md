@@ -29,6 +29,11 @@ pub trait LuaExt {
     fn x_get_bool(&self, key: &str) -> Option<bool>;
     fn x_get_i64(&self, key: &str) -> Option<i64>;
     fn x_get_f64(&self, key: &str) -> Option<f64>;
+    fn x_try_get_value(&self, key: &str) -> Result<Option<Value>>;
+    fn x_try_get_string(&self, key: &str) -> Result<Option<String>>;
+    fn x_try_get_bool(&self, key: &str) -> Result<Option<bool>>;
+    fn x_try_get_i64(&self, key: &str) -> Result<Option<i64>>;
+    fn x_try_get_f64(&self, key: &str) -> Result<Option<f64>>;
     fn x_as_list(&self) -> Option<Vec<Value>>;
 }
 ```
@@ -44,6 +49,17 @@ These methods are designed for reading fields from Lua tables:
 - `x_get_f64(key) → Option<f64>`: reads the value as a float (promoting integers).
 
 These methods first attempt to access the table by `key`, then attempt the appropriate conversion, returning `None` at any failure point.
+
+### Result-based accessor methods (`x_try_get_*`)
+
+Fail-loud variants of the `x_get_*` accessors, returning `crate::Result<Option<T>>`:
+
+- Absent key or `nil` value returns `Ok(None)`.
+- Present value of the expected type returns `Ok(Some(value))`.
+- Present value of the wrong type returns `Err` whose message includes the field name, the expected type, the actual Lua type, and a truncated preview of the value (about 80 chars).
+- Calling them on a non-table `Value` returns `Err`.
+
+Use these in params parsing (e.g. `AipFromLua` impls) where a wrong-typed field must produce an actionable error instead of being read as absent. Use the `Option`-returning `x_get_*` methods when absence and wrong type can be treated the same.
 
 ### Direct value accessors
 
@@ -66,13 +82,13 @@ src/lua_exts/
   lua_traits.rs     – (adjacent) other traits
 ```
 
-The trait methods are all infallible in the RustResult sense: they return `Option`, never panic, and never produce a Lua error. This allows callers to chain access patterns with `?` on Option and gracefully fallback.
+The `x_get_*` and `x_as_*` methods are infallible in the RustResult sense: they return `Option`, never panic, and never produce a Lua error. This allows callers to chain access patterns with `?` on Option and gracefully fallback. The `x_try_get_*` variants return `crate::Result<Option<T>>` so that wrong-typed fields surface as descriptive errors.
 
 ## Design Considerations
 
 - **Nil-safety**: The `x_get_*` methods treat `nil` as absence, returning `None`. This matches common Lua patterns where a missing key is indistinguishable from a key set to `nil`.
 - **Type coercion**: `x_as_i64` rounds floating numbers; `x_as_f64` promotes integers to float. This mimics Lua’s number flexibility but in a typed Rust context.
-- **No error details**: The `Option` return hides the reason for failure (e.g., wrong type vs missing key). For debugging, callers may use raw mlua access. This is acceptable for most configuration and request parsing use cases.
+- **No error details in `x_get_*`**: The `Option` return hides the reason for failure (e.g., wrong type vs missing key). When the distinction matters (typically params parsing), use the `x_try_get_*` variants, which report wrong-typed fields as descriptive errors. This is acceptable for most configuration and request parsing use cases.
 - **Performance**: The trait adds a thin layer of indirection but avoids unnecessary cloning when possible (e.g., `x_as_lua_str` returns a borrow).
 - **Future extensions**: Additional helper methods (e.g., `x_get_date`, `x_get_array_of`) could be added as new trait methods or as free functions that build on `x_get_*` primitives.
 

@@ -282,3 +282,59 @@ fn test_generate_doc_content() -> Result<()> {
 }
 
 // endregion: --- generate_doc test
+
+// region:    --- Rich error paths
+
+#[tokio::test]
+async fn test_script_engine_exec_invalid_params_rich_message() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = ScriptEngine::new()?;
+	let script = r#"
+local res = aip.web.get({ url = 42 })
+return res
+"#;
+
+	// -- Exec
+	let result = engine.exec(script).await;
+
+	// -- Check
+	assert!(result.is_err());
+	let err = result.unwrap_err();
+	let crate::Error::LuaScript(details) = err else {
+		return Err("Expected Error::LuaScript".into());
+	};
+	let msg = details.message();
+	assert!(msg.contains("aip.web.get"), "message should contain handler path: {msg}");
+	assert!(msg.contains("'url'"), "message should contain field name: {msg}");
+	assert!(msg.contains("string"), "message should contain expected type: {msg}");
+	assert!(msg.contains("integer"), "message should contain actual type: {msg}");
+	assert!(msg.contains("42"), "message should contain value preview: {msg}");
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_script_engine_exec_lua_script_error_details() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+	let script = "local a = 1\nlocal b = 2\nerror('boom')\nreturn a + b";
+
+	// -- Exec
+	let result = engine.exec(script).await;
+
+	// -- Check
+	assert!(result.is_err());
+	let err = result.unwrap_err();
+	let crate::Error::LuaScript(details) = err else {
+		return Err("Expected Error::LuaScript".into());
+	};
+	assert_eq!(details.line_number(), Some(3));
+	let surround = details.surround_code().ok_or("Expected surround_code")?;
+	assert!(surround.contains("error('boom')"));
+	assert!(surround.contains("> 3 |"));
+	assert!(details.message().contains("boom"));
+
+	Ok(())
+}
+
+// endregion: --- Rich error paths

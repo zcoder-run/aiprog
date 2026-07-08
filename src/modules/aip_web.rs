@@ -85,53 +85,19 @@ pub struct AipWebGetParams {
 
 impl AipFromLua for AipWebGetParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or("Expected table")?;
-		let data: String = table.get("url")?;
+		let table = params_table(&value)?;
+		let url = required_string(table, "url")?;
 
-		let user_agent = table.x_get_value("user_agent").and_then(|v| {
-			if let Some(b) = v.x_as_bool() {
-				Some(AipWebUserAgent::Bool(b))
-			} else {
-				v.x_as_lua_str().map(|s| AipWebUserAgent::String(s.to_string()))
-			}
-		});
+		let user_agent = lua_table_to_user_agent(table)?;
 
-		let headers: Option<HashMap<String, AipWebHeaderValue>> =
-			table.get::<mlua::Value>("headers").ok().and_then(|v| {
-				if v.x_is_null() {
-					return None;
-				}
-				let t = v.as_table()?;
-				let mut map = HashMap::new();
-				for pair in t.pairs::<String, mlua::Value>() {
-					let (key, val) = pair.ok()?;
-					let header_val = match val {
-						mlua::Value::String(s) => AipWebHeaderValue::Single(s.to_string_lossy().to_string()),
-						mlua::Value::Table(arr) => {
-							let mut vec = Vec::new();
-							for i in 1..=arr.len().unwrap_or(0) {
-								if let Ok(s) = arr.get::<String>(i) {
-									vec.push(s);
-								}
-							}
-							if vec.is_empty() {
-								return None;
-							}
-							AipWebHeaderValue::Many(vec)
-						}
-						_ => return None,
-					};
-					map.insert(key, header_val);
-				}
-				Some(map)
-			});
+		let headers = lua_table_to_headers(table)?;
 
-		let redirect_limit: Option<usize> = table.x_get_i64("redirect_limit").map(|n| n as usize);
+		let redirect_limit: Option<usize> = table.x_try_get_i64("redirect_limit")?.map(|n| n as usize);
 
-		let parse: Option<bool> = table.x_get_bool("parse");
+		let parse: Option<bool> = table.x_try_get_bool("parse")?;
 
 		Ok(AipWebGetParams {
-			url: data,
+			url,
 			user_agent,
 			headers,
 			redirect_limit,
@@ -233,67 +199,25 @@ pub struct AipWebPostParams {
 
 impl AipFromLua for AipWebPostParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or("Expected table")?;
-		let url: String = table.get("url")?;
+		let table = params_table(&value)?;
+		let url = required_string(table, "url")?;
 
-		let json: Option<serde_json::Value> = table
-			.get::<mlua::Value>("json")
-			.ok()
-			.and_then(|v| -> Option<crate::Result<serde_json::Value>> {
-				if v.is_nil() {
-					return None;
-				}
-				match v.x_to_json_value() {
-					Ok(Some(val)) => Some(Ok(val)),
-					Ok(None) => Some(Err("json value cannot be nil".into())),
-					Err(e) => Some(Err(format!("json conversion error: {e}").into())),
-				}
-			})
-			.transpose()?;
+		let json: Option<serde_json::Value> = match table.x_try_get_value("json")? {
+			Some(v) => v
+				.x_to_json_value()
+				.map_err(|e| crate::Error::custom(format!("Property 'json' is not a valid JSON value: {e}")))?,
+			None => None,
+		};
 
-		let body: Option<String> = table.get("body")?;
+		let body = table.x_try_get_string("body")?;
 
-		let user_agent = table.x_get_value("user_agent").and_then(|v| {
-			if let Some(b) = v.x_as_bool() {
-				Some(AipWebUserAgent::Bool(b))
-			} else {
-				v.x_as_lua_str().map(|s| AipWebUserAgent::String(s.to_string()))
-			}
-		});
+		let user_agent = lua_table_to_user_agent(table)?;
 
-		let headers: Option<HashMap<String, AipWebHeaderValue>> =
-			table.get::<mlua::Value>("headers").ok().and_then(|v| {
-				if v.x_is_null() {
-					return None;
-				}
-				let t = v.as_table()?;
-				let mut map = HashMap::new();
-				for pair in t.pairs::<String, mlua::Value>() {
-					let (key, val) = pair.ok()?;
-					let header_val = match val {
-						mlua::Value::String(s) => AipWebHeaderValue::Single(s.to_string_lossy().to_string()),
-						mlua::Value::Table(arr) => {
-							let mut vec = Vec::new();
-							for i in 1..=arr.len().unwrap_or(0) {
-								if let Ok(s) = arr.get::<String>(i) {
-									vec.push(s);
-								}
-							}
-							if vec.is_empty() {
-								return None;
-							}
-							AipWebHeaderValue::Many(vec)
-						}
-						_ => return None,
-					};
-					map.insert(key, header_val);
-				}
-				Some(map)
-			});
+		let headers = lua_table_to_headers(table)?;
 
-		let redirect_limit: Option<usize> = table.x_get_i64("redirect_limit").map(|n| n as usize);
+		let redirect_limit: Option<usize> = table.x_try_get_i64("redirect_limit")?.map(|n| n as usize);
 
-		let parse: Option<bool> = table.x_get_bool("parse");
+		let parse: Option<bool> = table.x_try_get_bool("parse")?;
 
 		Ok(AipWebPostParams {
 			url,
@@ -578,6 +502,93 @@ fn webc_error_to_aip(url: &str, err: webc::Error) -> HandlerError {
 			Some(e),
 		),
 	}
+}
+
+/// Extract the params table from a Lua value, failing with the actual type on mismatch.
+fn params_table(value: &mlua::Value) -> crate::Result<&mlua::Table> {
+	value.as_table().ok_or_else(|| {
+		crate::Error::custom(format!(
+			"Params expected to be a table, but was of type '{}'",
+			value.type_name()
+		))
+	})
+}
+
+/// Get a required string property from a params table, failing loudly on wrong type or absence.
+fn required_string(table: &mlua::Table, key: &str) -> crate::Result<String> {
+	table
+		.x_try_get_string(key)?
+		.ok_or_else(|| crate::Error::custom(format!("Missing required property '{key}' of type 'string'")))
+}
+
+/// Parse the optional `user_agent` param (boolean or string), failing loudly on wrong type.
+fn lua_table_to_user_agent(table: &mlua::Table) -> crate::Result<Option<AipWebUserAgent>> {
+	let Some(val) = table.x_try_get_value("user_agent")? else {
+		return Ok(None);
+	};
+	if val.x_is_null() {
+		return Ok(None);
+	}
+	if let Some(b) = val.x_as_bool() {
+		Ok(Some(AipWebUserAgent::Bool(b)))
+	} else if let Some(s) = val.x_as_lua_str() {
+		Ok(Some(AipWebUserAgent::String(s.to_string())))
+	} else {
+		Err(crate::Error::custom(format!(
+			"Property 'user_agent' expected to be of type 'boolean or string', but was of type '{}'",
+			val.type_name()
+		)))
+	}
+}
+
+/// Parse the optional `headers` param into a header map, failing loudly with dotted paths on wrong types.
+fn lua_table_to_headers(table: &mlua::Table) -> crate::Result<Option<HashMap<String, AipWebHeaderValue>>> {
+	let Some(val) = table.x_try_get_value("headers")? else {
+		return Ok(None);
+	};
+	if val.x_is_null() {
+		return Ok(None);
+	}
+	let t = val.as_table().ok_or_else(|| {
+		crate::Error::custom(format!(
+			"Property 'headers' expected to be of type 'table', but was of type '{}'",
+			val.type_name()
+		))
+	})?;
+	let mut map = HashMap::new();
+	for pair in t.pairs::<String, mlua::Value>() {
+		let (key, entry_val) = pair.map_err(|e| crate::Error::cc("Fail to read 'headers' entry", e))?;
+		let header_val = match entry_val {
+			mlua::Value::String(s) => AipWebHeaderValue::Single(s.to_string_lossy().to_string()),
+			mlua::Value::Table(arr) => {
+				let mut vec = Vec::new();
+				for item in arr.sequence_values::<mlua::Value>() {
+					let item = item.map_err(|e| crate::Error::cc(format!("Fail to read 'headers.{key}' entry"), e))?;
+					let s = item.x_as_lua_str().ok_or_else(|| {
+						crate::Error::custom(format!(
+							"Property 'headers.{key}' entries expected to be of type 'string', but got type '{}'",
+							item.type_name()
+						))
+					})?;
+					vec.push(s.to_string());
+				}
+				if vec.is_empty() {
+					return Err(crate::Error::custom(format!(
+						"Property 'headers.{key}' must not be an empty list"
+					)));
+				}
+				AipWebHeaderValue::Many(vec)
+			}
+			other => {
+				return Err(crate::Error::custom(format!(
+					"Property 'headers.{key}' expected to be of type 'string or string[]', but was of type '{}'",
+					other.type_name()
+				)));
+			}
+		};
+		map.insert(key, header_val);
+	}
+	Ok(Some(map))
 }
 
 // endregion: --- Support

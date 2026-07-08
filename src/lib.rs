@@ -10,10 +10,12 @@ mod support;
 
 mod engine;
 mod error;
+mod error_lua_details;
 mod lua_exts;
 pub mod registry;
 
 pub use error::{Error, Result};
+pub use error_lua_details::LuaErrorDetails;
 
 // NOTE: for now, re-export one by one to tune the shape of this crate.
 pub use engine::*;

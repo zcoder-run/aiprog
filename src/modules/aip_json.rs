@@ -61,8 +61,13 @@ pub struct AipJsonParseParams {
 
 impl AipFromLua for AipJsonParseParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or("Expected table")?;
-		let text = table.x_get_string("text");
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
+		let text = table.x_try_get_string("text")?;
 		Ok(AipJsonParseParams { text })
 	}
 }
@@ -133,8 +138,13 @@ pub struct AipJsonParseJsonlParams {
 
 impl AipFromLua for AipJsonParseJsonlParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let text = table.x_get_string("text");
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
+		let text = table.x_try_get_string("text")?;
 		Ok(AipJsonParseJsonlParams { text })
 	}
 }
@@ -172,16 +182,19 @@ pub struct AipJsonStringifyParams {
 
 impl AipFromLua for AipJsonStringifyParams {
 	fn from_lua(lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
 
-		let data_val: mlua::Value = table.get("data").map_err(|e| e.to_string())?;
-		let data = if data_val.is_nil() || data_val.x_is_null() {
-			serde_json::Value::Null
-		} else {
-			serde_json::Value::from_lua(lua, data_val)?
+		let data = match table.x_try_get_value("data")? {
+			Some(data_val) if !data_val.x_is_null() => serde_json::Value::from_lua(lua, data_val)?,
+			_ => serde_json::Value::Null,
 		};
 
-		let pretty = table.x_get_bool("pretty");
+		let pretty = table.x_try_get_bool("pretty")?;
 
 		Ok(AipJsonStringifyParams { data, pretty })
 	}

@@ -3,13 +3,13 @@
 // Deprecated: backward-compatibility shim. use crate::ScriptError methods.
 
 use crate::Error;
-use crate::registry::HandlerError;
+use crate::LuaErrorDetails;
 use std::sync::Arc;
 
 impl Error {
+	/// Deprecated shim: prefer `LuaErrorDetails::from_lua_error` plus `Error::LuaScript`.
 	pub fn from_error_with_script(lua_error: &mlua::Error, script: &str) -> Error {
-		let handler_err = HandlerError::from_lua_error_with_script(lua_error, script);
-		Error::from(handler_err)
+		Error::LuaScript(LuaErrorDetails::from_lua_error(lua_error, script))
 	}
 }
 

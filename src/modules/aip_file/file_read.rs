@@ -60,9 +60,9 @@ pub struct AipFileReadParams {
 
 impl AipFromLua for AipFileReadParams {
 	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let path: String = table.get("path")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
+		let table = params_table(&value)?;
+		let path = required_string(table, "path")?;
+		let base_dir = table.x_try_get_string("base_dir")?;
 		Ok(AipFileReadParams { path, base_dir })
 	}
 }
@@ -111,12 +111,12 @@ impl FileGlobs {
 
 impl AipFromLua for AipFileListParams {
 	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = params_table(&value)?;
 
 		let globs = lua_value_to_file_globs(table, "globs")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
-		let absolute: Option<bool> = table.x_get_bool("absolute");
-		let with_meta: Option<bool> = table.x_get_bool("with_meta");
+		let base_dir = table.x_try_get_string("base_dir")?;
+		let absolute = table.x_try_get_bool("absolute")?;
+		let with_meta = table.x_try_get_bool("with_meta")?;
 
 		Ok(AipFileListParams {
 			globs,
@@ -182,9 +182,9 @@ pub struct AipFileInfoParams {
 
 impl AipFromLua for AipFileInfoParams {
 	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let path: String = table.get("path")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
+		let table = params_table(&value)?;
+		let path = required_string(table, "path")?;
+		let base_dir = table.x_try_get_string("base_dir")?;
 		Ok(AipFileInfoParams { path, base_dir })
 	}
 }
@@ -222,9 +222,9 @@ pub struct AipFileExistsParams {
 
 impl AipFromLua for AipFileExistsParams {
 	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
-		let path: String = table.get("path")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
+		let table = params_table(&value)?;
+		let path = required_string(table, "path")?;
+		let base_dir = table.x_try_get_string("base_dir")?;
 		Ok(AipFileExistsParams { path, base_dir })
 	}
 }
@@ -277,9 +277,9 @@ pub struct AipFileStatsParams {
 
 impl AipFromLua for AipFileStatsParams {
 	fn from_lua(_lua: &Lua, value: Value) -> crate::Result<Self> {
-		let table = value.as_table().ok_or_else(|| crate::Error::custom("Expected table"))?;
+		let table = params_table(&value)?;
 		let globs = lua_value_to_optional_file_globs(table, "globs")?;
-		let base_dir: Option<String> = table.get("base_dir")?;
+		let base_dir = table.x_try_get_string("base_dir")?;
 		Ok(AipFileStatsParams { globs, base_dir })
 	}
 }
@@ -496,17 +496,27 @@ fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> crate::Result<File
 	} else if let Some(list) = val.x_as_list() {
 		let mut vec = Vec::new();
 		for v in &list {
-			let s = v
-				.x_as_lua_str()
-				.ok_or_else(|| crate::Error::custom("globs entry must be a string"))?;
+			let s = v.x_as_lua_str().ok_or_else(|| {
+				crate::Error::custom(format!(
+					"Property '{key}' entries expected to be of type 'string', but got type '{}'",
+					v.type_name()
+				))
+			})?;
 			vec.push(s.to_string());
 		}
 		if vec.is_empty() {
-			return Err(crate::Error::custom("globs must not be empty"));
+			return Err(crate::Error::custom(format!("Property '{key}' must not be an empty list")));
 		}
 		Ok(FileGlobs::Many(vec))
+	} else if val.is_nil() || val.x_is_null() {
+		Err(crate::Error::custom(format!(
+			"Missing required property '{key}' of type 'string or string[]'"
+		)))
 	} else {
-		Err(crate::Error::custom("Expected string or table for globs"))
+		Err(crate::Error::custom(format!(
+			"Property '{key}' expected to be of type 'string or string[]', but was of type '{}'",
+			val.type_name()
+		)))
 	}
 }
 
@@ -516,6 +526,23 @@ fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> crate::Re
 		return Ok(None);
 	}
 	lua_value_to_file_globs(table, key).map(Some)
+}
+
+/// Extract the params table from a Lua value, failing with the actual type on mismatch.
+fn params_table(value: &Value) -> crate::Result<&mlua::Table> {
+	value.as_table().ok_or_else(|| {
+		crate::Error::custom(format!(
+			"Params expected to be a table, but was of type '{}'",
+			value.type_name()
+		))
+	})
+}
+
+/// Get a required string property from a params table, failing loudly on wrong type or absence.
+fn required_string(table: &mlua::Table, key: &str) -> crate::Result<String> {
+	table
+		.x_try_get_string(key)?
+		.ok_or_else(|| crate::Error::custom(format!("Missing required property '{key}' of type 'string'")))
 }
 
 // endregion: --- Support: Lua value helpers
