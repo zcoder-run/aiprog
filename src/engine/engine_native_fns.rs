@@ -118,7 +118,7 @@ impl ScriptEngine {
 	fn init_merge_fns(&self) -> mlua::Result<()> {
 		let globals = self.lua.globals();
 
-		// merge(target, ...sources)
+		// merge(target, ...sources) - nil first argument is allowed
 		globals.set(
 			"merge",
 			self.lua.create_function(|_lua, values: mlua::Variadic<mlua::Value>| {
@@ -128,11 +128,31 @@ impl ScriptEngine {
 					));
 				}
 				let mut iter = values.into_iter();
-				let target = iter.next().unwrap();
-				let target_table = target
-					.as_table()
-					.ok_or_else(|| mlua::Error::RuntimeError("merge: target must be a table".into()))?;
+				let mut target_table: Option<mlua::Table> = None;
+				let mut target_value: Option<mlua::Value> = None;
 
+				// find the first non-nil/non-null table as the target
+				for arg in iter.by_ref() {
+					if arg.is_nil() || arg == Value::NULL {
+						continue;
+					}
+					if let Value::Table(ref t) = arg {
+						target_table = Some(t.clone());
+						target_value = Some(arg);
+						break;
+					} else {
+						return Err(mlua::Error::RuntimeError(
+							"merge: target must be a table".into(),
+						));
+					}
+				}
+
+				let target_table = match target_table {
+					Some(t) => t,
+					None => return Ok(Value::Nil),
+				};
+
+				// merge remaining sources
 				for src in iter {
 					if src.is_nil() || src == Value::NULL {
 						continue;
@@ -143,14 +163,16 @@ impl ScriptEngine {
 							target_table.set(key, val)?;
 						}
 					} else {
-						return Err(mlua::Error::RuntimeError("Cannot merge a non table type".into()));
+						return Err(mlua::Error::RuntimeError(
+							"Cannot merge a non table type".into(),
+						));
 					}
 				}
-				Ok(target)
+				Ok(target_value.unwrap())
 			})?,
 		)?;
 
-		// merge_deep(target, ...sources)
+		// merge_deep(target, ...sources) - nil first argument is allowed
 		globals.set(
 			"merge_deep",
 			self.lua.create_function(|_lua, values: mlua::Variadic<mlua::Value>| {
@@ -160,22 +182,42 @@ impl ScriptEngine {
 					));
 				}
 				let mut iter = values.into_iter();
-				let target = iter.next().unwrap();
-				let target_table = target
-					.as_table()
-					.ok_or_else(|| mlua::Error::RuntimeError("merge_deep: target must be a table".into()))?;
+				let mut target_table: Option<mlua::Table> = None;
+				let mut target_value: Option<mlua::Value> = None;
 
+				// find the first non-nil/non-null table as the target
+				for arg in iter.by_ref() {
+					if arg.is_nil() || arg == Value::NULL {
+						continue;
+					}
+					if let Value::Table(ref t) = arg {
+						target_table = Some(t.clone());
+						target_value = Some(arg);
+						break;
+					} else {
+						return Err(mlua::Error::RuntimeError(
+							"merge_deep: target must be a table".into(),
+						));
+					}
+				}
+
+				let target_table = match target_table {
+					Some(t) => t,
+					None => return Ok(Value::Nil),
+				};
+
+				// merge remaining sources
 				for src in iter {
 					if src.is_nil() || src == Value::NULL {
 						continue;
 					}
 					if let Value::Table(ref src_table) = src {
-						merge_tables_deep(target_table, src_table)?;
+						merge_tables_deep(&target_table, src_table)?;
 					} else {
 						return Err(mlua::Error::RuntimeError("Cannot deep merge a non table type".into()));
 					}
 				}
-				Ok(target)
+				Ok(target_value.unwrap())
 			})?,
 		)?;
 

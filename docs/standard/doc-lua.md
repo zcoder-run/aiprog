@@ -95,31 +95,39 @@ is_object({10, 20}) --> false
 
 ### `merge(target, ...sources)`
 
-Shallow merges `sources` into `target`. All arguments after `target` that are tables have their key-value pairs set on `target`, overwriting existing keys. Arguments that are `nil` or `null` are skipped.
+Merges table arguments into a target table. The target may be `nil` or `null`; if so, the function skips leading `nil`/`null` arguments and uses the first non‑`nil`, non‑`null` table as the target. All subsequent arguments that are tables have their key-value pairs set on the target, overwriting existing keys. Arguments that are `nil` or `null` are skipped.
 
-Returns `target` (modified in place).
+Returns the target table (modified in place), or `nil` if no non‑`nil`/non‑`null` table was provided.
 
 ```lua
 local t = {a = 1}
 merge(t, {b = 2}, {a = 99})
 -- t is now {a = 99, b = 2}
+
+-- nil first argument
+local r = merge(nil, {x = 1}, {y = 2})
+-- r is now {x = 1, y = 2}
 ```
 
-If any source is not a table, `nil`, or `null`, an error is raised.
+If any argument after the target is not a table, `nil`, or `null`, an error is raised.
 
 ### `merge_deep(target, ...sources)`
 
-Deep merges `sources` into `target`. When both `target[k]` and `source[k]` are tables, they are recursively deep‑merged; otherwise `target[k]` is overwritten by `source[k]`. Arguments that are `nil` or `null` are skipped.
+Deep merges table arguments into a target table. The target may be `nil` or `null`; if so, the function skips leading `nil`/`null` arguments and uses the first non‑`nil`, non‑`null` table as the target. When both `target[k]` and `source[k]` are tables, they are recursively deep‑merged; otherwise `target[k]` is overwritten by `source[k]`. Arguments that are `nil` or `null` are skipped.
 
-Returns `target` (modified in place).
+Returns the target table (modified in place), or `nil` if no non‑`nil`/non‑`null` table was provided.
 
 ```lua
 local t = {a = {x = 1}}
 merge_deep(t, {a = {y = 2}, b = 3})
 -- t is now {a = {x = 1, y = 2}, b = 3}
+
+-- nil first argument
+local r = merge_deep(nil, {a = {x = 1}}, {a = {y = 2}})
+-- r is now {a = {x = 1, y = 2}}
 ```
 
-If any source is not a table, `nil`, or `null`, an error is raised.
+If any argument after the target is not a table, `nil`, or `null`, an error is raised.
 
 ## Module Extensions
 
