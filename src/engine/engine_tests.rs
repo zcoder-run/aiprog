@@ -333,6 +333,7 @@ async fn test_script_engine_exec_lua_script_error_details() -> Result<()> {
 	assert!(surround.contains("error('boom')"));
 	assert!(surround.contains("> 3 |"));
 	assert!(details.message().contains("boom"));
+	assert!(!details.message().contains("stack traceback:"));
 
 	Ok(())
 }
