@@ -37,7 +37,10 @@ pub fn aip_error_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
 #[proc_macro_attribute]
 pub fn aip_handler(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	aip_handler::aip_handler_attr(attr, item)
+	let attr: proc_macro2::TokenStream = attr.into();
+	let item: proc_macro2::TokenStream = item.into();
+	let result = aip_handler::aip_handler_attr(attr, item);
+	result.into()
 }
 
 // endregion: --- Attributes

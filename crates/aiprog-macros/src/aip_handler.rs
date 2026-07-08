@@ -1,9 +1,12 @@
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemFn, parse_macro_input};
+use syn::ItemFn;
 
 pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
-	let input = parse_macro_input!(item as ItemFn);
+	let input = match syn::parse2::<ItemFn>(item) {
+		Ok(v) => v,
+		Err(e) => return e.to_compile_error(),
+	};
 
 	// Extract doc comment metadata.
 	let (title, desc) = extract_title_desc(&input.attrs);
@@ -22,8 +25,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 				&input.sig,
 				"handler function must have exactly one parameter (the typed params).",
 			)
-			.to_compile_error()
-			.into();
+			.to_compile_error();
 		}
 	}
 
@@ -185,7 +187,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		#impl_block
 	};
 
-	TokenStream::from(expanded)
+	expanded
 }
 
 // region:    --- Helpers
@@ -284,7 +286,7 @@ mod tests {
 				unimplemented!()
 			}
 		};
-		let result = aip_handler_attr(TokenStream::new(), input.into());
+		let result = aip_handler_attr(TokenStream::new(), input);
 		let output_str = result.to_string();
 		assert!(output_str.contains("__AiprogHandler_my_parse_handler"));
 		assert!(output_str.contains("struct"));
@@ -301,7 +303,7 @@ mod tests {
 				unimplemented!()
 			}
 		};
-		let result = aip_handler_attr(TokenStream::new(), input.into());
+		let result = aip_handler_attr(TokenStream::new(), input);
 		let output_str = result.to_string();
 		assert!(output_str.contains("AsyncMarker"));
 		assert!(output_str.contains("__AiprogHandler_my_async_handler"));

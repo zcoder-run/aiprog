@@ -85,7 +85,6 @@ pub struct AipWebGetParams {
 
 impl AipFromLua for AipWebGetParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
-		println!("->> {value:?}");
 		let table = value.as_table().ok_or("Expected table")?;
 		let data: String = table.get("url")?;
 

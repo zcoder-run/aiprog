@@ -129,6 +129,9 @@ impl LuaJsonExt for Value {
 			}
 
 			if numeric_only {
+				if max_idx == 0 {
+					return Ok(serde_json::Value::Object(serde_json::Map::new()));
+				}
 				let mut vec: Vec<Option<serde_json::Value>> = vec![None; max_idx];
 				for pair in table.clone().pairs::<mlua::Value, mlua::Value>() {
 					let (k, v) = pair?;
