@@ -3,10 +3,9 @@
 .*
 !.gitignore
 
-# Ignore all file/paths starting with _, except in src/
-_*
-!**/src/**/_*/
-!**/src/**/_*
+# ignore examples/xp* (for personal experimentation)
+examples/xp*
+
 
 # -- AIPack
 # Ignore all .aipack files

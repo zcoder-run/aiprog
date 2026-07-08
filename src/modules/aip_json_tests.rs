@@ -15,7 +15,7 @@ async fn test_api_json_parse_simple() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert_eq!(res["name"], "John");
@@ -34,7 +34,7 @@ async fn test_api_json_parse_roundtrip() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 	let data = res.as_str().ok_or("Expected string result")?;
 
 	// -- Check
@@ -56,7 +56,7 @@ async fn test_api_json_parse_with_comment() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert_eq!(res["name"], "John");
@@ -73,7 +73,7 @@ async fn test_api_json_parse_nil() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert!(res.is_null());
@@ -94,7 +94,7 @@ async fn test_api_json_parse_invalid() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let err_str = res.as_str().ok_or("Expected error string")?;
@@ -114,7 +114,7 @@ async fn test_api_json_parse_jsonl_simple() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let expected = json!([
@@ -135,7 +135,7 @@ async fn test_api_json_parse_jsonl_empty_lines() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let expected = json!([
@@ -156,7 +156,7 @@ async fn test_api_json_parse_jsonl_nil() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert_eq!(res, json!({}));
@@ -177,7 +177,7 @@ async fn test_api_json_parse_jsonl_invalid_json() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let err_str = res.as_str().ok_or("Expected error string")?;
@@ -199,7 +199,7 @@ async fn test_api_json_stringify_pretty_basic() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 	// -- Check
 	let result = res.as_str().ok_or("Expected string result")?;
 	let parsed: serde_json::Value = serde_json::from_str(result)?;
@@ -228,7 +228,7 @@ async fn test_api_json_stringify_pretty_complex() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let result = res.as_str().ok_or("Expected string result")?;
@@ -261,7 +261,7 @@ async fn test_api_json_stringify_simple() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 	// -- Check
 	let result = res.as_str().ok_or("Expected string result")?;
 	assert_contains!(result, r#""name":"John""#);
@@ -280,7 +280,7 @@ async fn test_api_json_parse_new_api() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check standard API
 	assert_eq!(res["name"], "John");
@@ -302,7 +302,7 @@ async fn test_api_json_parse_new_api_error() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check error message
 	assert_contains!(res.as_str().ok_or("Expected error string")?, "Fail to parse json");
@@ -319,7 +319,7 @@ async fn test_api_json_parse_jsonl_new_api() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let expected = json!([
@@ -340,7 +340,7 @@ async fn test_api_json_stringify_new_api() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let result_str = res.as_str().ok_or("Expected string")?;
@@ -358,7 +358,7 @@ async fn test_api_json_stringify_pretty_new_api() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	let result_str = res.as_str().ok_or("Expected string")?;
@@ -375,7 +375,7 @@ async fn test_api_json_stringify_to_line_alias_removed() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 	// -- Check
 	assert!(res.as_bool().ok_or("Expected boolean result")?);
 	Ok(())
@@ -393,7 +393,7 @@ async fn test_api_json_chained_stringify_and_parse() -> Result<()> {
     "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check (the round‑tripped object should match the JSON representation)
 	assert_eq!(res["name"], "John");
@@ -410,7 +410,7 @@ async fn test_api_json_stringify_nil_data() -> Result<()> {
         "#;
 
 	// -- Exec
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert!(res.is_null());

@@ -41,8 +41,8 @@ where
 	crate::ScriptEngine::from_registry(registry)
 }
 
-pub fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<serde_json::Value> {
-	engine.exec(code)
+pub async fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<serde_json::Value> {
+	engine.exec(code).await
 }
 
 #[allow(dead_code)]

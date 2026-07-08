@@ -1,11 +1,13 @@
 use aiprog::ScriptEngine;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let script_engine = ScriptEngine::new()?;
 
 	println!("== aip.json.parse\n");
-	let result = script_engine.exec(
-		r#"
+	let result = script_engine
+		.exec(
+			r#"
 		local extra_text = '{"param_1": "value-1"}'
 		local extra = aip.json.parse({text = extra_text})
 		return {
@@ -15,13 +17,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 			extra = extra,
 		}
 		"#,
-	)?;
+		)
+		.await?;
 
 	println!("{result:#?}");
 
 	println!("== aip.json.stringify (pretty = true)\n");
-	let result = script_engine.exec(
-		r#"
+	let result = script_engine
+		.exec(
+			r#"
 		local data = {
 			message = "Hello from lua",
 			count = 3,
@@ -34,7 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		local text = aip.json.stringify({data = data, pretty = true})
 		return text
 		"#,
-	)?;
+		)
+		.await?;
 	let result = result.as_str().ok_or("no result string")?;
 
 	println!("{result}");

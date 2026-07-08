@@ -37,7 +37,7 @@ impl ScriptEngine {
 		Ok(engine)
 	}
 
-	pub fn exec(&self, code: &str) -> Result<serde_json::Value> {
+	pub async fn exec(&self, code: &str) -> Result<serde_json::Value> {
 		let value = self.lua.load(code).eval()?;
 		let value = self.lua.from_value(value)?;
 

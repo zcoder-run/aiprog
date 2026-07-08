@@ -49,18 +49,21 @@ fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingOutput> {
 
 // region:    --- Main
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let mut registry = AipRegistry::from_aip_modules()?;
 	register_handler!(registry, "custom.greeting", custom_greetings)?;
 
 	let script_engine = ScriptEngine::from_registry(registry)?;
 
-	let result = script_engine.exec(
-		r#"
+	let result = script_engine
+		.exec(
+			r#"
         local res = custom.greeting({name = "World"})
         return res
         "#,
-	)?;
+		)
+		.await?;
 
 	println!("{}", result.x_pretty()?);
 

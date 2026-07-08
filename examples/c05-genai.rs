@@ -45,7 +45,7 @@ Do not include any other text."
 	let lua_code = extract_lua_block(ai_text)?;
 
 	// 6. Execute with engine.
-	let res = engine.exec(&lua_code)?;
+	let res = engine.exec(&lua_code).await?;
 
 	let res = res.as_str().ok_or("Lua code should have returned a string")?;
 

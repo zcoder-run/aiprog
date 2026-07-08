@@ -1,7 +1,8 @@
 use aiprog::ScriptEngine;
 use value_ext::JsonValueExt;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let script_engine = ScriptEngine::new()?;
 
 	println!("== aip.html.slim\n");
@@ -21,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 			md = md
 		}
 		"#,
-	)?;
+	).await?;
 
 	let slimmed = res.x_get_str("slimmed")?;
 	let md = res.x_get_str("md")?;

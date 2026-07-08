@@ -18,7 +18,7 @@ async fn test_api_web_constants() -> Result<()> {
 			local ua_browser = aip.web.UA_BROWSER
 			return { ua_aiprog = ua_aiprog, ua_browser = ua_browser }
 		"#;
-	let res = _test_support::eval_script(&engine, script)?;
+	let res = _test_support::eval_script(&engine, script).await?;
 
 	// -- Check
 	assert_eq!(res["ua_aiprog"], "aiprog");
@@ -46,7 +46,7 @@ async fn test_api_web_get_simple() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(r#"return aip.web.get{{ data = "{url}", parse = true }}"#,);
+	let script = format!(r#"return aip.web.get{{ url = "{url}", parse = true }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
@@ -84,7 +84,7 @@ async fn test_api_web_post_json() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }}, parse = true }}"#,);
+	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }}, parse = true }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
@@ -122,7 +122,7 @@ async fn test_api_web_post_body() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(r#"return aip.web.post{{ data = "{url}", body = "hello world body" }}"#,);
+	let script = format!(r#"return aip.web.post{{ url = "{url}", body = "hello world body" }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let value: mlua::Value = func.call_async(()).await?;
 
@@ -150,7 +150,7 @@ async fn test_api_web_post_error() -> Result<()> {
 
 	// -- Exec
 	let lua = engine.lua();
-	let script = format!(r#"return aip.web.post{{ data = "{url}", json = {{ key = "value" }} }}"#,);
+	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }} }}"#,);
 	let func = lua.load(&script).into_function()?;
 	let result: mlua::Result<mlua::Value> = func.call_async(()).await;
 

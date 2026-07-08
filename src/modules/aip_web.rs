@@ -85,8 +85,9 @@ pub struct AipWebGetParams {
 
 impl AipFromLua for AipWebGetParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+		println!("->> {value:?}");
 		let table = value.as_table().ok_or("Expected table")?;
-		let data: String = table.get("data")?;
+		let data: String = table.get("url")?;
 
 		let user_agent = table.x_get_value("user_agent").and_then(|v| {
 			if let Some(b) = v.x_as_bool() {
@@ -210,7 +211,7 @@ async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOut
 #[serde_with::skip_serializing_none]
 pub struct AipWebPostParams {
 	/// The URL to request.
-	pub data: String,
+	pub url: String,
 
 	/// JSON payload to send as the request body (serialized). Takes precedence over `body`.
 	pub json: Option<serde_json::Value>,
@@ -234,7 +235,7 @@ pub struct AipWebPostParams {
 impl AipFromLua for AipWebPostParams {
 	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
 		let table = value.as_table().ok_or("Expected table")?;
-		let data: String = table.get("data")?;
+		let url: String = table.get("url")?;
 
 		let json: Option<serde_json::Value> = table
 			.get::<mlua::Value>("json")
@@ -296,7 +297,7 @@ impl AipFromLua for AipWebPostParams {
 		let parse: Option<bool> = table.x_get_bool("parse");
 
 		Ok(AipWebPostParams {
-			data,
+			url,
 			json,
 			body,
 			user_agent,
@@ -323,7 +324,7 @@ async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebO
 	};
 
 	let post_params = webc::WebPostParams {
-		url: params.data.clone(),
+		url: params.url.clone(),
 		user_agent: None,
 		headers: params.headers.map(|h| {
 			h.into_iter()
@@ -340,14 +341,14 @@ async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebO
 		body_format: webc::BodyFormat::Text,
 	};
 
-	let url_clone = params.data.clone();
+	let url_clone = params.url.clone();
 
 	let response = client
 		.web_post(post_params)
 		.await
 		.map_err(|err| webc_error_to_aip(&url_clone, err))?;
 
-	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.data)
+	web_response_to_aip_output(response, params.parse.unwrap_or(false), &params.url)
 }
 
 // endregion: --- aip.web.post
