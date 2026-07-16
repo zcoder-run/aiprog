@@ -2,6 +2,8 @@
 
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
 
+use value_ext::JsonValueExt as _;
+
 use crate::_test_support;
 use crate::modules;
 
@@ -45,19 +47,14 @@ async fn test_api_web_get_simple() -> Result<()> {
 	let url = server.path_url("/test");
 
 	// -- Exec
-	let lua = engine.lua();
 	let script = format!(r#"return aip.web.get{{ url = "{url}", parse = true }}"#,);
-	let func = lua.load(&script).into_function()?;
-	let value: mlua::Value = func.call_async(()).await?;
-
-	let table = value.as_table().ok_or("Expected table result")?;
+	let res = _test_support::eval_script(&engine, &script).await?;
 
 	// -- Check
-	assert!(table.get::<bool>("success")?);
-	assert_eq!(table.get::<u16>("status")?, 200);
-	let data: mlua::Value = table.get("data")?;
-	let data_table = data.as_table().ok_or("Expected data table")?;
-	assert_eq!(data_table.get::<String>("hello")?, "world");
+	assert!(res.x_get_bool("success")?);
+	assert_eq!(res.x_get_i64("status")?, 200);
+	let hello = res.x_get_str("/data/hello").ok().ok_or("expected data.hello")?;
+	assert_eq!(hello, "world");
 
 	server.close().await?;
 
@@ -83,19 +80,13 @@ async fn test_api_web_post_json() -> Result<()> {
 	let url = server.path_url("/test");
 
 	// -- Exec
-	let lua = engine.lua();
 	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }}, parse = true }}"#,);
-	let func = lua.load(&script).into_function()?;
-	let value: mlua::Value = func.call_async(()).await?;
-
-	let table = value.as_table().ok_or("Expected table result")?;
+	let res = _test_support::eval_script(&engine, &script).await?;
 
 	// -- Check
-	assert!(table.get::<bool>("success")?);
-	assert_eq!(table.get::<u16>("status")?, 200);
-	let data: mlua::Value = table.get("data")?;
-	let data_table = data.as_table().ok_or("Expected data table")?;
-	assert_eq!(data_table.get::<String>("result")?, "success");
+	assert!(res.x_get_bool("success")?);
+	assert_eq!(res.x_get_i64("status")?, 200);
+	assert_eq!(res.x_get_str("/data/result")?, "success");
 
 	server.close().await?;
 
@@ -121,17 +112,12 @@ async fn test_api_web_post_body() -> Result<()> {
 	let url = server.path_url("/test");
 
 	// -- Exec
-	let lua = engine.lua();
 	let script = format!(r#"return aip.web.post{{ url = "{url}", body = "hello world body" }}"#,);
-	let func = lua.load(&script).into_function()?;
-	let value: mlua::Value = func.call_async(()).await?;
-
-	let table = value.as_table().ok_or("Expected table result")?;
+	let res = _test_support::eval_script(&engine, &script).await?;
 
 	// -- Check
-	assert!(table.get::<bool>("success")?);
-	let data: String = table.get("data")?;
-	assert_eq!(data, "received");
+	assert!(res.x_get_bool("success")?);
+	assert_eq!(res.x_get_str("data")?, "received");
 
 	server.close().await?;
 
@@ -149,10 +135,8 @@ async fn test_api_web_post_error() -> Result<()> {
 	server.close().await?; // shut down the server to force a connection error
 
 	// -- Exec
-	let lua = engine.lua();
 	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }} }}"#,);
-	let func = lua.load(&script).into_function()?;
-	let result: mlua::Result<mlua::Value> = func.call_async(()).await;
+	let result = _test_support::eval_script(&engine, &script).await;
 
 	// -- Check
 	assert!(result.is_err(), "Expected connection error but got Ok");

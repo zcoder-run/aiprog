@@ -50,15 +50,8 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 /// has populated the `aip.web` table.
 #[allow(dead_code)]
 pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
-	let lua = engine.lua();
-	engine.set_value_at_path(
-		"aip.web.UA_AIPROG",
-		mlua::Value::String(lua.create_string(DEFAULT_UA_AIPROG)?),
-	)?;
-	engine.set_value_at_path(
-		"aip.web.UA_BROWSER",
-		mlua::Value::String(lua.create_string(DEFAULT_UA_BROWSER)?),
-	)?;
+	engine.set_value_at_path("aip.web.UA_AIPROG", DEFAULT_UA_AIPROG)?;
+	engine.set_value_at_path("aip.web.UA_BROWSER", DEFAULT_UA_BROWSER)?;
 	Ok(())
 }
 

@@ -1,5 +1,5 @@
 use crate::{AipRegisteredFn, AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
-use mlua::Lua;
+use mlua::{IntoLua, Lua};
 
 pub struct ScriptEngine {
 	pub(super) lua: Lua,
@@ -39,6 +39,7 @@ impl ScriptEngine {
 
 /// Exec
 impl ScriptEngine {
+	/// Exec a script with this engine, and return the mlua::Value
 	pub async fn exec(&self, script: &str) -> Result<serde_json::Value> {
 		let lua_value = self.exec_raw(script).await?;
 		let value = lua_value.x_to_json_value()?.unwrap_or_default();
@@ -46,6 +47,7 @@ impl ScriptEngine {
 		Ok(value)
 	}
 
+	/// Exec a script with this engine, and return the mlua::Value
 	pub async fn exec_raw(&self, script: &str) -> Result<mlua::Value> {
 		let lua = self.lua();
 
@@ -62,20 +64,27 @@ impl ScriptEngine {
 	}
 }
 
-/// Others
+/// Others public
 impl ScriptEngine {
 	/// Install any value at a dotted Lua path, creating intermediate tables as needed.
-	pub fn set_value_at_path(&self, path: &str, value: mlua::Value) -> mlua::Result<()> {
+	pub fn set_value_at_path(&self, path: &str, value: impl IntoLua) -> mlua::Result<()> {
+		let value = IntoLua::into_lua(value, self.lua())?;
 		install_value_at_path(&self.lua, path, value)
 	}
+}
 
-	pub fn lua(&self) -> &Lua {
+// region:    --- Support
+
+impl ScriptEngine {
+	pub(super) fn lua(&self) -> &Lua {
 		&self.lua
 	}
 }
 
+// endregion: --- Support
+
 /// Install a Lua value at a dotted path, creating intermediate tables as needed.
-pub(crate) fn install_value_at_path(lua: &Lua, path: &str, value: mlua::Value) -> mlua::Result<()> {
+fn install_value_at_path(lua: &Lua, path: &str, value: mlua::Value) -> mlua::Result<()> {
 	let segments: Vec<_> = path.split('.').collect();
 	if segments.is_empty() {
 		return Err(mlua::Error::RuntimeError(
