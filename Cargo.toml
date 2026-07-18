@@ -4,8 +4,8 @@ version = "0.0.3-WIP"
 edition = "2024"
 description = "Rust engine for moving from AI tool calls to AI program execution"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/zcoder-run/aiprog"
-repository = "https://github.com/zcoder-run/aiprog"
+homepage = "https://github.com/zcoder-run/rust-aiprog"
+repository = "https://github.com/zcoder-run/rust-aiprog"
 categories = [ "development-tools", "api-bindings" ]
 keywords = ["ai", "lua", "mcp", "llm", "agent"]
 

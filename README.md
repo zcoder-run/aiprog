@@ -49,4 +49,4 @@ It moves AI systems from chaining tool calls to orchestrating workflows as code.
 
 ---
 
-[This Repo](https://github.com/zcoder-run/aiprog)
+[This Repo](https://github.com/zcoder-run/rust-aiprog)
