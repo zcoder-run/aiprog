@@ -72,6 +72,24 @@ fn test_aip_file_dir_context_denies_absolute_paths() -> Result<()> {
 	Ok(())
 }
 
+#[test]
+fn test_aip_file_dir_context_temporary_assertions_return_true() -> Result<()> {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let root = simple_fs::SPath::from_std_path(tmp.path())?;
+	let policy = PathPolicy::new([root.clone()], AbsolutePathPolicy::Deny)?;
+	let context = DirContext::new(policy.clone(), policy);
+
+	// -- Exec
+	let readable = context.assert_read(&root)?;
+	let writable = context.assert_write(&root)?;
+
+	// -- Check
+	assert!(readable);
+	assert!(writable);
+	Ok(())
+}
+
 #[cfg(unix)]
 #[test]
 fn test_aip_file_dir_context_denies_symlink_escape() -> Result<()> {

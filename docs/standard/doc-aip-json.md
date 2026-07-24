@@ -4,7 +4,6 @@ The `aip.json` module provides functions to parse and serialize JSON content. By
 
 - [`aip.json.parse_jsonl(params: AipJsonParseJsonlParams)`](#aipjsonparse_jsonlparamsaipjsonparsejsonlparams) — Parses an NDJSON (JSON Lines) string.
 - [`aip.json.stringify(params: AipJsonStringifyParams)`](#aipjsonstringifyparamsaipjsonstringifyparams) — Serializes a value to a compact JSON string.
-- [`aip.json.stringify_pretty(params: AipJsonStringifyParams)`](#aipjsonstringify_prettyparamsaipjsonstringifyparams) — Serializes a value to a pretty-printed JSON string.
 
 ## aip.json.parse(params: AipJsonParseParams)
 
@@ -49,21 +48,6 @@ Serializes a Lua value (table, array, primitive) into a single-line JSON string.
  ```lua
  local res = aip.json.stringify({ data = { name = "John", age = 30 } })
  -- res contains '{"name":"John","age":30}'
- ```
-
-## aip.json.stringify_pretty(params: AipJsonStringifyParams)
-
-Serializes a Lua value into a multi-line, indented JSON string.
-
-- **`data`** (any) — The value to stringify. When `data` is absent, `nil`, or the null sentinel, returns `nil`.
-
- Returns a pretty-printed JSON string, or `nil` if the data is missing or nil.
-
- **Example:**
-
- ```lua
- local res = aip.json.stringify_pretty({ data = { name = "John", age = 30 } })
- -- res contains a prettified JSON string with newlines and indentation
  ```
 
 ## Common Types
@@ -111,6 +95,8 @@ Used by both `stringify` and `stringify_pretty`.
 interface AipJsonStringifyParams {
   /** The value to serialize. */
   data: any;
+  /** When true, serialize with indentation and line breaks. */
+  pretty?: boolean;
 }
 ```
 
@@ -122,10 +108,3 @@ The compact JSON string returned directly to Lua.
 type AipJsonStringifyOutput = string;
 ```
 
-### AipJsonStringifyPrettyOutput
-
-The pretty-printed JSON string returned directly to Lua.
-
-```typescript
-type AipJsonStringifyPrettyOutput = string;
-```

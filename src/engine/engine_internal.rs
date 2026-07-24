@@ -5,7 +5,7 @@ use mlua::{Function, Lua, MultiValue, Value};
 
 impl ScriptEngine {
 	pub(super) fn register(&mut self, registry: AipRegistry) -> Result<()> {
-		self.register_with_context(registry, temporary_call_context())
+		self.register_with_context(registry, context_free_call_context())
 	}
 
 	pub(super) fn register_with_context(
@@ -95,7 +95,7 @@ fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Resu
 	Ok(())
 }
 
-fn temporary_call_context() -> HandlerCallContext {
+fn context_free_call_context() -> HandlerCallContext {
 	let running = crate::running_context::RunningContextHandle::new(
 		crate::RunningContext::default(),
 	);

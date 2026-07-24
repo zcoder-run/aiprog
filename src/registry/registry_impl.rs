@@ -104,7 +104,7 @@ impl AipRegistry {
 			.iter()
 			.find(|e| e.path == path)
 			.ok_or_else(|| mlua::Error::RuntimeError(format!("Handler not found: {path}")))?;
-		let entry = definition.bind(temporary_call_context());
+		let entry = definition.bind(context_free_call_context());
 
 		match entry.handler {
 			AipHandlerClosure::Sync(handler) => handler(&lua, value),
@@ -173,7 +173,7 @@ impl AipRegistryBuilder {
 	pub fn register_async<P, O, H>(mut self, path: &str, handler: H) -> AipRegistryResult<Self>
 	where
 		P: AipParams,
-		O: AipOutput + serde::Serialize,
+		O: AipOutput,
 		H: AipAsyncFnWrapper<P, O>,
 	{
 		self.validate_available_path(path)?;
@@ -342,7 +342,7 @@ where
 	})
 }
 
-fn temporary_call_context() -> HandlerCallContext {
+fn context_free_call_context() -> HandlerCallContext {
 	let running = crate::running_context::RunningContextHandle::new(RunningContext::default());
 	HandlerCallContext::new(running)
 }

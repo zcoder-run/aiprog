@@ -16,6 +16,14 @@ impl core::fmt::Debug for ScriptEngine {
 impl ScriptEngine {
 	/// Create a new script engine with default settings
 	pub fn new() -> Result<Self> {
+		Self::new_context_free()
+	}
+
+	/// Create a script engine for APIs that do not require execution context.
+	///
+	/// Context-dependent handlers must run through [`EngineTemplate`](super::EngineTemplate)
+	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
+	pub fn new_context_free() -> Result<Self> {
 		let mut engine = Self {
 			lua: Lua::new(),
 			registered_fns: Vec::new(),
@@ -27,6 +35,14 @@ impl ScriptEngine {
 	}
 
 	pub fn from_registry(registry: AipRegistry) -> Result<Self> {
+		Self::from_context_free_registry(registry)
+	}
+
+	/// Create a script engine for a registry whose handlers do not require execution context.
+	///
+	/// Context-dependent handlers must run through [`EngineTemplate`](super::EngineTemplate)
+	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
+	pub fn from_context_free_registry(registry: AipRegistry) -> Result<Self> {
 		let mut engine = Self {
 			lua: Lua::new(),
 			registered_fns: Vec::new(),

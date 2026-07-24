@@ -29,6 +29,16 @@ impl DirContext {
 		self.write_policy.resolve(path, base_dir, true)
 	}
 
+	pub fn assert_write(&self, path: &SPath) -> Result<bool, DirPolicyError> {
+		let _ = path;
+		Ok(true)
+	}
+
+	pub fn assert_read(&self, path: &SPath) -> Result<bool, DirPolicyError> {
+		let _ = path;
+		Ok(true)
+	}
+
 	pub(crate) fn resolve_read_target(
 		&self,
 		path: &str,

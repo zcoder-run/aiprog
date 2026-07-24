@@ -7,7 +7,7 @@
 
 Performs an HTTP GET request.
 
-- **`data`** (string) — The URL to request.
+- **`url`** (string) — The URL to request.
 - **`user_agent`** (optional, boolean or string) — Controls the User-Agent header.
 - **`headers`** (optional, table) — Additional request headers.
 - **`redirect_limit`** (optional, integer) — Maximum number of redirects to follow.
@@ -18,7 +18,7 @@ Returns an [`AipWebOutput`](#aipweboutput) table.
 **Example:**
 
 ```lua
-local res = aip.web.get({ data = "https://httpbin.org/json", parse = true })
+local res = aip.web.get({ url = "https://httpbin.org/json", parse = true })
 -- res.data contains the parsed JSON object
 ```
 
@@ -37,7 +37,7 @@ Non-success HTTP status codes (4xx, 5xx) are not raised as errors; they are retu
 
 Performs an HTTP POST request.
 
-- **`data`** (string) — The URL to request.
+- **`url`** (string) — The URL to request.
 - **`json`** (optional, any) — JSON value sent as the request body. Takes precedence over `body`.
 - **`body`** (optional, string) — Raw string body (ignored when `json` is provided).
 - **`user_agent`** (optional, boolean or string)
@@ -51,7 +51,7 @@ Returns an [`AipWebOutput`](#aipweboutput) table.
 
 ```lua
 local res = aip.web.post({
-    data = "https://httpbin.org/post",
+    url = "https://httpbin.org/post",
     json = { key = "value" },
 })
 ```
@@ -81,7 +81,7 @@ Parameters for `aip.web.get`.
 ```typescript
 interface AipWebGetParams {
   /** The URL to request. */
-  data: string;
+  url: string;
   /** User-Agent behavior. true → use "aiprog", false → no default UA, string → custom UA. */
   user_agent?: boolean | string;
   /** Extra request headers; values can be a string or an array of strings. */
@@ -99,7 +99,7 @@ Parameters for `aip.web.post`.
 
 ```typescript
 interface AipWebPostParams {
-  data: string;
+  url: string;
   /** JSON body; takes precedence over `body`. */
   json?: any;
   /** Raw string body. */

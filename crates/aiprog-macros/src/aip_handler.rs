@@ -88,10 +88,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	let impl_block = if is_async {
 		quote! {
-			impl ::aiprog::registry::AipHandler for #handler_struct_ident
-			where
-				#output_ty : serde::Serialize,
-			{
+			impl ::aiprog::registry::AipHandler for #handler_struct_ident {
 				type Marker = #marker;
 				type Params = #params_ty;
 				type Output = #output_ty;
@@ -329,6 +326,7 @@ mod tests {
 		assert!(output_str.contains("__AiprogHandler_my_async_handler"));
 		assert!(output_str.contains("struct"));
 		assert!(output_str.contains("__aiprog_meta_my_async_handler"));
+		assert!(!output_str.contains("serde :: Serialize"));
 	}
 
 	#[test]

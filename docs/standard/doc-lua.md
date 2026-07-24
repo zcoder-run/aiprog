@@ -140,6 +140,12 @@ Beyond the global helpers, AIP provides higher-level modules installed under the
 
 Each module follows the [aip API scheme](dev/specs/spec-aiprog-api-scheme.md): functions accept a single table of named parameters and return either a direct value or a result table with a `data` field.
 
+## Execution Context
+
+Handlers that require execution-scoped Rust state, including `aip.file` handlers that require a `DirContext`, must run through `EngineTemplate` with a caller-supplied `RunningContext`.
+
+`ScriptEngine::new_context_free` and `ScriptEngine::from_context_free_registry` are for context-free APIs. Calling a context-dependent handler through those APIs returns a predictable missing-context error rather than granting a fallback capability.
+
 ## Rust-side Extensions (Internal)
 
 The crate also provides Rust helper traits (`LuaExt`, `LuaJsonExt`) for extracting values from Lua tables and converting between JSON and Lua.  

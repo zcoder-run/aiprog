@@ -1,5 +1,5 @@
 use super::*;
-use crate::{AipRegistry, AipRegistryBuilder};
+use crate::{AipIntoLua, AipRegistry, AipRegistryBuilder};
 use crate::impl_lua_serde_traits;
 use crate::registry::{HandlerError, HandlerResult};
 use mlua::Value;
@@ -18,11 +18,25 @@ struct TestResponse {
 	data: String,
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+struct AsyncLuaOnlyResponse {
+	data: String,
+}
+
 impl_lua_serde_traits!(TestParams);
 impl_lua_serde_traits!(TestResponse);
 
 impl crate::AipParams for TestParams {}
 impl crate::AipOutput for TestResponse {}
+impl crate::AipOutput for AsyncLuaOnlyResponse {}
+
+impl AipIntoLua for AsyncLuaOnlyResponse {
+	fn into_lua(self, lua: &mlua::Lua) -> crate::Result<Value> {
+		let table = lua.create_table()?;
+		table.set("data", self.data)?;
+		Ok(Value::Table(table))
+	}
+}
 
 fn test_sync_handler(_call: crate::HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
@@ -30,6 +44,13 @@ fn test_sync_handler(_call: crate::HandlerCallContext, params: TestParams) -> Ha
 
 async fn test_async_handler(_call: crate::HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
+}
+
+async fn test_async_lua_only_handler(
+	_call: crate::HandlerCallContext,
+	params: TestParams,
+) -> HandlerResult<AsyncLuaOnlyResponse> {
+	Ok(AsyncLuaOnlyResponse { data: params.data })
 }
 
 fn test_error_handler(_call: crate::HandlerCallContext, _params: TestParams) -> HandlerResult<TestResponse> {
@@ -323,6 +344,25 @@ return res
 }
 
 #[tokio::test]
+async fn test_engine_script_engine_context_free_file_handler_reports_missing_context() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = ScriptEngine::new_context_free()?;
+
+	// -- Exec
+	let result = engine.exec("return aip.file.exists({ path = 'missing.txt' })").await;
+
+	// -- Check
+	let error = result.err().ok_or("Should reject a context-dependent file handler")?;
+	let crate::Error::LuaScript(details) = error else {
+		return Err("Expected Error::LuaScript".into());
+	};
+	assert!(details.message().contains("Running context does not contain a value of type"));
+	assert!(details.message().contains("DirContext"));
+
+	Ok(())
+}
+
+#[tokio::test]
 async fn test_script_engine_exec_lua_script_error_details() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
@@ -348,3 +388,29 @@ async fn test_script_engine_exec_lua_script_error_details() -> Result<()> {
 }
 
 // endregion: --- Rich error paths
+
+// region:    --- Async Lua-only output
+
+#[tokio::test]
+async fn test_engine_script_engine_async_lua_only_output() -> Result<()> {
+	// -- Setup & Fixtures
+	let registry = AipRegistryBuilder::default()
+		.register_async("aip.test.lua_only", test_async_lua_only_handler)?
+		.build();
+	let engine = ScriptEngine::from_registry(registry)?;
+
+	// -- Exec
+	let value: Value = engine
+		.lua()
+		.load("return aip.test.lua_only({data='lua native'})")
+		.call_async(())
+		.await?;
+
+	// -- Check
+	let table = value.as_table().ok_or("Expected table")?;
+	assert_eq!(table.get::<String>("data")?, "lua native");
+
+	Ok(())
+}
+
+// endregion: --- Async Lua-only output
