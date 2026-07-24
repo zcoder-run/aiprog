@@ -1,13 +1,22 @@
+//! Home of the public engine APIs.
+//!
+//! Content:
+//!
+//! - `ScriptEngine`, re-exported from the private `support` module, with its constructors,
+//!   execution APIs, and documentation APIs implemented in the top-level engine files.
+//! - `EngineTemplate`, `RunningEngine`, and the engine policy types.
+//!
+//! The internal Lua runtime wiring lives in the private `support` module, so it stays reachable
+//! only from `src/engine/` and its sub-modules.
+
 // region:    --- Modules
 
 mod engine_doc;
-mod engine_impl;
-mod engine_internal;
-mod engine_native_fns;
 mod engine_template;
+mod support;
 
-pub use engine_impl::*;
 pub use engine_template::*;
+pub(crate) use support::ScriptEngine;
 
 // endregion: --- Modules
 

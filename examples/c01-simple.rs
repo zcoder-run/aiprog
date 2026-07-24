@@ -1,11 +1,13 @@
-use aiprog::ScriptEngine;
+use aiprog::{AipRegistry, EngineTemplate, RunningContext};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let script_engine = ScriptEngine::new()?;
+	let engine_template = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
 	println!("== aip.json.parse\n");
-	let result = script_engine
+	let result = engine_template
 		.exec(
 			r#"
 		local extra_text = '{"param_1": "value-1"}'
@@ -17,13 +19,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			extra = extra,
 		}
 		"#,
+			RunningContext::default(),
 		)
-		.await?;
+		.await?
+		.result?;
 
 	println!("{result:#?}");
 
 	println!("== aip.json.stringify (pretty = true)\n");
-	let result = script_engine
+	let result = engine_template
 		.exec(
 			r#"
 		local data = {
@@ -38,8 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		local text = aip.json.stringify({data = data, pretty = true})
 		return text
 		"#,
+			RunningContext::default(),
 		)
-		.await?;
+		.await?
+		.result?;
 	let result = result.as_str().ok_or("no result string")?;
 
 	println!("{result}");

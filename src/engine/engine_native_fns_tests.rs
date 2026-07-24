@@ -1,4 +1,4 @@
-use super::*;
+use super::support::ScriptEngine;
 use crate::lua_exts::LuaExt;
 use mlua::Value;
 
@@ -47,11 +47,15 @@ fn test_engine_native_fns_merge_simple() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		local s = {b = 2}
 		return merge(t, s)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -67,10 +71,14 @@ fn test_engine_native_fns_merge_nil_null_skip() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge(t, nil, null, {b = 2})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -86,10 +94,14 @@ fn test_engine_native_fns_merge_no_sources() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge(t)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -104,9 +116,13 @@ fn test_engine_native_fns_merge_target_not_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		return merge("not a table", {b = 2})
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());
@@ -123,10 +139,14 @@ fn test_engine_native_fns_merge_source_not_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge(t, "not a table")
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());
@@ -147,11 +167,15 @@ fn test_engine_native_fns_merge_deep_simple() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = {x = 1}}
 		local s = {a = {y = 2}}
 		return merge_deep(t, s)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	let table = value.as_table().ok_or("Expected table")?;
@@ -169,11 +193,15 @@ fn test_engine_native_fns_merge_deep_nested() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = {x = {deep = 1}}}
 		local s = {a = {x = {other = 2}, y = 3}}
 		return merge_deep(t, s)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	let table = value.as_table().ok_or("Expected table")?;
@@ -193,10 +221,14 @@ fn test_engine_native_fns_merge_deep_nil_null_skip() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge_deep(t, nil, null, {b = 2})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -212,10 +244,14 @@ fn test_engine_native_fns_merge_deep_no_sources() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge_deep(t)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -230,9 +266,13 @@ fn test_engine_native_fns_merge_deep_target_not_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		return merge_deep("not a table", {b = 2})
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());
@@ -240,9 +280,13 @@ fn test_engine_native_fns_merge_deep_target_not_table() -> Result<()> {
 	assert!(err_msg.contains("target must be a table"));
 
 	// -- also nil then non-table
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		return merge_deep(nil, "not a table")
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	assert!(result.is_err());
 	let err_msg = result.unwrap_err().to_string();
@@ -258,10 +302,14 @@ fn test_engine_native_fns_merge_deep_source_not_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		local t = {a = 1}
 		return merge_deep(t, "not a table")
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());
@@ -282,9 +330,13 @@ fn test_engine_native_fns_merge_all_nil() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge(nil, nil)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert!(value.is_nil());
@@ -299,9 +351,13 @@ fn test_engine_native_fns_merge_nil_first_with_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge(nil, {a=1})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -316,9 +372,13 @@ fn test_engine_native_fns_merge_nil_null_mixed() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge(nil, null, {a=1}, {b=2})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -334,9 +394,13 @@ fn test_engine_native_fns_merge_nil_first_non_table_error() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		return merge(nil, "not a table")
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());
@@ -357,9 +421,13 @@ fn test_engine_native_fns_merge_deep_all_nil() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge_deep(nil, nil)
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert!(value.is_nil());
@@ -374,9 +442,13 @@ fn test_engine_native_fns_merge_deep_nil_first_with_table() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge_deep(nil, {a=1})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -391,9 +463,13 @@ fn test_engine_native_fns_merge_deep_nil_null_mixed() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let value: Value = lua.load(r#"
+	let value: Value = lua
+		.load(
+			r#"
 		return merge_deep(nil, null, {a=1}, {b=2})
-	"#).eval()?;
+	"#,
+		)
+		.eval()?;
 
 	// -- Check
 	assert_eq!(value.x_get_i64("a").ok_or("expected i64 at key 'a'")?, 1);
@@ -409,9 +485,13 @@ fn test_engine_native_fns_merge_deep_nil_first_non_table_error() -> Result<()> {
 	let lua = engine.lua();
 
 	// -- Exec
-	let result = lua.load(r#"
+	let result = lua
+		.load(
+			r#"
 		return merge_deep(nil, "not a table")
-	"#).eval::<Value>();
+	"#,
+		)
+		.eval::<Value>();
 
 	// -- Check
 	assert!(result.is_err());

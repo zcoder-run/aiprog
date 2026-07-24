@@ -1,7 +1,7 @@
-use super::*;
-use crate::{AipIntoLua, AipRegistry, AipRegistryBuilder};
+use super::support::ScriptEngine;
 use crate::impl_lua_serde_traits;
 use crate::registry::{HandlerError, HandlerResult};
+use crate::{AipIntoLua, AipRegistry, AipRegistryBuilder};
 use mlua::Value;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -334,7 +334,10 @@ return res
 		return Err("Expected Error::LuaScript".into());
 	};
 	let msg = details.message();
-	assert!(msg.contains("aip.web.get"), "message should contain handler path: {msg}");
+	assert!(
+		msg.contains("aip.web.get"),
+		"message should contain handler path: {msg}"
+	);
 	assert!(msg.contains("'url'"), "message should contain field name: {msg}");
 	assert!(msg.contains("string"), "message should contain expected type: {msg}");
 	assert!(msg.contains("integer"), "message should contain actual type: {msg}");

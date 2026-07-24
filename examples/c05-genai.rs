@@ -1,4 +1,4 @@
-use aiprog::{AipRegistry, ScriptEngine};
+use aiprog::{AipRegistry, EngineTemplate, RunningContext};
 use genai::Client;
 use genai::chat::{ChatMessage, ChatRequest};
 
@@ -8,7 +8,7 @@ const MODEL: &str = "gpt-5.4-mini";
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// 1. Build registry from built-in modules.
 	let registry = AipRegistry::from_aip_modules()?;
-	let engine = ScriptEngine::from_registry(registry)?;
+	let engine = EngineTemplate::builder().with_registry(registry).build()?;
 
 	// 2. Generate documentation.
 	let doc = engine.generate_doc()?;
@@ -45,7 +45,10 @@ Do not include any other text."
 	let lua_code = extract_lua_block(ai_text)?;
 
 	// 6. Execute with engine.
-	let res = engine.exec(&lua_code).await?;
+	let res = engine
+		.exec(&lua_code, RunningContext::default())
+		.await?
+		.result?;
 
 	let res = res.as_str().ok_or("Lua code should have returned a string")?;
 

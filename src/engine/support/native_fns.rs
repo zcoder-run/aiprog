@@ -1,8 +1,16 @@
-use crate::ScriptEngine;
+//! Home of the native Lua helper initialization.
+//!
+//! Content:
+//!
+//! - The `null` family of helpers, `null`, `is_null`, `nil_if_null`, `value_or`, `is_not_null`.
+//! - The type predicates, `is_table`, `is_list`, `is_object`.
+//! - The table merge helpers, `merge` and `merge_deep`, with their deep-merge support function.
+
+use crate::engine::support::ScriptEngine;
 use mlua::{self, Value, Variadic};
 
 impl ScriptEngine {
-	pub(super) fn init_native_fns(&self) -> mlua::Result<()> {
+	pub(in crate::engine) fn init_native_fns(&self) -> mlua::Result<()> {
 		// null, NULL, is_null, value_or, ...
 		self.init_null_fns()?;
 
@@ -141,9 +149,7 @@ impl ScriptEngine {
 						target_value = Some(arg);
 						break;
 					} else {
-						return Err(mlua::Error::RuntimeError(
-							"merge: target must be a table".into(),
-						));
+						return Err(mlua::Error::RuntimeError("merge: target must be a table".into()));
 					}
 				}
 
@@ -163,9 +169,7 @@ impl ScriptEngine {
 							target_table.set(key, val)?;
 						}
 					} else {
-						return Err(mlua::Error::RuntimeError(
-							"Cannot merge a non table type".into(),
-						));
+						return Err(mlua::Error::RuntimeError("Cannot merge a non table type".into()));
 					}
 				}
 				Ok(target_value.unwrap())
@@ -195,9 +199,7 @@ impl ScriptEngine {
 						target_value = Some(arg);
 						break;
 					} else {
-						return Err(mlua::Error::RuntimeError(
-							"merge_deep: target must be a table".into(),
-						));
+						return Err(mlua::Error::RuntimeError("merge_deep: target must be a table".into()));
 					}
 				}
 

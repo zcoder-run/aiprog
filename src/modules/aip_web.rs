@@ -19,11 +19,11 @@
 //! ---
 //!
 
-use crate::{AipRegistry, AipRegistryBuilder};
 use crate::LuaJsonExt;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::webc;
-use crate::{AipFromLua, AipIntoLua, HandlerCallContext, LuaExt, ScriptEngine};
+use crate::{AipFromLua, AipIntoLua, HandlerCallContext, LuaExt};
+use crate::{AipRegistry, AipRegistryBuilder};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -47,17 +47,6 @@ pub fn register(registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilde
 		.register_async("aip.web.get", aip_web_get_handler)?
 		.register_async("aip.web.post", aip_web_post_handler)?;
 	Ok(registry)
-}
-
-/// Install the web module constants (`UA_AIPROG`, `UA_BROWSER`) into Lua.
-///
-/// This must be called **after** the handler has been registered and the engine
-/// has populated the `aip.web` table.
-#[allow(dead_code)]
-pub fn install_constants(engine: &ScriptEngine) -> mlua::Result<()> {
-	engine.set_value_at_path("aip.web.UA_AIPROG", DEFAULT_UA_AIPROG)?;
-	engine.set_value_at_path("aip.web.UA_BROWSER", DEFAULT_UA_BROWSER)?;
-	Ok(())
 }
 
 // region:    --- aip.web.get
@@ -608,4 +597,11 @@ pub fn native_function_installer() -> crate::NativeFunctionInstaller {
 		web.set("UA_BROWSER", DEFAULT_UA_BROWSER)?;
 		Ok(())
 	})
+}
+
+#[allow(dead_code)]
+pub fn install_constants(engine: &crate::ScriptEngine) -> crate::Result<()> {
+	engine.set_value_at_path("aip.web.UA_AIPROG", DEFAULT_UA_AIPROG)?;
+	engine.set_value_at_path("aip.web.UA_BROWSER", DEFAULT_UA_BROWSER)?;
+	Ok(())
 }

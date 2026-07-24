@@ -1,12 +1,14 @@
 use std::fs;
 
-use aiprog::ScriptEngine;
+use aiprog::{AipRegistry, EngineTemplate};
 use simple_fs::{SPath, ensure_file_dir};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let script_engine = ScriptEngine::new()?;
+	let engine_template = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
-	let doc = script_engine.generate_doc()?;
+	let doc = engine_template.generate_doc()?;
 
 	println!("{doc}");
 

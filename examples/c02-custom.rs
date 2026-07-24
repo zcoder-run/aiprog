@@ -1,8 +1,8 @@
 use std::fs;
 
 use aiprog::{
-	AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerResult, LuaExt, ScriptEngine, aip_handler,
-	register_handler, HandlerCallContext,
+	AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, EngineTemplate, Error, HandlerCallContext, HandlerResult,
+	LuaExt, RunningContext, aip_handler, register_handler,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -55,22 +55,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	register_handler!(registry_builder, "custom.greeting", custom_greetings)?;
 	let registry = registry_builder.build();
 
-	let script_engine = ScriptEngine::from_registry(registry)?;
+	let engine_template = EngineTemplate::builder().with_registry(registry).build()?;
 
-	let result = script_engine
+	let result = engine_template
 		.exec(
 			r#"
         local res = custom.greeting({name = "World"})
         return res
         "#,
+			RunningContext::default(),
 		)
-		.await?;
+		.await?
+		.result?;
 
 	println!("{}", result.x_pretty()?);
 
 	// -- Save doc
 
-	let doc = script_engine.generate_doc()?;
+	let doc = engine_template.generate_doc()?;
 	let out_file = SPath::new("examples/.out/c02-doc.md");
 	ensure_file_dir(&out_file)?;
 	fs::write(out_file, doc)?;

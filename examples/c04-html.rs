@@ -1,12 +1,14 @@
-use aiprog::ScriptEngine;
+use aiprog::{AipRegistry, EngineTemplate, RunningContext};
 use value_ext::JsonValueExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let script_engine = ScriptEngine::new()?;
+	let engine_template = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
 	println!("== aip.html.slim\n");
-	let res = script_engine.exec(
+	let res = engine_template.exec(
 		r#"
 		local html_string = [[
 		<html><head></head><body><p>Hello &amp; welcome!</p>
@@ -22,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			md = md
 		}
 		"#,
-	).await?;
+		RunningContext::default(),
+	).await?.result?;
 
 	let slimmed = res.x_get_str("slimmed")?;
 	let md = res.x_get_str("md")?;

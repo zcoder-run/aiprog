@@ -1,14 +1,18 @@
+use super::ScriptEngine;
 use crate::AipHandlerClosure;
+use crate::running_context::RunningContextHandle;
 use crate::{AipFnKind, AipRegistry};
-use crate::{HandlerCallContext, Result, ScriptEngine};
-use mlua::{Function, Lua, MultiValue, Value};
+use crate::{HandlerCallContext, Result, RunningContext};
+use mlua::{Lua, MultiValue, Value};
+
+use super::install_function_at_path;
 
 impl ScriptEngine {
-	pub(super) fn register(&mut self, registry: AipRegistry) -> Result<()> {
+	pub(in crate::engine) fn register(&mut self, registry: AipRegistry) -> Result<()> {
 		self.register_with_context(registry, context_free_call_context())
 	}
 
-	pub(super) fn register_with_context(
+	pub(in crate::engine) fn register_with_context(
 		&mut self,
 		registry: AipRegistry,
 		call_context: HandlerCallContext,
@@ -52,52 +56,13 @@ impl ScriptEngine {
 
 		Ok(())
 	}
-
 }
 
-/// Install a Lua function at a dotted path, creating intermediate tables as needed.
-fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Result<()> {
-	let segments: Vec<&str> = path.split('.').collect();
-	if segments.is_empty() {
-		return Err(mlua::Error::RuntimeError(
-			"Invalid empty path for function installation".into(),
-		));
-	}
-	let (leaf, ancestors) = segments.split_last().unwrap();
-	let globals = lua.globals();
-	let mut current = globals;
-	for &seg in ancestors {
-		let next: Value = current.get(seg)?;
-		if next.is_nil() {
-			let table = lua.create_table()?;
-			current.set(seg, table.clone())?;
-			current = table;
-		} else if let Value::Table(t) = next {
-			current = t;
-		} else {
-			return Err(mlua::Error::RuntimeError(format!(
-				"Path segment '{}' exists but is not a table",
-				seg
-			)));
-		}
-	}
-	// Reject targeted leaf conflicts by default
-	if let Ok(existing) = current.get::<Value>(*leaf)
-		&& !existing.is_nil()
-	{
-		return Err(mlua::Error::RuntimeError(format!(
-			"Function already exists at leaf '{}' in path '{}'",
-			leaf, path
-		)));
-	}
-	current.set(*leaf, func)?;
-
-	Ok(())
-}
+// region:    --- Support
 
 fn context_free_call_context() -> HandlerCallContext {
-	let running = crate::running_context::RunningContextHandle::new(
-		crate::RunningContext::default(),
-	);
+	let running = RunningContextHandle::new(RunningContext::default());
 	HandlerCallContext::new(running)
 }
+
+// endregion: --- Support

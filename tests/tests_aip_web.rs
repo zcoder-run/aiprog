@@ -1,6 +1,6 @@
 mod _support;
 
-use aiprog::ScriptEngine;
+use aiprog::{AipRegistry, EngineTemplate, RunningContext};
 use serde_json::json;
 
 use _support::{TestResult, TestServerBuilder};
@@ -14,12 +14,18 @@ async fn test_aip_web_get_parse_json_simple() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/json");
-	let engine = ScriptEngine::new()?;
+	let engine = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
 	// -- Exec
 	let result = engine
-		.exec(&format!(r#"return aip.web.get{{ url = "{url}", parse = true }}"#))
-		.await?;
+		.exec(
+			&format!(r#"return aip.web.get{{ url = "{url}", parse = true }}"#),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
 
 	// -- Check
 	assert_eq!(result["data"], json!({ "hello": "world" }));
@@ -46,14 +52,20 @@ async fn test_aip_web_post_json_request_body() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/records");
-	let engine = ScriptEngine::new()?;
+	let engine = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
 	// -- Exec
 	let result = engine
-		.exec(&format!(
-			r#"return aip.web.post{{ url = "{url}", json = {{ name = "Ada", active = true }}, parse = true }}"#
-		))
-		.await?;
+		.exec(
+			&format!(
+				r#"return aip.web.post{{ url = "{url}", json = {{ name = "Ada", active = true }}, parse = true }}"#
+			),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
 	let request = server.request()?;
 
 	// -- Check
@@ -87,12 +99,18 @@ async fn test_aip_web_get_http_error_response() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/missing");
-	let engine = ScriptEngine::new()?;
+	let engine = EngineTemplate::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
 
 	// -- Exec
 	let result = engine
-		.exec(&format!(r#"return aip.web.get{{ url = "{url}" }}"#))
-		.await?;
+		.exec(
+			&format!(r#"return aip.web.get{{ url = "{url}" }}"#),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
 
 	// -- Check
 	assert_eq!(result["data"], "missing");

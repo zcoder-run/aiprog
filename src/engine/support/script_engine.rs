@@ -1,9 +1,22 @@
-use crate::{AipRegisteredFn, AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
+//! Home of the concrete internal `ScriptEngine` state and engine-only support APIs.
+//!
+//! Content:
+//!
+//! - The `ScriptEngine` struct fields and their crate-private visibility boundary.
+//! - The private Lua accessor used by the engine implementation files.
+//!
+//! The public `ScriptEngine` constructors, execution APIs, and documentation APIs stay in the
+//! top-level `src/engine/` files.
+
+use crate::AipRegisteredFn;
+use crate::{AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
 use mlua::{IntoLua, Lua};
 
+use super::install_value_at_path;
+
 pub struct ScriptEngine {
-	pub(super) lua: Lua,
-	pub(super) registered_fns: Vec<AipRegisteredFn>,
+	pub(in crate::engine) lua: Lua,
+	pub(in crate::engine) registered_fns: Vec<AipRegisteredFn>,
 }
 
 impl core::fmt::Debug for ScriptEngine {
@@ -15,6 +28,7 @@ impl core::fmt::Debug for ScriptEngine {
 /// Constructors
 impl ScriptEngine {
 	/// Create a new script engine with default settings
+	#[allow(dead_code)]
 	pub fn new() -> Result<Self> {
 		Self::new_context_free()
 	}
@@ -23,6 +37,7 @@ impl ScriptEngine {
 	///
 	/// Context-dependent handlers must run through [`EngineTemplate`](super::EngineTemplate)
 	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
+	#[allow(dead_code)]
 	pub fn new_context_free() -> Result<Self> {
 		let mut engine = Self {
 			lua: Lua::new(),
@@ -34,6 +49,7 @@ impl ScriptEngine {
 		Ok(engine)
 	}
 
+	#[allow(dead_code)]
 	pub fn from_registry(registry: AipRegistry) -> Result<Self> {
 		Self::from_context_free_registry(registry)
 	}
@@ -85,46 +101,16 @@ impl ScriptEngine {
 	/// Install any value at a dotted Lua path, creating intermediate tables as needed.
 	pub fn set_value_at_path(&self, path: &str, value: impl IntoLua) -> mlua::Result<()> {
 		let value = IntoLua::into_lua(value, self.lua())?;
-		install_value_at_path(&self.lua, path, value)
+		install_value_at_path(self.lua(), path, value)
 	}
 }
 
 // region:    --- Support
 
 impl ScriptEngine {
-	pub(super) fn lua(&self) -> &Lua {
+	pub(in crate::engine) fn lua(&self) -> &Lua {
 		&self.lua
 	}
 }
 
 // endregion: --- Support
-
-/// Install a Lua value at a dotted path, creating intermediate tables as needed.
-fn install_value_at_path(lua: &Lua, path: &str, value: mlua::Value) -> mlua::Result<()> {
-	let segments: Vec<_> = path.split('.').collect();
-	if segments.is_empty() {
-		return Err(mlua::Error::RuntimeError(
-			"Invalid empty path for value installation".into(),
-		));
-	}
-	let (leaf, ancestors) = segments.split_last().unwrap();
-	let globals = lua.globals();
-	let mut current = globals;
-	for &seg in ancestors {
-		let next: mlua::Value = current.get(seg)?;
-		if next.is_nil() {
-			let table = lua.create_table()?;
-			current.set(seg, table.clone())?;
-			current = table;
-		} else if let mlua::Value::Table(t) = next {
-			current = t;
-		} else {
-			return Err(mlua::Error::RuntimeError(format!(
-				"Path segment '{}' exists but is not a table",
-				seg
-			)));
-		}
-	}
-	current.set(*leaf, value)?;
-	Ok(())
-}

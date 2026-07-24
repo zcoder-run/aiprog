@@ -1,7 +1,6 @@
-use crate::{
-	AipRegistry, ContextRecoveryError, Error, HandlerCallContext, Result, RunOutcome, RunningContext,
-	ScriptEngine,
-};
+use super::support::ScriptEngine;
+use crate::running_context::RunningContextHandle;
+use crate::{AipRegistry, ContextRecoveryError, Error, HandlerCallContext, Result, RunOutcome, RunningContext};
 use derive_more::Display;
 use mlua::{Lua, LuaOptions, StdLib};
 use std::sync::Arc;
@@ -61,7 +60,7 @@ pub struct EngineTemplateBuilder {
 
 pub struct RunningEngine {
 	engine: ScriptEngine,
-	context: crate::running_context::RunningContextHandle,
+	context: RunningContextHandle,
 }
 
 #[derive(Debug, Display)]
@@ -256,8 +255,13 @@ impl EngineTemplate {
 		EngineTemplateBuilder::default()
 	}
 
+	pub fn generate_doc(&self) -> Result<String> {
+		let engine = ScriptEngine::from_context_free_registry(self.inner.registry.clone())?;
+		engine.generate_doc()
+	}
+
 	pub fn start(&self, context: RunningContext) -> core::result::Result<RunningEngine, EngineStartError> {
-		let context_handle = crate::running_context::RunningContextHandle::new(context);
+		let context_handle = RunningContextHandle::new(context);
 		let call_context = HandlerCallContext::new(context_handle.clone());
 
 		match self.create_running_engine(call_context, context_handle.clone()) {
@@ -287,7 +291,7 @@ impl EngineTemplate {
 	fn create_running_engine(
 		&self,
 		call_context: HandlerCallContext,
-		context: crate::running_context::RunningContextHandle,
+		context: RunningContextHandle,
 	) -> Result<RunningEngine> {
 		let lua = create_restricted_lua(&self.inner.lua_policy)?;
 		let mut engine = ScriptEngine {
@@ -358,10 +362,7 @@ impl core::fmt::Display for EngineStartError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
 			Self::Setup { source, .. } => write!(f, "Failed to start isolated engine: {source}"),
-			Self::ContextRecovery {
-				setup_source,
-				recovery,
-			} => write!(
+			Self::ContextRecovery { setup_source, recovery } => write!(
 				f,
 				"Failed to start isolated engine ({setup_source}) and recover its context: {recovery}"
 			),
@@ -394,9 +395,7 @@ impl std::error::Error for TemplateExecutionError {}
 
 // region:    --- Support
 
-fn validate_runtime_policy(
-	policy: &LuaRuntimePolicy,
-) -> core::result::Result<(), TemplateBuildError> {
+fn validate_runtime_policy(policy: &LuaRuntimePolicy) -> core::result::Result<(), TemplateBuildError> {
 	if !policy.std_lib_policy.base {
 		return Err(TemplateBuildError::BaseLibraryRequired);
 	}
@@ -462,17 +461,13 @@ mod tests {
 	#[tokio::test]
 	async fn test_engine_engine_template_exec_uses_fresh_lua_state() -> Result<()> {
 		// -- Setup & Fixtures
-		let template = EngineTemplate::builder()
-			.with_registry(AipRegistry::from_empty())
-			.build()?;
+		let template = EngineTemplate::builder().with_registry(AipRegistry::from_empty()).build()?;
 
 		// -- Exec
 		let first = template
 			.exec("leaked_value = 42; return true", RunningContext::default())
 			.await?;
-		let second = template
-			.exec("return leaked_value == nil", RunningContext::default())
-			.await?;
+		let second = template.exec("return leaked_value == nil", RunningContext::default()).await?;
 
 		// -- Check
 		assert_eq!(first.result?, serde_json::Value::Bool(true));
@@ -484,9 +479,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_engine_engine_template_exec_returns_context_after_script_error() -> Result<()> {
 		// -- Setup & Fixtures
-		let template = EngineTemplate::builder()
-			.with_registry(AipRegistry::from_empty())
-			.build()?;
+		let template = EngineTemplate::builder().with_registry(AipRegistry::from_empty()).build()?;
 		let mut context = RunningContext::default();
 		context.insert::<u32>(42);
 
@@ -503,11 +496,8 @@ mod tests {
 	#[test]
 	fn test_engine_engine_template_start_returns_context_after_setup_error() -> Result<()> {
 		// -- Setup & Fixtures
-		let installer: NativeFunctionInstaller = Arc::new(|_| {
-			Err(mlua::Error::RuntimeError(
-				"Forced native installer failure".into(),
-			))
-		});
+		let installer: NativeFunctionInstaller =
+			Arc::new(|_| Err(mlua::Error::RuntimeError("Forced native installer failure".into())));
 		let native_functions = NativeFunctionSet::default().append_installer(installer);
 		let template = EngineTemplate::builder()
 			.with_registry(AipRegistry::from_empty())
@@ -517,10 +507,7 @@ mod tests {
 		context.insert::<u32>(42);
 
 		// -- Exec
-		let error = template
-			.start(context)
-			.err()
-			.ok_or("Should return a setup error")?;
+		let error = template.start(context).err().ok_or("Should return a setup error")?;
 
 		// -- Check
 		let EngineStartError::Setup { source, context } = error else {
@@ -538,10 +525,7 @@ mod tests {
 		let builder = EngineTemplate::builder();
 
 		// -- Exec
-		let error = builder
-			.build()
-			.err()
-			.ok_or("Should reject a template without a registry")?;
+		let error = builder.build().err().ok_or("Should reject a template without a registry")?;
 
 		// -- Check
 		assert!(matches!(error, TemplateBuildError::MissingRegistry));
