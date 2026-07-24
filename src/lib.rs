@@ -1,4 +1,6 @@
 // region:    --- Modules
+#![doc = include_str!("../docs/rustdoc/lib.md")]
+
 extern crate self as aiprog; // for aiprog_macros
 
 #[cfg(test)]

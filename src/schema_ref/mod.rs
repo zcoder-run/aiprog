@@ -1,3 +1,5 @@
+#![doc = include_str!("../../docs/rustdoc/schema_ref/mod.md")]
+
 // region:    --- Modules
 mod schema_ref_impl;
 

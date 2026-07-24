@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![doc = include_str!("../../docs/rustdoc/registry/mod.md")]
 
 // region:    --- Modules
 
