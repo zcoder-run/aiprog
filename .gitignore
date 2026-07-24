@@ -6,6 +6,8 @@
 # ignore examples/xp* (for personal experimentation)
 examples/xp*
 
+# typically rendered .md to html.
+*.html
 
 # -- AIPack
 # Ignore all .aipack files
