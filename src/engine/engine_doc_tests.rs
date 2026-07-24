@@ -338,7 +338,7 @@ fn test_generate_doc_shared_types() -> TestResult {
 	let output_schema: Schema = Schema::try_from(json!(true)).expect("Invalid schema");
 	let error_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
 
-	let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+	let mut engine = LuaEngine::from_registry(AipRegistry::from_empty())?;
 	engine.registered_fns.push(AipRegisteredFn {
 		path: "test.fn".to_string(),
 		params_schema,
@@ -381,7 +381,7 @@ fn test_generate_doc_skips_common_error_block() -> TestResult {
 	}))
 	.expect("Invalid schema");
 
-	let mut engine = ScriptEngine::from_registry(AipRegistry::from_empty())?;
+	let mut engine = LuaEngine::from_registry(AipRegistry::from_empty())?;
 	engine.registered_fns.push(AipRegisteredFn {
 		path: "test.inline_error".to_string(),
 		params_schema,
@@ -480,7 +480,7 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry.build())?;
+	let engine = LuaEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -501,7 +501,7 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.async", DocAsyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry.build())?;
+	let engine = LuaEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -529,7 +529,7 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.doc.fallback", fallback_impl)?
 		.build();
-	let engine = ScriptEngine::from_registry(registry)?;
+	let engine = LuaEngine::from_registry(registry)?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -548,7 +548,7 @@ fn test_generate_doc_includes_preamble() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry.build())?;
+	let engine = LuaEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;

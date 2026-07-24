@@ -1,8 +1,8 @@
 type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
 
-use super::*;
 use super::super::file_types::{AbsolutePathPolicy, DirPolicyError, PathPolicy};
-use crate::{EngineTemplate, RunningContext};
+use super::*;
+use crate::{ScriptEngine, RunningContext};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -20,13 +20,11 @@ async fn test_read_file_ok() -> Result<()> {
 
 	// Register the single handler directly via the registry (for unit test)
 	let registry = super::init_registry()?;
-	let template = EngineTemplate::builder().with_registry(registry).build()?;
+	let template = ScriptEngine::builder().with_registry(registry).build()?;
 	let mut context = RunningContext::default();
 	context.insert(dir_context);
 
-	let outcome = template
-		.exec("return aip.file.read({ path = 'hello.txt' })", context)
-		.await?;
+	let outcome = template.exec("return aip.file.read({ path = 'hello.txt' })", context).await?;
 	let back = outcome.result?;
 
 	assert_eq!(back["content"], serde_json::json!("world"));

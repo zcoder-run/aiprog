@@ -1,8 +1,8 @@
 use std::fs;
 
 use aiprog::{
-	AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, EngineTemplate, Error, HandlerCallContext, HandlerResult,
-	LuaExt, RunningContext, aip_handler, register_handler,
+	AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerCallContext, HandlerResult, LuaExt,
+	RunningContext, ScriptEngine, aip_handler, register_handler,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	register_handler!(registry_builder, "custom.greeting", custom_greetings)?;
 	let registry = registry_builder.build();
 
-	let engine_template = EngineTemplate::builder().with_registry(registry).build()?;
+	let engine_template = ScriptEngine::builder().with_registry(registry).build()?;
 
 	let result = engine_template
 		.exec(

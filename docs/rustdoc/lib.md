@@ -8,8 +8,6 @@ The crate is designed for applications that want an AI system, or another progra
 
 - [`EngineTemplate`](crate::EngineTemplate) creates isolated script execution environments from an [`AipRegistry`](crate::AipRegistry). It is the preferred API for handlers that need execution-scoped state.
 
-- [`ScriptEngine`](crate::ScriptEngine) executes scripts with context-free handler registries. Use [`ScriptEngine::new_context_free`](crate::ScriptEngine::new_context_free) or [`ScriptEngine::from_context_free_registry`](crate::ScriptEngine::from_context_free_registry) only when no registered handler needs a [`RunningContext`](crate::RunningContext).
-
 - [`AipRegistryBuilder`](crate::AipRegistryBuilder) registers synchronous and asynchronous handlers, combines modules, and builds an immutable [`AipRegistry`](crate::AipRegistry).
 
 - [`AipModule`](crate::AipModule) provides composable registration for a group of handlers. Built-in modules include [`JsonModule`](crate::modules::JsonModule), [`WebModule`](crate::modules::WebModule), [`FileModule`](crate::modules::FileModule), and [`HtmlModule`](crate::modules::HtmlModule).

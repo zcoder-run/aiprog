@@ -1,6 +1,6 @@
 // Integration tests for Aiprog JSON handling via the AIProg Lua engine.
 
-use aiprog::{AipRegistry, EngineTemplate, RunningContext};
+use aiprog::{AipRegistry, ScriptEngine, RunningContext};
 use serde_json::json;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -17,15 +17,12 @@ async fn test_aiprog_run_json_simple_ok() -> TestResult {
     "#
 	);
 
-	let engine = EngineTemplate::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
 	// -- Exec
-	let result = engine
-		.exec(&lua_code, RunningContext::default())
-		.await?
-		.result?;
+	let result = engine.exec(&lua_code, RunningContext::default()).await?.result?;
 
 	// -- Check
 	let expected = json!({

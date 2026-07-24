@@ -1,4 +1,4 @@
-use super::support::ScriptEngine;
+use super::support::LuaEngine;
 use crate::running_context::RunningContextHandle;
 use crate::{AipRegistry, ContextRecoveryError, Error, HandlerCallContext, Result, RunOutcome, RunningContext};
 use derive_more::Display;
@@ -41,7 +41,7 @@ pub struct NativeFunctionSet {
 }
 
 #[derive(Clone)]
-pub struct EngineTemplate {
+pub struct ScriptEngine {
 	inner: Arc<EngineTemplateInner>,
 }
 
@@ -59,7 +59,7 @@ pub struct EngineTemplateBuilder {
 }
 
 pub struct RunningEngine {
-	engine: ScriptEngine,
+	engine: LuaEngine,
 	context: RunningContextHandle,
 }
 
@@ -250,13 +250,13 @@ impl Default for NativeFunctionSet {
 	}
 }
 
-impl EngineTemplate {
+impl ScriptEngine {
 	pub fn builder() -> EngineTemplateBuilder {
 		EngineTemplateBuilder::default()
 	}
 
 	pub fn generate_doc(&self) -> Result<String> {
-		let engine = ScriptEngine::from_context_free_registry(self.inner.registry.clone())?;
+		let engine = LuaEngine::from_context_free_registry(self.inner.registry.clone())?;
 		engine.generate_doc()
 	}
 
@@ -294,7 +294,7 @@ impl EngineTemplate {
 		context: RunningContextHandle,
 	) -> Result<RunningEngine> {
 		let lua = create_restricted_lua(&self.inner.lua_policy)?;
-		let mut engine = ScriptEngine {
+		let mut engine = LuaEngine {
 			lua,
 			registered_fns: Vec::new(),
 		};
@@ -322,11 +322,11 @@ impl EngineTemplateBuilder {
 		self
 	}
 
-	pub fn build(self) -> core::result::Result<EngineTemplate, TemplateBuildError> {
+	pub fn build(self) -> core::result::Result<ScriptEngine, TemplateBuildError> {
 		validate_runtime_policy(&self.lua_policy)?;
 		let registry = self.registry.ok_or(TemplateBuildError::MissingRegistry)?;
 
-		Ok(EngineTemplate {
+		Ok(ScriptEngine {
 			inner: Arc::new(EngineTemplateInner {
 				registry,
 				lua_policy: self.lua_policy,
@@ -459,9 +459,9 @@ mod tests {
 	use super::*;
 
 	#[tokio::test]
-	async fn test_engine_engine_template_exec_uses_fresh_lua_state() -> Result<()> {
+	async fn test_script_engine_exec_uses_fresh_lua_state() -> Result<()> {
 		// -- Setup & Fixtures
-		let template = EngineTemplate::builder().with_registry(AipRegistry::from_empty()).build()?;
+		let template = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
 
 		// -- Exec
 		let first = template
@@ -477,9 +477,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_engine_engine_template_exec_returns_context_after_script_error() -> Result<()> {
+	async fn test_script_engine_exec_returns_context_after_script_error() -> Result<()> {
 		// -- Setup & Fixtures
-		let template = EngineTemplate::builder().with_registry(AipRegistry::from_empty()).build()?;
+		let template = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
 		let mut context = RunningContext::default();
 		context.insert::<u32>(42);
 
@@ -494,12 +494,12 @@ mod tests {
 	}
 
 	#[test]
-	fn test_engine_engine_template_start_returns_context_after_setup_error() -> Result<()> {
+	fn test_script_engine_start_returns_context_after_setup_error() -> Result<()> {
 		// -- Setup & Fixtures
 		let installer: NativeFunctionInstaller =
 			Arc::new(|_| Err(mlua::Error::RuntimeError("Forced native installer failure".into())));
 		let native_functions = NativeFunctionSet::default().append_installer(installer);
-		let template = EngineTemplate::builder()
+		let template = ScriptEngine::builder()
 			.with_registry(AipRegistry::from_empty())
 			.with_native_functions(native_functions)
 			.build()?;
@@ -520,9 +520,9 @@ mod tests {
 	}
 
 	#[test]
-	fn test_engine_engine_template_build_rejects_missing_registry() -> Result<()> {
+	fn test_script_engine_build_rejects_missing_registry() -> Result<()> {
 		// -- Setup & Fixtures
-		let builder = EngineTemplate::builder();
+		let builder = ScriptEngine::builder();
 
 		// -- Exec
 		let error = builder.build().err().ok_or("Should reject a template without a registry")?;

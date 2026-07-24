@@ -600,7 +600,7 @@ pub fn native_function_installer() -> crate::NativeFunctionInstaller {
 }
 
 #[allow(dead_code)]
-pub fn install_constants(engine: &crate::ScriptEngine) -> crate::Result<()> {
+pub fn install_constants(engine: &crate::LuaEngine) -> crate::Result<()> {
 	engine.set_value_at_path("aip.web.UA_AIPROG", DEFAULT_UA_AIPROG)?;
 	engine.set_value_at_path("aip.web.UA_BROWSER", DEFAULT_UA_BROWSER)?;
 	Ok(())

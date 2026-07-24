@@ -71,24 +71,24 @@ flowchart TD
 	end
 
 	subgraph direct["Direct context-free execution"]
-		script_engine["ScriptEngine<br/>one directly constructed Lua VM"]
+		lua_engine["LuaEngine<br/>one directly constructed Lua VM"]
 		direct_lua["Lua VM"]
 
-		script_engine --> direct_lua
+		lua_engine --> direct_lua
 	end
 ```
 
 The reusable layer contains only immutable registry definitions, runtime policy, and native function installers. A run owns its Lua state and execution context. The context is recovered only after the Lua state and its closures have been dropped.
 
-## EngineTemplate and ScriptEngine
+## EngineTemplate and LuaEngine
 
-`EngineTemplate` and `ScriptEngine` serve different construction and lifecycle needs:
+`EngineTemplate` and `LuaEngine` serve different construction and lifecycle needs:
 
 - `EngineTemplate` is the reusable, cloneable template engine configuration. It stores an `AipRegistry`, a `LuaRuntimePolicy`, and approved native function installers, but it does not own a Lua VM or a `RunningContext`.
-- `EngineTemplate::start` creates a `RunningEngine` for one isolated execution. That running engine owns a fresh `ScriptEngine`, its fresh Lua VM, the bound registry closures, and the supplied `RunningContext` handle.
-- `ScriptEngine` is the lower-level concrete Lua runtime. `ScriptEngine::new` and `ScriptEngine::from_registry` directly construct a context-free Lua VM for APIs whose handlers do not require caller-supplied execution state.
+- `EngineTemplate::start` creates a `RunningEngine` for one isolated execution. That running engine owns a fresh `LuaEngine`, its fresh Lua VM, the bound registry closures, and the supplied `RunningContext` handle.
+- `LuaEngine` is the lower-level concrete Lua runtime. `LuaEngine::new` and `LuaEngine::from_registry` directly construct a context-free Lua VM for APIs whose handlers do not require caller-supplied execution state.
 
-Use `EngineTemplate` for isolated executions that need per-run context recovery and reusable policy configuration. Use a directly constructed `ScriptEngine` only when a context-free Lua runtime is the intended API. Context-dependent handlers must run through an `EngineTemplate`, which binds them to the supplied `RunningContext`.
+Use `EngineTemplate` for isolated executions that need per-run context recovery and reusable policy configuration. Use a directly constructed `LuaEngine` only when a context-free Lua runtime is the intended API. Context-dependent handlers must run through an `EngineTemplate`, which binds them to the supplied `RunningContext`.
 
 ## Execution lifecycle
 
@@ -102,7 +102,7 @@ The implemented execution lifecycle is:
 6. Bind registry handler factories to that call context.
 7. Install native functions and bound handlers into Lua.
 8. Execute the Lua script.
-9. Drop the `ScriptEngine`, Lua VM, and bound closures.
+9. Drop the `LuaEngine`, Lua VM, and bound closures.
 10. Recover and return the `RunningContext`.
 
 `EngineTemplate::start` exposes the explicit lifecycle:
@@ -172,7 +172,7 @@ Before installing functions into Lua, `AipRegistry::bind` creates an internal `B
 
 The engine installs synchronous handlers with `Lua::create_function` and asynchronous handlers with `Lua::create_async_function`. Handler outputs are converted directly to Lua values. The script result is converted to `serde_json::Value` only at the script engine's public result boundary.
 
-Context-free `ScriptEngine` construction remains available for registries whose handlers do not require caller-supplied execution state. Context-dependent handlers must run through `EngineTemplate`.
+Context-free `LuaEngine` construction remains available for registries whose handlers do not require caller-supplied execution state. Context-dependent handlers must run through `EngineTemplate`.
 
 ## Running context
 
@@ -292,14 +292,14 @@ The following constraints are intentionally enforced or remain unresolved:
 - Wall-clock timeouts are configurable but currently rejected as unsupported.
 - Cancellation does not yet have a dedicated public finish and context-recovery protocol.
 - Context recovery requires all `HandlerCallContext` clones to be dropped.
-- `ScriptEngine::new` and `ScriptEngine::from_registry` are context-free APIs and are unsuitable for handlers that require values from a caller-provided `RunningContext`.
+- `LuaEngine::new` and `LuaEngine::from_registry` are context-free APIs and are unsuitable for handlers that require values from a caller-provided `RunningContext`.
 - Lua policy and native function installation are separate controls. Restricting registry functions alone is not a complete sandbox.
 
 ## Implementation files
 
 - `src/engine/engine_template.rs`, template configuration, fresh Lua VM creation, start and execution lifecycle.
-- `src/engine/engine_impl.rs`, lower-level `ScriptEngine` execution APIs.
-- `src/engine/engine_internal.rs`, registry binding and Lua function installation.
+- `src/engine/support/lua_engine.rs`, lower-level `LuaEngine` construction and execution APIs.
+- `src/engine/support/lua_engine_register.rs`, registry binding and Lua function installation.
 - `src/running_context.rs`, typed per-run state, scoped handler access, and recovery.
 - `src/run_outcome.rs`, script result and recovered context container.
 - `src/registry/registry_impl.rs`, immutable registry composition and binding.

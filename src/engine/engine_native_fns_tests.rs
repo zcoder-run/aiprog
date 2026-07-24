@@ -1,4 +1,4 @@
-use super::support::ScriptEngine;
+use super::support::LuaEngine;
 use crate::lua_exts::LuaExt;
 use mlua::Value;
 
@@ -9,7 +9,7 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 #[test]
 fn test_engine_native_fns_builtin_modules() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec & Check
@@ -43,7 +43,7 @@ fn test_engine_native_fns_builtin_modules() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -67,7 +67,7 @@ fn test_engine_native_fns_merge_simple() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_nil_null_skip() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -90,7 +90,7 @@ fn test_engine_native_fns_merge_nil_null_skip() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_no_sources() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -112,7 +112,7 @@ fn test_engine_native_fns_merge_no_sources() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_target_not_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -135,7 +135,7 @@ fn test_engine_native_fns_merge_target_not_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_source_not_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -163,7 +163,7 @@ fn test_engine_native_fns_merge_source_not_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -189,7 +189,7 @@ fn test_engine_native_fns_merge_deep_simple() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_nested() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -217,7 +217,7 @@ fn test_engine_native_fns_merge_deep_nested() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_nil_null_skip() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -240,7 +240,7 @@ fn test_engine_native_fns_merge_deep_nil_null_skip() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_no_sources() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -262,7 +262,7 @@ fn test_engine_native_fns_merge_deep_no_sources() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_target_not_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -298,7 +298,7 @@ fn test_engine_native_fns_merge_deep_target_not_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_source_not_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -326,7 +326,7 @@ fn test_engine_native_fns_merge_deep_source_not_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_all_nil() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -347,7 +347,7 @@ fn test_engine_native_fns_merge_all_nil() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_nil_first_with_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -368,7 +368,7 @@ fn test_engine_native_fns_merge_nil_first_with_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_nil_null_mixed() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -390,7 +390,7 @@ fn test_engine_native_fns_merge_nil_null_mixed() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_nil_first_non_table_error() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -417,7 +417,7 @@ fn test_engine_native_fns_merge_nil_first_non_table_error() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_all_nil() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -438,7 +438,7 @@ fn test_engine_native_fns_merge_deep_all_nil() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_nil_first_with_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -459,7 +459,7 @@ fn test_engine_native_fns_merge_deep_nil_first_with_table() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_nil_null_mixed() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec
@@ -481,7 +481,7 @@ fn test_engine_native_fns_merge_deep_nil_null_mixed() -> Result<()> {
 #[test]
 fn test_engine_native_fns_merge_deep_nil_first_non_table_error() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = ScriptEngine::new()?;
+	let engine = LuaEngine::new()?;
 	let lua = engine.lua();
 
 	// -- Exec

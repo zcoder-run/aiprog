@@ -1,6 +1,6 @@
 // region:    --- Modules
 
-use super::support::ScriptEngine;
+use super::support::LuaEngine;
 use crate::AipRegisteredFn;
 use crate::Result;
 use crate::schema_ref::SchemaRef;
@@ -66,7 +66,7 @@ pub fn generate_doc_from_fns(fns: &[AipRegisteredFn]) -> Result<String> {
 	Ok(doc)
 }
 
-impl ScriptEngine {
+impl LuaEngine {
 	pub fn generate_doc(&self) -> Result<String> {
 		generate_doc_from_fns(&self.registered_fns)
 	}

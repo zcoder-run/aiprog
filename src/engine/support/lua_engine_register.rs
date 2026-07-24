@@ -1,4 +1,4 @@
-use super::ScriptEngine;
+use super::LuaEngine;
 use crate::AipHandlerClosure;
 use crate::running_context::RunningContextHandle;
 use crate::{AipFnKind, AipRegistry};
@@ -7,7 +7,7 @@ use mlua::{Lua, MultiValue, Value};
 
 use super::install_function_at_path;
 
-impl ScriptEngine {
+impl LuaEngine {
 	pub(in crate::engine) fn register(&mut self, registry: AipRegistry) -> Result<()> {
 		self.register_with_context(registry, context_free_call_context())
 	}

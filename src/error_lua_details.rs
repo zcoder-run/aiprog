@@ -1,6 +1,6 @@
 //! Script-aware error details for a failed Lua execution.
 //!
-//! `LuaErrorDetails` is built by the engine layer (`ScriptEngine::exec` / `exec_raw`),
+//! `LuaErrorDetails` is built by the engine layer (`LuaEngine::exec` / `exec_raw`),
 //! which is the only layer that knows the script source. It is carried by
 //! `crate::Error::LuaScript`.
 
@@ -312,7 +312,9 @@ mod tests {
 		assert!(rendered.contains("at line 2:"));
 		assert!(rendered.contains("  > 2 | local b = bad()"));
 		let surround_pos = rendered.find("  > 2 |").ok_or("Should have surround code")?;
-		let tb_pos = rendered.find("stack traceback:").ok_or("Should have stack traceback in display")?;
+		let tb_pos = rendered
+			.find("stack traceback:")
+			.ok_or("Should have stack traceback in display")?;
 		assert!(tb_pos > surround_pos, "stack traceback should come after surround code");
 
 		Ok(())

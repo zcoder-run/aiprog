@@ -87,10 +87,7 @@ mod tests {
 	type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 	use super::*;
-	use crate::{
-		EngineTemplate, RegistrySelectionOptions, RunningContext,
-		UnmatchedPatternPolicy,
-	};
+	use crate::{ScriptEngine, RegistrySelectionOptions, RunningContext, UnmatchedPatternPolicy};
 
 	#[test]
 	fn test_modules_add_module_independent_composition() -> Result<()> {
@@ -143,7 +140,7 @@ mod tests {
 	async fn test_modules_web_native_functions_install_constants() -> Result<()> {
 		// -- Setup & Fixtures
 		let registry = AipRegistryBuilder::default().add_module(WebModule)?.build();
-		let template = EngineTemplate::builder()
+		let template = ScriptEngine::builder()
 			.with_registry(registry)
 			.with_native_functions(WebModule.native_functions())
 			.build()?;

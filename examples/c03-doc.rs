@@ -1,10 +1,10 @@
 use std::fs;
 
-use aiprog::{AipRegistry, EngineTemplate};
+use aiprog::{AipRegistry, ScriptEngine};
 use simple_fs::{SPath, ensure_file_dir};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let engine_template = EngineTemplate::builder()
+	let engine_template = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 

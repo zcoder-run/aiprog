@@ -6,18 +6,18 @@
 //!
 //! Module boundaries:
 //!
-//! - `script_engine`, the concrete internal `ScriptEngine` state and engine-only support APIs.
+//! - `lua_engine`, the concrete internal `LuaEngine` state and engine-only support APIs.
 //! - `native_fns`, initialization of the native Lua helper functions.
 //! - `lua_path`, shared dotted Lua path installation for values and functions.
 
 // region:    --- Modules
 
+mod lua_engine;
+mod lua_engine_register;
 mod lua_path;
 mod native_fns;
-mod script_engine;
-mod script_engine_register;
 
+pub use lua_engine::*;
 pub use lua_path::*;
-pub use script_engine::*;
 
 // endregion: --- Modules

@@ -1,9 +1,9 @@
-use aiprog::{AipRegistry, EngineTemplate, RunningContext};
+use aiprog::{AipRegistry, ScriptEngine, RunningContext};
 use value_ext::JsonValueExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let engine_template = EngineTemplate::builder()
+	let engine_template = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 

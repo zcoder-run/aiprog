@@ -33,15 +33,15 @@ where
 	Ok(lua)
 }
 
-pub fn setup_script_engine<F>(registry_provider: F) -> crate::Result<crate::ScriptEngine>
+pub fn setup_lua_engine<F>(registry_provider: F) -> crate::Result<crate::LuaEngine>
 where
 	F: FnOnce() -> crate::Result<AipRegistry>,
 {
 	let registry = registry_provider()?;
-	crate::ScriptEngine::from_registry(registry)
+	crate::LuaEngine::from_registry(registry)
 }
 
-pub async fn eval_script(engine: &crate::ScriptEngine, code: &str) -> crate::Result<serde_json::Value> {
+pub async fn eval_script(engine: &crate::LuaEngine, code: &str) -> crate::Result<serde_json::Value> {
 	engine.exec(code).await
 }
 

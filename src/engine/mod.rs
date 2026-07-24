@@ -2,7 +2,7 @@
 //!
 //! Content:
 //!
-//! - `ScriptEngine`, re-exported from the private `support` module, with its constructors,
+//! - `LuaEngine`, re-exported from the private `support` module, with its constructors,
 //!   execution APIs, and documentation APIs implemented in the top-level engine files.
 //! - `EngineTemplate`, `RunningEngine`, and the engine policy types.
 //!
@@ -12,11 +12,11 @@
 // region:    --- Modules
 
 mod engine_doc;
-mod engine_template;
+mod script_engine;
 mod support;
 
-pub use engine_template::*;
-pub(crate) use support::ScriptEngine;
+pub use script_engine::*;
+pub(crate) use support::LuaEngine;
 
 // endregion: --- Modules
 

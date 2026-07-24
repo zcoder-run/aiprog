@@ -6,10 +6,10 @@
 //! - The type predicates, `is_table`, `is_list`, `is_object`.
 //! - The table merge helpers, `merge` and `merge_deep`, with their deep-merge support function.
 
-use crate::engine::support::ScriptEngine;
+use crate::engine::support::LuaEngine;
 use mlua::{self, Value, Variadic};
 
-impl ScriptEngine {
+impl LuaEngine {
 	pub(in crate::engine) fn init_native_fns(&self) -> mlua::Result<()> {
 		// null, NULL, is_null, value_or, ...
 		self.init_null_fns()?;
@@ -25,7 +25,7 @@ impl ScriptEngine {
 }
 
 /// Private implemenations
-impl ScriptEngine {
+impl LuaEngine {
 	fn init_null_fns(&self) -> mlua::Result<()> {
 		let globals = self.lua.globals();
 		globals.set("null", Value::NULL)?;

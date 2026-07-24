@@ -1,6 +1,6 @@
 mod _support;
 
-use aiprog::{AipRegistry, EngineTemplate, RunningContext};
+use aiprog::{AipRegistry, ScriptEngine, RunningContext};
 use serde_json::json;
 
 use _support::{TestResult, TestServerBuilder};
@@ -14,7 +14,7 @@ async fn test_aip_web_get_parse_json_simple() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/json");
-	let engine = EngineTemplate::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
@@ -31,10 +31,7 @@ async fn test_aip_web_get_parse_json_simple() -> TestResult {
 	assert_eq!(result["data"], json!({ "hello": "world" }));
 	assert_eq!(result["status"], 200);
 	assert_eq!(result["success"], true);
-	assert_eq!(
-		result["url"].as_str().ok_or("Expected response URL")?,
-		url
-	);
+	assert_eq!(result["url"].as_str().ok_or("Expected response URL")?, url);
 	assert_eq!(server.request()?.method, "GET");
 	assert_eq!(server.request()?.path, "/json");
 
@@ -52,7 +49,7 @@ async fn test_aip_web_post_json_request_body() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/records");
-	let engine = EngineTemplate::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
@@ -99,7 +96,7 @@ async fn test_aip_web_get_http_error_response() -> TestResult {
 		.start()
 		.await?;
 	let url = server.path_url("/missing");
-	let engine = EngineTemplate::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
@@ -116,11 +113,7 @@ async fn test_aip_web_get_http_error_response() -> TestResult {
 	assert_eq!(result["data"], "missing");
 	assert_eq!(result["status"], 404);
 	assert_eq!(result["success"], false);
-	assert!(
-		result["error"]
-			.as_str()
-			.is_some_and(|error| error.contains("status 404"))
-	);
+	assert!(result["error"].as_str().is_some_and(|error| error.contains("status 404")));
 
 	server.close().await?;
 

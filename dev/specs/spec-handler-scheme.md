@@ -77,7 +77,7 @@ The conversion from Lua to `P` and from `O` to Lua is handled automatically by t
 
 `EngineTemplate` is the required execution path for registries containing handlers that access `RunningContext`, such as the built-in file handlers that require `DirContext`.
 
-`ScriptEngine::new_context_free` and `ScriptEngine::from_context_free_registry` support legacy context-free execution only. Their handler calls use an empty context, so a context-dependent handler returns the typed missing-context error when invoked. `ScriptEngine::new` and `ScriptEngine::from_registry` retain this legacy behavior for compatibility; new code should use the explicitly named context-free constructors or an `EngineTemplate` as appropriate.
+`LuaEngine::new_context_free` and `LuaEngine::from_context_free_registry` support legacy context-free execution only. Their handler calls use an empty context, so a context-dependent handler returns the typed missing-context error when invoked. `LuaEngine::new` and `LuaEngine::from_registry` retain this legacy behavior for compatibility; new code should use the explicitly named context-free constructors or an `EngineTemplate` as appropriate.
 
 ## Registration Methods
 
