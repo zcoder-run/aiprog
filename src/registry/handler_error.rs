@@ -182,6 +182,12 @@ impl From<crate::Error> for HandlerError {
 	}
 }
 
+impl From<crate::ContextAccessError> for HandlerError {
+	fn from(e: crate::ContextAccessError) -> Self {
+		HandlerError::new(e.to_string())
+	}
+}
+
 impl From<serde_json::Value> for HandlerError {
 	fn from(v: serde_json::Value) -> Self {
 		HandlerError::new(v.to_string())

@@ -61,13 +61,14 @@ When registering a function, the generic bounds `P: AipParams`, `O: AipOutput`, 
 A handler is a Rust function that implements the business logic for a registry entry.
 
 ```rust
-fn handler_name(params: P) -> HandlerResult<O>
+fn handler_name(call: HandlerCallContext, params: P) -> HandlerResult<O>
 // or for async
-async fn handler_name(params: P) -> HandlerResult<O>
+async fn handler_name(call: HandlerCallContext, params: P) -> HandlerResult<O>
 ```
 
 - `P`: The concrete `Params` type.
 - `O`: The concrete `Output` type.
+- `HandlerCallContext`: Scoped access to the current execution's typed running context.
 - `HandlerResult<O>`: A type alias for `Result<O, HandlerError>`.
 
 The conversion from Lua to `P` and from `O` to Lua is handled automatically by the registration macros and closures.
@@ -95,7 +96,7 @@ The preferred approach for standard handlers. The `#[aip_handler]` proc-macro an
 /// # My Function
 /// Description here.
 #[aip_handler]
-async fn my_handler(params: MyParams) -> HandlerResult<MyOutput> {
+async fn my_handler(call: HandlerCallContext, params: MyParams) -> HandlerResult<MyOutput> {
     // logic
 }
 ```

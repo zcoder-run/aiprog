@@ -2,7 +2,7 @@ use std::fs;
 
 use aiprog::{
 	AipFromLua, AipIntoLua, AipOutput, AipParams, AipRegistry, Error, HandlerResult, LuaExt, ScriptEngine, aip_handler,
-	register_handler,
+	register_handler, HandlerCallContext,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,7 +41,7 @@ impl AipOutput for GreetingOutput {}
 
 /// Custom greeting handler.
 #[aip_handler]
-fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingOutput> {
+fn custom_greetings(_call: HandlerCallContext, params: GreetingParams) -> HandlerResult<GreetingOutput> {
 	Ok(GreetingOutput(format!("Hello {}", params.name)))
 }
 
@@ -51,8 +51,9 @@ fn custom_greetings(params: GreetingParams) -> HandlerResult<GreetingOutput> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let mut registry = AipRegistry::from_aip_modules()?;
-	register_handler!(registry, "custom.greeting", custom_greetings)?;
+	let mut registry_builder = AipRegistry::from_aip_modules()?.to_builder();
+	register_handler!(registry_builder, "custom.greeting", custom_greetings)?;
+	let registry = registry_builder.build();
 
 	let script_engine = ScriptEngine::from_registry(registry)?;
 

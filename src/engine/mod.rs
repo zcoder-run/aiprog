@@ -4,8 +4,10 @@ mod engine_doc;
 mod engine_impl;
 mod engine_internal;
 mod engine_native_fns;
+mod engine_template;
 
 pub use engine_impl::*;
+pub use engine_template::*;
 
 // endregion: --- Modules
 

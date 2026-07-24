@@ -1,5 +1,252 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use simple_fs::SPath;
+use std::fmt;
+use std::path::{Path, PathBuf};
+
+// region:    --- DirContext
+
+/// Execution-scoped filesystem capability policy.
+#[derive(Debug, Clone)]
+pub struct DirContext {
+	read_policy: PathPolicy,
+	write_policy: PathPolicy,
+}
+
+impl DirContext {
+	pub fn new(read_policy: PathPolicy, write_policy: PathPolicy) -> Self {
+		Self {
+			read_policy,
+			write_policy,
+		}
+	}
+
+	pub fn resolve_read(&self, path: &str, base_dir: Option<&str>) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.read_policy.resolve(path, base_dir, false)
+	}
+
+	pub fn resolve_write(&self, path: &str, base_dir: Option<&str>) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.write_policy.resolve(path, base_dir, true)
+	}
+
+	pub(crate) fn resolve_read_target(
+		&self,
+		path: &str,
+		base_dir: Option<&str>,
+	) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.read_policy.resolve(path, base_dir, true)
+	}
+
+	pub(crate) fn authorize_existing_read(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.read_policy.authorize_existing(path)
+	}
+}
+
+/// Controls whether callers may supply absolute paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbsolutePathPolicy {
+	Allow,
+	Deny,
+}
+
+/// A set of canonical directory roots allowed for one class of operations.
+#[derive(Debug, Clone)]
+pub struct PathPolicy {
+	allowed_roots: Vec<SPath>,
+	absolute_paths: AbsolutePathPolicy,
+}
+
+impl PathPolicy {
+	pub fn new(
+		allowed_roots: impl IntoIterator<Item = impl Into<SPath>>,
+		absolute_paths: AbsolutePathPolicy,
+	) -> Result<Self, DirPolicyError> {
+		let mut canonical_roots = Vec::new();
+
+		for root in allowed_roots {
+			let root = root.into();
+			let canonical = root
+				.canonicalize()
+				.map_err(|error| DirPolicyError::InvalidRoot(root.as_str().to_string(), error.to_string()))?;
+
+			if !canonical.is_dir() {
+				return Err(DirPolicyError::InvalidRoot(
+					root.as_str().to_string(),
+					"allowed root is not a directory".to_string(),
+				));
+			}
+
+			if !canonical_roots.iter().any(|existing: &SPath| existing.as_str() == canonical.as_str()) {
+				canonical_roots.push(canonical);
+			}
+		}
+
+		if canonical_roots.is_empty() {
+			return Err(DirPolicyError::NoAllowedRoots);
+		}
+
+		Ok(Self {
+			allowed_roots: canonical_roots,
+			absolute_paths,
+		})
+	}
+
+	fn resolve(&self, path: &str, base_dir: Option<&str>, allow_missing: bool) -> Result<ResolvedDirPath, DirPolicyError> {
+		if path.trim().is_empty() {
+			return Err(DirPolicyError::InvalidPath("path must not be empty".to_string()));
+		}
+
+		let supplied_path = Path::new(path);
+		if supplied_path.is_absolute() && self.absolute_paths == AbsolutePathPolicy::Deny {
+			return Err(DirPolicyError::AbsolutePathDenied(path.to_string()));
+		}
+
+		let candidate = if supplied_path.is_absolute() {
+			supplied_path.to_path_buf()
+		} else {
+			let base = self.resolve_base(base_dir)?;
+			base.join(supplied_path)
+		};
+
+		let canonical = canonicalize_candidate(&candidate, allow_missing)?;
+		self.authorize_canonical(canonical)
+	}
+
+	fn resolve_base(&self, base_dir: Option<&str>) -> Result<PathBuf, DirPolicyError> {
+		let first_root = self.allowed_roots.first().ok_or(DirPolicyError::NoAllowedRoots)?;
+		let root = Path::new(first_root.as_str());
+
+		let Some(base_dir) = base_dir else {
+			return Ok(root.to_path_buf());
+		};
+
+		let supplied_base = Path::new(base_dir);
+		if supplied_base.is_absolute() && self.absolute_paths == AbsolutePathPolicy::Deny {
+			return Err(DirPolicyError::AbsolutePathDenied(base_dir.to_string()));
+		}
+
+		let candidate = if supplied_base.is_absolute() {
+			supplied_base.to_path_buf()
+		} else {
+			root.join(supplied_base)
+		};
+		let canonical = canonicalize_candidate(&candidate, false)?;
+		let resolved = self.authorize_canonical(canonical)?;
+
+		if !resolved.path.is_dir() {
+			return Err(DirPolicyError::InvalidBaseDir(base_dir.to_string()));
+		}
+
+		Ok(PathBuf::from(resolved.path.as_str()))
+	}
+
+	fn authorize_existing(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
+		let canonical = path
+			.canonicalize()
+			.map_err(|error| DirPolicyError::InvalidPath(format!("{}: {error}", path.as_str())))?;
+		self.authorize_canonical(PathBuf::from(canonical.as_str()))
+	}
+
+	fn authorize_canonical(&self, canonical: PathBuf) -> Result<ResolvedDirPath, DirPolicyError> {
+		let root = self
+			.allowed_roots
+			.iter()
+			.find(|root| canonical.starts_with(Path::new(root.as_str())))
+			.cloned()
+			.ok_or_else(|| DirPolicyError::OutsideAllowedRoots(canonical.display().to_string()))?;
+
+		let path = SPath::from_std_path_buf(canonical)
+			.map_err(|error| DirPolicyError::InvalidPath(error.to_string()))?;
+
+		Ok(ResolvedDirPath { path, root })
+	}
+}
+
+/// A policy-authorized path and the allowed root that contains it.
+#[derive(Debug, Clone)]
+pub struct ResolvedDirPath {
+	path: SPath,
+	root: SPath,
+}
+
+impl ResolvedDirPath {
+	pub fn path(&self) -> &SPath {
+		&self.path
+	}
+
+	pub fn root(&self) -> &SPath {
+		&self.root
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DirPolicyError {
+	NoAllowedRoots,
+	InvalidRoot(String, String),
+	InvalidPath(String),
+	InvalidBaseDir(String),
+	AbsolutePathDenied(String),
+	OutsideAllowedRoots(String),
+}
+
+impl fmt::Display for DirPolicyError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::NoAllowedRoots => f.write_str("directory policy requires at least one allowed root"),
+			Self::InvalidRoot(path, cause) => write!(f, "invalid allowed root '{path}': {cause}"),
+			Self::InvalidPath(path) => write!(f, "invalid path: {path}"),
+			Self::InvalidBaseDir(path) => write!(f, "base directory is not a directory: {path}"),
+			Self::AbsolutePathDenied(path) => write!(f, "absolute paths are not allowed: {path}"),
+			Self::OutsideAllowedRoots(path) => write!(f, "path is outside the allowed roots: {path}"),
+		}
+	}
+}
+
+impl std::error::Error for DirPolicyError {}
+
+// endregion: --- DirContext
+
+// region:    --- Support
+
+fn canonicalize_candidate(candidate: &Path, allow_missing: bool) -> Result<PathBuf, DirPolicyError> {
+	if candidate.exists() {
+		return candidate
+			.canonicalize()
+			.map_err(|error| DirPolicyError::InvalidPath(format!("{}: {error}", candidate.display())));
+	}
+
+	if !allow_missing {
+		return Err(DirPolicyError::InvalidPath(format!(
+			"path does not exist: {}",
+			candidate.display()
+		)));
+	}
+
+	let mut existing = candidate.to_path_buf();
+	let mut missing_parts = Vec::new();
+	while !existing.exists() {
+		let part = existing
+			.file_name()
+			.ok_or_else(|| DirPolicyError::InvalidPath(candidate.display().to_string()))?
+			.to_os_string();
+		missing_parts.push(part);
+
+		if !existing.pop() {
+			return Err(DirPolicyError::InvalidPath(candidate.display().to_string()));
+		}
+	}
+
+	let mut canonical = existing
+		.canonicalize()
+		.map_err(|error| DirPolicyError::InvalidPath(format!("{}: {error}", existing.display())))?;
+	for part in missing_parts.into_iter().rev() {
+		canonical.push(part);
+	}
+
+	Ok(canonical)
+}
+
+// endregion: --- Support
 
 // region:    --- FileInfo
 

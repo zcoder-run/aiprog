@@ -12,10 +12,15 @@ mod engine;
 mod error;
 mod error_lua_details;
 mod lua_exts;
+mod run_outcome;
+pub(crate) mod running_context;
 pub mod registry;
 
 pub use error::{Error, Result};
 pub use error_lua_details::LuaErrorDetails;
+pub use modules::{AbsolutePathPolicy, DirContext, DirPolicyError, PathPolicy, ResolvedDirPath};
+pub use run_outcome::RunOutcome;
+pub use running_context::{ContextAccessError, ContextRecoveryError, HandlerCallContext, RunningContext};
 
 // NOTE: for now, re-export one by one to tune the shape of this crate.
 pub use engine::*;

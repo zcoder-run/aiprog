@@ -13,6 +13,7 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	let is_async = input.sig.asyncness.is_some();
 	// All handlers (sync and async) must have exactly one typed parameter.
+	// A mandatory HandlerCallContext parameter precedes the typed params.
 	{
 		let param_count = input
 			.sig
@@ -20,10 +21,10 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 			.iter()
 			.filter(|arg| matches!(arg, syn::FnArg::Typed(_)))
 			.count();
-		if param_count != 1 {
+		if param_count != 2 {
 			return syn::Error::new_spanned(
 				&input.sig,
-				"handler function must have exactly one parameter (the typed params).",
+				"handler function must have exactly two parameters: HandlerCallContext and the typed params.",
 			)
 			.to_compile_error();
 		}
@@ -40,12 +41,14 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	// Extract trait associated types.
 	let original_ident = input.sig.ident.clone();
-	let params_ty = if is_async {
-		get_params_ty_async(&input.sig)
-	} else {
-		get_params_ty_sync(&input.sig)
+	let params_ty = match get_params_ty(&input.sig) {
+		Ok(params_ty) => params_ty,
+		Err(error) => return error.to_compile_error(),
 	};
-	let output_ty = get_output_inner_type(&input.sig);
+	let output_ty = match get_output_inner_type(&input.sig) {
+		Ok(output_ty) => output_ty,
+		Err(error) => return error.to_compile_error(),
+	};
 
 	let marker = if is_async {
 		quote! { ::aiprog::registry::handler_types::AsyncMarker }
@@ -97,37 +100,41 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 					#meta_fn_ident()
 				}
 
-				fn create_entry(path: &str) -> ::aiprog::registry::registry_internal::RegistryEntry {
+				fn create_definition(path: &str) -> ::aiprog::registry::registry_internal::HandlerDefinition {
 					let params_schema = schemars::schema_for!(#params_ty);
 					let output_schema = schemars::schema_for!(#output_ty);
 					let error_schema = schemars::schema_for!(::aiprog::HandlerError);
 
-					let closure: ::aiprog::registry::registry_internal::LuaAsyncClosure = Box::new(move |lua: &mlua::Lua, value: mlua::Value| {
-						let params = match <#params_ty as ::aiprog::AipFromLua>::from_lua(lua, value)
-							.map_err(|e| mlua::Error::ExternalError(::std::sync::Arc::new(e))) {
-							Ok(p) => p,
-							Err(e) => return Box::pin(async move { Err(e) }),
-						};
+					let factory: ::aiprog::registry::registry_internal::HandlerFactory = Box::new(|call_context| {
+						let closure: ::aiprog::registry::registry_internal::LuaAsyncClosure = Box::new(move |lua: mlua::Lua, value: mlua::Value| {
+							let call_context = call_context.clone();
+							let params = match <#params_ty as ::aiprog::AipFromLua>::from_lua(&lua, value)
+								.map_err(|e| mlua::Error::ExternalError(::std::sync::Arc::new(e))) {
+								Ok(p) => p,
+								Err(e) => return Box::pin(async move { Err(e) }),
+							};
 
-						Box::pin(async move {
-							match #original_ident(params).await {
-								Ok(output) => serde_json::to_value(output)
-									.map_err(|e| mlua::Error::RuntimeError(format!("Failed to serialize async response: {e}"))),
-								Err(e) => Err(e.into_lua_error()),
-							}
-						})
+							Box::pin(async move {
+								match #original_ident(call_context, params).await {
+									Ok(output) => <#output_ty as ::aiprog::AipIntoLua>::into_lua(output, &lua)
+										.map_err(|e| mlua::Error::ExternalError(::std::sync::Arc::new(e))),
+									Err(e) => Err(e.into_lua_error()),
+								}
+							})
+						});
+						::aiprog::registry::registry_internal::AipHandlerClosure::Async(closure)
 					});
 
 					let meta = Self::handler_meta();
-					::aiprog::registry::registry_internal::RegistryEntry {
+					::aiprog::registry::registry_internal::HandlerDefinition {
 						path: path.to_string(),
 						kind: ::aiprog::registry::AipFnKind::Async,
-						handler: ::aiprog::registry::registry_internal::AipHandlerClosure::Async(closure),
 						params_schema,
 						output_schema,
 						error_schema,
 						description: meta.description,
 						title: meta.title,
+						factory,
 					}
 				}
 			}
@@ -143,37 +150,40 @@ pub fn aip_handler_attr(_attr: TokenStream, item: TokenStream) -> TokenStream {
 					#meta_fn_ident()
 				}
 
-				fn create_entry(path: &str) -> ::aiprog::registry::registry_internal::RegistryEntry {
+				fn create_definition(path: &str) -> ::aiprog::registry::registry_internal::HandlerDefinition {
 					let params_schema = schemars::schema_for!(#params_ty);
 					let output_schema = schemars::schema_for!(#output_ty);
 					let error_schema = schemars::schema_for!(::aiprog::HandlerError);
 
-					let closure: ::aiprog::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
-						let params = <#params_ty as ::aiprog::AipFromLua>::from_lua(&lua, value)
-							.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))?;
-						let result = #original_ident(params);
-						match result {
-							Ok(output) => {
-								<#output_ty as ::aiprog::AipIntoLua>::into_lua(output, &lua)
-									.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))
+					let factory: ::aiprog::registry::registry_internal::HandlerFactory = Box::new(|call_context| {
+						let closure: ::aiprog::registry::registry_internal::LuaSyncClosure = Box::new(move |lua, value| {
+							let params = <#params_ty as ::aiprog::AipFromLua>::from_lua(&lua, value)
+								.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))?;
+							let result = #original_ident(call_context.clone(), params);
+							match result {
+								Ok(output) => {
+									<#output_ty as ::aiprog::AipIntoLua>::into_lua(output, &lua)
+										.map_err(|e| mlua::Error::ExternalError(std::sync::Arc::new(e)))
+								}
+								Err(e) => {
+									let err: ::aiprog::Error = e.into();
+									Err(mlua::Error::ExternalError(std::sync::Arc::new(err)))
+								}
 							}
-							Err(e) => {
-								let err: ::aiprog::Error = e.into();
-								Err(mlua::Error::ExternalError(std::sync::Arc::new(err)))
-							}
-						}
+						});
+						::aiprog::registry::registry_internal::AipHandlerClosure::Sync(closure)
 					});
 
 					let meta = Self::handler_meta();
-					::aiprog::registry::registry_internal::RegistryEntry {
+					::aiprog::registry::registry_internal::HandlerDefinition {
 						path: path.to_string(),
 						kind: ::aiprog::registry::AipFnKind::Sync,
-						handler: ::aiprog::registry::registry_internal::AipHandlerClosure::Sync(closure),
 						params_schema,
 						output_schema,
 						error_schema,
 						description: meta.description,
 						title: meta.title,
+						factory,
 					}
 				}
 			}
@@ -227,33 +237,38 @@ fn extract_title_desc(attrs: &[syn::Attribute]) -> (Option<String>, Option<Strin
 	(None, Some(doc_str.to_string()))
 }
 
-fn get_params_ty_sync(sig: &syn::Signature) -> syn::Type {
-	let first = sig
-		.inputs
-		.iter()
-		.find_map(|arg| match arg {
-			syn::FnArg::Receiver(_) => None,
-			syn::FnArg::Typed(pat) => Some(pat),
-		})
-		.expect("handler function must have exactly one typed parameter (the typed params)");
-	(*first.ty).clone()
+fn get_params_ty(sig: &syn::Signature) -> syn::Result<syn::Type> {
+	let mut inputs = sig.inputs.iter().filter_map(|arg| match arg {
+		syn::FnArg::Receiver(_) => None,
+		syn::FnArg::Typed(pat) => Some(pat),
+	});
+	let call_context = inputs
+		.next()
+		.ok_or_else(|| syn::Error::new_spanned(sig, "handler function is missing HandlerCallContext"))?;
+	if !is_handler_call_context(&call_context.ty) {
+		return Err(syn::Error::new_spanned(
+			&call_context.ty,
+			"handler function first parameter must be HandlerCallContext",
+		));
+	}
+	let params = inputs
+		.next()
+		.ok_or_else(|| syn::Error::new_spanned(sig, "handler function is missing typed params"))?;
+	Ok((*params.ty).clone())
 }
 
-fn get_params_ty_async(sig: &syn::Signature) -> syn::Type {
-	let first = sig
-		.inputs
-		.iter()
-		.find_map(|arg| match arg {
-			syn::FnArg::Receiver(_) => None,
-			syn::FnArg::Typed(pat) => Some(pat),
-		})
-		.expect("async handler must have exactly one typed parameter (the typed params)");
-	(*first.ty).clone()
+fn is_handler_call_context(ty: &syn::Type) -> bool {
+	matches!(ty, syn::Type::Path(type_path) if type_path.path.segments.last().is_some_and(|segment| segment.ident == "HandlerCallContext"))
 }
 
-fn get_output_inner_type(sig: &syn::Signature) -> syn::Type {
+fn get_output_inner_type(sig: &syn::Signature) -> syn::Result<syn::Type> {
 	let output = match &sig.output {
-		syn::ReturnType::Default => panic!("handler function must specify a return type"),
+		syn::ReturnType::Default => {
+			return Err(syn::Error::new_spanned(
+				sig,
+				"handler function must specify a return type",
+			));
+		}
 		syn::ReturnType::Type(_, ty) => ty.as_ref().clone(),
 	};
 	if let syn::Type::Path(type_path) = &output
@@ -262,9 +277,12 @@ fn get_output_inner_type(sig: &syn::Signature) -> syn::Type {
 		&& let syn::PathArguments::AngleBracketed(args) = &segment.arguments
 		&& let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
 	{
-		return inner_ty.clone();
+		return Ok(inner_ty.clone());
 	}
-	panic!("handler function must return `HandlerResult<T>`");
+	Err(syn::Error::new_spanned(
+		&sig.output,
+		"handler function must return `HandlerResult<T>`",
+	))
 }
 
 // endregion: --- Helpers
@@ -281,6 +299,7 @@ mod tests {
 		let input = quote! {
 			/// Parses a JSON string and returns the parsed value.
 			fn my_parse_handler(
+				_call: ::aiprog::HandlerCallContext,
 				params: super::MyParams,
 			) -> ::aiprog::HandlerResult<super::MyOutput> {
 				unimplemented!()
@@ -298,6 +317,7 @@ mod tests {
 		let input = quote! {
 			/// An async handler that processes data.
 			async fn my_async_handler(
+				_call: ::aiprog::HandlerCallContext,
 				params: super::MyParams,
 			) -> ::aiprog::HandlerResult<super::MyOutput> {
 				unimplemented!()
@@ -309,6 +329,20 @@ mod tests {
 		assert!(output_str.contains("__AiprogHandler_my_async_handler"));
 		assert!(output_str.contains("struct"));
 		assert!(output_str.contains("__aiprog_meta_my_async_handler"));
+	}
+
+	#[test]
+	fn test_handler_rejects_invalid_arity() {
+		let input = quote! {
+			fn invalid_handler(
+				params: super::MyParams,
+			) -> ::aiprog::HandlerResult<super::MyOutput> {
+				unimplemented!()
+			}
+		};
+		let result = aip_handler_attr(TokenStream::new(), input);
+		let output_str = result.to_string();
+		assert!(output_str.contains("handler function must have exactly two parameters"));
 	}
 }
 

@@ -10,6 +10,4 @@
 use crate::AipRegistry;
 use crate::Result;
 
-use super::support::FileContext;
-
 // TO IMPLEMENT

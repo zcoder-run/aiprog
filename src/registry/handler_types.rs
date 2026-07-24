@@ -36,7 +36,7 @@ where
 
 	/// Call the handler with a Lua state and a pre-converted params value, and
 	/// return a future resolving to a Lua value response or a normalized error.
-	fn call(self, lua: Lua, params: P) -> Self::Future;
+	fn call(self, lua: Lua, call_context: crate::HandlerCallContext, params: P) -> Self::Future;
 }
 
 // region:    --- Markers

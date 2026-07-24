@@ -19,11 +19,11 @@
 //! ---
 //!
 
-use crate::AipRegistry;
+use crate::{AipRegistry, AipRegistryBuilder};
 use crate::LuaJsonExt;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::webc;
-use crate::{AipFromLua, AipIntoLua, LuaExt, ScriptEngine};
+use crate::{AipFromLua, AipIntoLua, HandlerCallContext, LuaExt, ScriptEngine};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -37,10 +37,15 @@ const DEFAULT_UA_BROWSER: &str =
 /// This is the recommended way to obtain a registry for this module.
 /// Use [`register`](register) if you need to add the handlers into an
 /// existing registry.
+#[allow(dead_code)]
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::from_empty();
-	registry.register_async("aip.web.get", aip_web_get_handler)?;
-	registry.register_async("aip.web.post", aip_web_post_handler)?;
+	Ok(register(AipRegistryBuilder::default())?.build())
+}
+
+pub fn register(registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	let registry = registry
+		.register_async("aip.web.get", aip_web_get_handler)?
+		.register_async("aip.web.post", aip_web_post_handler)?;
 	Ok(registry)
 }
 
@@ -144,7 +149,7 @@ pub struct AipWebOutput {
 }
 
 /// Performs an HTTP GET request and returns the response.
-async fn aip_web_get_handler(params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_get_handler(_call: HandlerCallContext, params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -227,7 +232,7 @@ impl AipFromLua for AipWebPostParams {
 impl crate::AipParams for AipWebPostParams {}
 
 /// Performs an HTTP POST request and returns the response.
-async fn aip_web_post_handler(params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_post_handler(_call: HandlerCallContext, params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -593,3 +598,14 @@ fn lua_table_to_headers(table: &mlua::Table) -> crate::Result<Option<HashMap<Str
 mod tests;
 
 // endregion: --- Tests
+
+#[allow(dead_code)]
+pub fn native_function_installer() -> crate::NativeFunctionInstaller {
+	std::sync::Arc::new(|lua| {
+		let aip: mlua::Table = lua.globals().get("aip")?;
+		let web: mlua::Table = aip.get("web")?;
+		web.set("UA_AIPROG", DEFAULT_UA_AIPROG)?;
+		web.set("UA_BROWSER", DEFAULT_UA_BROWSER)?;
+		Ok(())
+	})
+}

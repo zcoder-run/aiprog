@@ -18,12 +18,12 @@
 //!
 //! ---
 //!
-use super::file_types::{FileInfo, FileRecord, FileStats};
+use super::file_types::{DirContext, FileInfo, FileRecord, FileStats};
 use super::support::{
-	self, FileContext, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
+	self, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
 };
-use crate::AipRegistry;
-use crate::{AipFromLua, AipIntoLua, HandlerResult, LuaExt};
+use crate::{AipRegistry, AipRegistryBuilder};
+use crate::{AipFromLua, AipIntoLua, HandlerCallContext, HandlerResult, LuaExt};
 use crate::{AipOutput, AipParams};
 use aiprog_macros::{aip_handler, register_handler};
 use mlua::{Lua, Value};
@@ -32,11 +32,8 @@ use mlua::{Lua, Value};
 ///
 /// This function captures the provided `FileContext` and wraps each handler so
 /// that it receives the context automatically.
-pub fn init_registry_with_ctx(ctx: FileContext) -> crate::Result<AipRegistry> {
-	// TODO: This is not the right way to do this
-	support::set_file_context(ctx);
-
-	let mut registry = AipRegistry::from_empty();
+pub fn init_registry() -> crate::Result<AipRegistry> {
+	let mut registry = AipRegistryBuilder::default();
 
 	register_handler!(registry, "aip.file.read", aip_file_read_handler)?;
 	register_handler!(registry, "aip.file.list", aip_file_list_handler)?;
@@ -46,7 +43,7 @@ pub fn init_registry_with_ctx(ctx: FileContext) -> crate::Result<AipRegistry> {
 	register_handler!(registry, "aip.file.exists", aip_file_exists_handler)?;
 	register_handler!(registry, "aip.file.stats", aip_file_stats_handler)?;
 
-	Ok(registry)
+	Ok(registry.build())
 }
 
 // region:    --- aip.file.read
@@ -310,22 +307,22 @@ impl AipOutput for AipFileStatsOutput {}
 
 /// Reads a file from disk and returns its content and metadata.
 #[aip_handler]
-fn aip_file_read_handler(params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
-	let ctx = support::get_file_context();
-	let resolved = ctx
-		.resolve(&params.path, params.base_dir.as_deref())
-		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
+fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
+	let resolved = call
+		.with::<DirContext, _>(|dir| dir.resolve_read(&params.path, params.base_dir.as_deref()))?
+		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
-	if !resolved.is_file() {
+	if !resolved.path().is_file() {
 		return Err(aip_file_error(
 			"FILE_NOT_FOUND",
-			&format!("Path is not a file: {}", resolved.as_str()),
+			&format!("Path is not a file: {}", resolved.path().as_str()),
 		));
 	}
 
-	let content = support::read_file_content(&resolved).map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
+	let content =
+		support::read_file_content(resolved.path()).map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
-	let info = file_info_from_meta(&resolved, true, ctx.workspace_root(), false)
+	let info = file_info_from_meta(resolved.path(), true, resolved.root(), false)
 		.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 	let record = FileRecord { info, content };
@@ -335,18 +332,18 @@ fn aip_file_read_handler(params: AipFileReadParams) -> HandlerResult<AipFileRead
 /// Will list the files for the given file globs
 /// Lists files matching the given glob patterns, returning metadata for each.
 #[aip_handler]
-fn aip_file_list_handler(params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
-	let ctx = support::get_file_context();
+fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = list_files_matching(&globs, params.base_dir.as_deref(), &ctx)?;
+	let paths = call
+		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut infos: Vec<FileInfo> = Vec::new();
 	for p in paths {
-		let info = file_info_from_meta(&p, with_meta, ctx.workspace_root(), absolute)
+		let info = file_info_from_meta(p.path(), with_meta, p.root(), absolute)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 		infos.push(info);
 	}
@@ -357,21 +354,24 @@ fn aip_file_list_handler(params: AipFileListParams) -> HandlerResult<AipFileList
 /// Will list and read the files for the given file globs
 /// Lists files matching the given globs, returning both metadata and content.
 #[aip_handler]
-fn aip_file_list_read_handler(params: AipFileListParams) -> HandlerResult<AipFileListReadOutput> {
-	let ctx = support::get_file_context();
+fn aip_file_list_read_handler(
+	call: HandlerCallContext,
+	params: AipFileListParams,
+) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = list_files_matching(&globs, params.base_dir.as_deref(), &ctx)?;
+	let paths = call
+		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
-		let info = file_info_from_meta(&p, params.with_meta.unwrap_or(true), ctx.workspace_root(), absolute)
+		let info = file_info_from_meta(p.path(), params.with_meta.unwrap_or(true), p.root(), absolute)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
-		let content = support::read_file_content(&p)
-			.map_err(|e| aip_file_error("READ_FAILED", &format!("Failed reading {}: {e}", p.as_str())))?;
+		let content = support::read_file_content(p.path())
+			.map_err(|e| aip_file_error("READ_FAILED", &format!("Failed reading {}: {e}", p.path().as_str())))?;
 
 		records.push(FileRecord { info, content });
 	}
@@ -381,15 +381,14 @@ fn aip_file_list_read_handler(params: AipFileListParams) -> HandlerResult<AipFil
 
 /// Returns metadata for a single file, or nil if the file does not exist.
 #[aip_handler]
-fn aip_file_info_handler(params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
-	let ctx = support::get_file_context();
-	let resolved = ctx
-		.resolve(&params.path, params.base_dir.as_deref())
-		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
+fn aip_file_info_handler(call: HandlerCallContext, params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
+	let resolved = call
+		.with::<DirContext, _>(|dir| dir.resolve_read_target(&params.path, params.base_dir.as_deref()))?
+		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
-	let data = if resolved.exists() && resolved.is_file() {
+	let data = if resolved.path().exists() && resolved.path().is_file() {
 		Some(
-			file_info_from_meta(&resolved, true, ctx.workspace_root(), false)
+			file_info_from_meta(resolved.path(), true, resolved.root(), false)
 				.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?,
 		)
 	} else {
@@ -401,30 +400,32 @@ fn aip_file_info_handler(params: AipFileInfoParams) -> HandlerResult<AipFileInfo
 
 /// Checks whether a file exists at the given path.
 #[aip_handler]
-fn aip_file_exists_handler(params: AipFileExistsParams) -> HandlerResult<AipFileExistsOutput> {
-	let ctx = support::get_file_context();
-	let resolved = ctx
-		.resolve(&params.path, params.base_dir.as_deref())
-		.map_err(|e| aip_file_error("PATH_RESOLUTION_FAILED", &e.to_string()))?;
-	let exists = resolved.exists();
+fn aip_file_exists_handler(
+	call: HandlerCallContext,
+	params: AipFileExistsParams,
+) -> HandlerResult<AipFileExistsOutput> {
+	let resolved = call
+		.with::<DirContext, _>(|dir| dir.resolve_read_target(&params.path, params.base_dir.as_deref()))?
+		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
+	let exists = resolved.path().exists();
 	Ok(AipFileExistsOutput(exists))
 }
 
 /// Returns the first file matching the given glob patterns, or nil if none found.
 #[aip_handler]
-fn aip_file_first_handler(params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
-	let ctx = support::get_file_context();
+fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = list_files_matching(&globs, params.base_dir.as_deref(), &ctx)?;
+	let paths = call
+		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let data = paths
 		.into_iter()
 		.next()
 		.map(|first| {
-			file_info_from_meta(&first, params.with_meta.unwrap_or(true), ctx.workspace_root(), absolute)
+			file_info_from_meta(first.path(), params.with_meta.unwrap_or(true), first.root(), absolute)
 				.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))
 		})
 		.transpose()?;
@@ -434,8 +435,7 @@ fn aip_file_first_handler(params: AipFileListParams) -> HandlerResult<AipFileFir
 
 /// Returns aggregate statistics (count, total size, first/last created/modified timestamps) for files matching the given globs.
 #[aip_handler]
-fn aip_file_stats_handler(params: AipFileStatsParams) -> HandlerResult<AipFileStatsOutput> {
-	let ctx = support::get_file_context();
+fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) -> HandlerResult<AipFileStatsOutput> {
 	let globs = match params.globs {
 		Some(g) => {
 			let v = g.into_vec();
@@ -448,7 +448,8 @@ fn aip_file_stats_handler(params: AipFileStatsParams) -> HandlerResult<AipFileSt
 	};
 	validate_glob_patterns(&globs)?;
 
-	let paths = list_files_matching(&globs, params.base_dir.as_deref(), &ctx)?;
+	let paths = call
+		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut number_of_files: usize = 0;
 	let mut total_size: u64 = 0;
@@ -458,7 +459,7 @@ fn aip_file_stats_handler(params: AipFileStatsParams) -> HandlerResult<AipFileSt
 	let mut mtime_last: Option<i64> = None;
 
 	for p in paths {
-		let info = file_info_from_meta(&p, true, ctx.workspace_root(), false)
+		let info = file_info_from_meta(p.path(), true, p.root(), false)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 		number_of_files += 1;

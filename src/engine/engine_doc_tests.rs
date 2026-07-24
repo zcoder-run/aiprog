@@ -5,7 +5,7 @@ use crate::aip_handler;
 use crate::impl_lua_serde_traits;
 use crate::register_handler;
 use crate::registry::HandlerResult;
-use crate::{AipFnKind, AipRegistry};
+use crate::{AipFnKind, AipRegistry, AipRegistryBuilder};
 use crate::{AipOutput, AipParams};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
@@ -456,7 +456,7 @@ impl AipParams for ParamsWithRootDesc {}
 /// Sync handler description text.
 #[aip_handler]
 #[allow(non_snake_case)]
-fn DocSyncHandler(params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
+fn DocSyncHandler(_call: crate::HandlerCallContext, params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
 	Ok(DocSyncOutput {
 		greeting: format!("Hello, {}!", params.name),
 	})
@@ -467,7 +467,7 @@ fn DocSyncHandler(params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
 /// Async handler description.
 #[aip_handler]
 #[allow(non_snake_case)]
-async fn DocAsyncHandler(params: DocAsyncParams) -> HandlerResult<DocAsyncOutput> {
+async fn DocAsyncHandler(_call: crate::HandlerCallContext, params: DocAsyncParams) -> HandlerResult<DocAsyncOutput> {
 	Ok(DocAsyncOutput {
 		doubled: params.value * 2,
 	})
@@ -478,9 +478,9 @@ async fn DocAsyncHandler(params: DocAsyncParams) -> HandlerResult<DocAsyncOutput
 #[test]
 fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
+	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -499,9 +499,9 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 #[test]
 fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
+	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.async", DocAsyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -520,14 +520,15 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 #[test]
 fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 	// -- Setup & Fixtures
-	fn fallback_impl(params: ParamsWithRootDesc) -> HandlerResult<DocSyncOutput> {
+	fn fallback_impl(_call: crate::HandlerCallContext, params: ParamsWithRootDesc) -> HandlerResult<DocSyncOutput> {
 		Ok(DocSyncOutput {
 			greeting: format!("Hi, {}!", params.name),
 		})
 	}
 
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.doc.fallback", fallback_impl)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.doc.fallback", fallback_impl)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -545,9 +546,9 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 #[test]
 fn test_generate_doc_includes_preamble() -> TestResult {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
+	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = ScriptEngine::from_registry(registry)?;
+	let engine = ScriptEngine::from_registry(registry.build())?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -573,7 +574,7 @@ fn test_generate_doc_includes_preamble() -> TestResult {
 #[test]
 fn test_register_handler_duplicate_path() -> TestResult {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
+	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.dup.test", DocSyncHandler)?;
 
 	// -- Exec
@@ -592,7 +593,7 @@ fn test_register_handler_duplicate_path() -> TestResult {
 #[test]
 fn test_register_handler_invalid_path() -> TestResult {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
+	let mut registry = AipRegistryBuilder::default();
 
 	// -- Exec
 	let result = register_handler!(registry, "", DocSyncHandler);

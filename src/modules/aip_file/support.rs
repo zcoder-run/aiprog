@@ -7,48 +7,7 @@ use crate::registry::{HandlerError, HandlerResult};
 use mlua::{Lua, Value};
 use simple_fs::{ListOptions, SPath, list_files, read_to_string};
 
-use super::file_types::{FileInfo, FileRecord, FileStats};
-// region:    --- FileContext
-
-/// Holds the workspace root for path resolution.
-#[derive(Debug, Clone)]
-pub struct FileContext {
-	workspace_root: SPath,
-}
-
-impl FileContext {
-	/// Create a new context with the given workspace root.
-	pub fn new(workspace_root: impl Into<SPath>) -> Self {
-		Self {
-			workspace_root: workspace_root.into(),
-		}
-	}
-
-	/// Return a reference to the workspace root SPath.
-	pub fn workspace_root(&self) -> &SPath {
-		&self.workspace_root
-	}
-
-	/// Resolve a user-supplied path and optional base directory.
-	///
-	/// If the path is absolute, it is returned directly.
-	/// Otherwise, it is resolved against the base directory if provided,
-	/// or the workspace root.
-	pub fn resolve(&self, path: &str, base_dir: Option<&str>) -> crate::Result<SPath> {
-		let sp = SPath::new(path);
-		if sp.is_absolute() {
-			Ok(sp)
-		} else {
-			let base = match base_dir {
-				Some(dir) => SPath::new(dir),
-				None => self.workspace_root.clone(),
-			};
-			Ok(base.join(sp))
-		}
-	}
-}
-
-// endregion: --- FileContext
+use super::file_types::{DirContext, FileInfo, FileRecord, FileStats, ResolvedDirPath};
 
 // region:    --- File listing
 
@@ -56,7 +15,11 @@ impl FileContext {
 ///
 /// Patterns starting with `!` are treated as exclusion patterns.
 /// Returns the full, normalized `SPath` for each matched file.
-pub fn list_files_matching(globs: &[String], base_dir: Option<&str>, ctx: &FileContext) -> crate::Result<Vec<SPath>> {
+pub fn list_files_matching(
+	globs: &[String],
+	base_dir: Option<&str>,
+	dir_context: &DirContext,
+) -> crate::Result<Vec<ResolvedDirPath>> {
 	// Separate include and exclude patterns.
 	let mut include_strs: Vec<&str> = Vec::new();
 	let mut exclude_strs: Vec<&str> = Vec::new();
@@ -80,7 +43,10 @@ pub fn list_files_matching(globs: &[String], base_dir: Option<&str>, ctx: &FileC
 		));
 	}
 
-	let dir = ctx.resolve(base_dir.unwrap_or("."), None)?;
+	let resolved_dir = dir_context
+		.resolve_read(base_dir.unwrap_or("."), None)
+		.map_err(|e| crate::Error::cc("Directory policy rejected list path", e.to_string()))?;
+	let dir = resolved_dir.path().clone();
 
 	let opts = ListOptions::default().with_relative_glob().with_exclude_globs(&exclude_strs);
 
@@ -89,7 +55,14 @@ pub fn list_files_matching(globs: &[String], base_dir: Option<&str>, ctx: &FileC
 
 	// simple-fs may return paths relative to the directory; join to ensure full paths.
 	files = files.into_iter().map(|f| dir.join(f)).collect();
-	Ok(files)
+	files
+		.into_iter()
+		.map(|path| {
+			dir_context
+				.authorize_existing_read(&path)
+				.map_err(|e| crate::Error::cc("Directory policy rejected listed path", e.to_string()))
+		})
+		.collect()
 }
 
 // endregion: --- File listing
@@ -253,26 +226,3 @@ pub fn validate_glob_patterns(globs: &[String]) -> HandlerResult<()> {
 
 // endregion: --- Error helpers
 
-// region:    --- Thread-local FileContext
-
-// NOTE: This FileContext scheme will change completely (not good as it is, it is too static)
-// NOTE: thread_local is almost always a bad design, and it is definitely in this case.
-
-thread_local! {
-	static FILE_CONTEXT: std::cell::RefCell<Option<FileContext>> = const { std::cell::RefCell::new(None) };
-}
-
-/// Set the thread-local FileContext.
-pub(crate) fn set_file_context(ctx: FileContext) {
-	FILE_CONTEXT.with(|c| *c.borrow_mut() = Some(ctx));
-}
-
-/// Get a clone of the thread-local FileContext.
-///
-/// # Panics
-/// Panics if the context has not been set.
-pub(crate) fn get_file_context() -> FileContext {
-	FILE_CONTEXT.with(|c| c.borrow().clone().expect("FileContext not set"))
-}
-
-// endregion: --- Thread-local FileContext

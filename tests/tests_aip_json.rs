@@ -8,16 +8,19 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 #[tokio::test]
 async fn test_aiprog_run_json_simple_ok() -> TestResult {
 	// -- Setup & Fixtures
-	let lua_code = r#"
-        local file = aip.file.read({path = "tests/data/json/01-simple.json"})
-        local parsed = aip.json.parse({text = file.content})
+	let json_text = std::fs::read_to_string("tests/data/json/01-simple.json")?;
+	let json_text = serde_json::to_string(&json_text)?;
+	let lua_code = format!(
+		r#"
+        local parsed = aip.json.parse({{text = {json_text}}})
         return parsed
-    "#;
+    "#
+	);
 
 	let engine = ScriptEngine::new()?;
 
 	// -- Exec
-	let result = engine.exec(lua_code).await?;
+	let result = engine.exec(&lua_code).await?;
 
 	// -- Check
 	let expected = json!({

@@ -26,8 +26,8 @@
 use crate::LuaExt;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::support::jsons;
-use crate::{AipFromLua, AipIntoLua, AipParams};
-use crate::{AipOutput, AipRegistry};
+use crate::{AipFromLua, AipIntoLua, AipParams, HandlerCallContext};
+use crate::{AipOutput, AipRegistry, AipRegistryBuilder};
 use aiprog_macros::aip_handler;
 use aiprog_macros::register_handler;
 use mlua::Lua;
@@ -39,8 +39,12 @@ use std::io::BufReader;
 /// This is the recommended way to obtain a registry for this module.
 /// Use [`register`](register) if you need to add the handlers into an
 /// existing registry.
+#[allow(dead_code)]
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	let mut registry = AipRegistry::from_empty();
+	Ok(register(AipRegistryBuilder::default())?.build())
+}
+
+pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 	register_handler!(registry, "aip.json.parse", aip_json_parse_handler)?;
 	register_handler!(registry, "aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
 	register_handler!(registry, "aip.json.stringify", aip_json_stringify_handler)?;
@@ -111,7 +115,7 @@ impl AipOutput for AipJsonParseOutput {}
 
 /// Parses a JSON string into a Lua value.
 #[aip_handler]
-fn aip_json_parse_handler(params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
+fn aip_json_parse_handler(_call: HandlerCallContext, params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(None));
 	};
@@ -154,7 +158,10 @@ impl AipParams for AipJsonParseJsonlParams {}
 /// Parses a JSONL content (json lines) into a list of JSON values (one per line).
 ///
 #[aip_handler]
-fn aip_json_parse_jsonl_handler(params: AipJsonParseJsonlParams) -> HandlerResult<AipJsonParseJsonlOutput> {
+fn aip_json_parse_jsonl_handler(
+	_call: HandlerCallContext,
+	params: AipJsonParseJsonlParams,
+) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseJsonlOutput(vec![]));
 	};
@@ -224,7 +231,10 @@ impl AipOutput for AipJsonStringifyOutput {}
 /// Serializes a Lua value to a JSON string.
 /// Returns Lua `nil` when the data is nil/null/absent.
 #[aip_handler]
-fn aip_json_stringify_handler(params: AipJsonStringifyParams) -> HandlerResult<AipJsonStringifyOutput> {
+fn aip_json_stringify_handler(
+	_call: HandlerCallContext,
+	params: AipJsonStringifyParams,
+) -> HandlerResult<AipJsonStringifyOutput> {
 	if params.data.is_null() {
 		return Ok(AipJsonStringifyOutput(None));
 	}

@@ -1,15 +1,22 @@
 use crate::AipHandlerClosure;
-use crate::LuaJsonExt;
 use crate::{AipFnKind, AipRegistry};
-use crate::{Result, ScriptEngine};
+use crate::{HandlerCallContext, Result, ScriptEngine};
 use mlua::{Function, Lua, MultiValue, Value};
 
 impl ScriptEngine {
 	pub(super) fn register(&mut self, registry: AipRegistry) -> Result<()> {
+		self.register_with_context(registry, temporary_call_context())
+	}
+
+	pub(super) fn register_with_context(
+		&mut self,
+		registry: AipRegistry,
+		call_context: HandlerCallContext,
+	) -> Result<()> {
 		let lua = &self.lua;
 		self.registered_fns = registry.list_registered_fns();
 
-		for entry in registry.entries {
+		for entry in registry.bind(call_context) {
 			let func = match entry.kind {
 				AipFnKind::Sync => {
 					let handler = if let AipHandlerClosure::Sync(handler) = entry.handler {
@@ -29,17 +36,12 @@ impl ScriptEngine {
 					} else {
 						return Err("Mismatched handler kind for async entry".into());
 					};
-					let fn_path = entry.path.clone();
 
 					lua.create_async_function(move |lua: Lua, args: MultiValue| {
 						let arg = args.into_iter().next().unwrap_or(Value::Nil);
-						let response_fut = handler(&lua, arg);
-						let fn_path = fn_path.clone();
+						let response_fut = handler(lua, arg);
 						async move {
-							let response_json = response_fut.await?;
-							let response_lua = mlua::Value::x_from_json_value(&lua, response_json).map_err(|e| {
-								mlua::Error::RuntimeError(format!("{fn_path} - Failed to convert response to Lua: {e}"))
-							})?;
+							let response_lua = response_fut.await?;
 							Ok::<Value, mlua::Error>(response_lua)
 						}
 					})?
@@ -89,5 +91,13 @@ fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Resu
 		)));
 	}
 	current.set(*leaf, func)?;
+
 	Ok(())
+}
+
+fn temporary_call_context() -> HandlerCallContext {
+	let running = crate::running_context::RunningContextHandle::new(
+		crate::RunningContext::default(),
+	);
+	HandlerCallContext::new(running)
 }

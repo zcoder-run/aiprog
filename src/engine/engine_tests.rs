@@ -1,5 +1,5 @@
 use super::*;
-use crate::AipRegistry;
+use crate::{AipRegistry, AipRegistryBuilder};
 use crate::impl_lua_serde_traits;
 use crate::registry::{HandlerError, HandlerResult};
 use mlua::Value;
@@ -24,15 +24,15 @@ impl_lua_serde_traits!(TestResponse);
 impl crate::AipParams for TestParams {}
 impl crate::AipOutput for TestResponse {}
 
-fn test_sync_handler(params: TestParams) -> HandlerResult<TestResponse> {
+fn test_sync_handler(_call: crate::HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
-async fn test_async_handler(params: TestParams) -> HandlerResult<TestResponse> {
+async fn test_async_handler(_call: crate::HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
-fn test_error_handler(_params: TestParams) -> HandlerResult<TestResponse> {
+fn test_error_handler(_call: crate::HandlerCallContext, _params: TestParams) -> HandlerResult<TestResponse> {
 	Err(HandlerError::custom("[TEST_ERROR] forced test error"))
 }
 
@@ -41,8 +41,9 @@ fn test_error_handler(_params: TestParams) -> HandlerResult<TestResponse> {
 #[test]
 fn test_script_engine_nested_table_creation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.test.my_func", test_sync_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.test.my_func", test_sync_handler)?
+		.build();
 
 	// -- Exec
 	let engine = ScriptEngine::from_registry(registry)?;
@@ -73,8 +74,9 @@ fn test_script_engine_existing_compatible_table() -> Result<()> {
 		lua.globals().set("aip", aip)?;
 	}
 
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.existing.my_func", test_sync_handler)?
+		.build();
 
 	// -- Exec
 	engine.register(registry)?;
@@ -105,8 +107,9 @@ fn test_script_engine_intermediate_non_table_conflict() -> Result<()> {
 		aip_table.set("existing", 42)?;
 	}
 
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.existing.my_func", test_sync_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.existing.my_func", test_sync_handler)?
+		.build();
 
 	// -- Exec
 	let result = engine.register(registry);
@@ -141,8 +144,9 @@ fn test_script_engine_leaf_conflict() -> Result<()> {
 		lua.globals().set("aip", aip)?;
 	}
 
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.conflict.my_func", test_sync_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.conflict.my_func", test_sync_handler)?
+		.build();
 
 	// -- Exec
 	let result = engine.register(registry);
@@ -162,8 +166,9 @@ fn test_script_engine_leaf_conflict() -> Result<()> {
 #[test]
 fn test_script_engine_sync_invocation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.test.echo", test_sync_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.test.echo", test_sync_handler)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -183,8 +188,9 @@ fn test_script_engine_sync_invocation() -> Result<()> {
 #[test]
 fn test_script_engine_sync_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.test.fail", test_error_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.test.fail", test_error_handler)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -207,8 +213,9 @@ fn test_script_engine_sync_error_conversion() -> Result<()> {
 #[tokio::test]
 async fn test_script_engine_async_invocation() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut registry = AipRegistry::from_empty();
-	registry.register_async("aip.test.echo_async", test_async_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_async("aip.test.echo_async", test_async_handler)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -232,12 +239,13 @@ async fn test_script_engine_async_invocation() -> Result<()> {
 #[tokio::test]
 async fn test_script_engine_async_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
-	async fn async_error_handler(_: TestParams) -> HandlerResult<TestResponse> {
+	async fn async_error_handler(_: crate::HandlerCallContext, _: TestParams) -> HandlerResult<TestResponse> {
 		Err(HandlerError::custom("[ASYNC_ERROR] forced async error"))
 	}
 
-	let mut registry = AipRegistry::from_empty();
-	registry.register_async("aip.test.fail_async", async_error_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_async("aip.test.fail_async", async_error_handler)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	// -- Exec
@@ -262,9 +270,10 @@ async fn test_script_engine_async_error_conversion() -> Result<()> {
 
 #[test]
 fn test_generate_doc_content() -> Result<()> {
-	let mut registry = AipRegistry::from_empty();
-	registry.register_sync("aip.test.echo", test_sync_handler)?;
-	registry.register_async("aip.test.echo_async", test_async_handler)?;
+	let registry = AipRegistryBuilder::default()
+		.register_sync("aip.test.echo", test_sync_handler)?
+		.register_async("aip.test.echo_async", test_async_handler)?
+		.build();
 	let engine = ScriptEngine::from_registry(registry)?;
 
 	let doc = engine.generate_doc()?;
