@@ -1,4 +1,5 @@
 use crate::LuaErrorDetails;
+use crate::EngineError;
 use derive_more::{Display, From};
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -15,6 +16,10 @@ pub enum Error {
 	#[display("{_0}")]
 	#[from]
 	LuaScript(LuaErrorDetails),
+
+	// -- Engine
+	#[from]
+	Engine(EngineError),
 
 	// -- Externals
 	#[from]

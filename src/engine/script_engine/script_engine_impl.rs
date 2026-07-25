@@ -1,11 +1,10 @@
+use super::error::{EngineBuildError, EngineError, EngineStartError, Result, RunningEngineFinishError};
+use super::lua_runtime_policy::LuaRuntimePolicy;
 use crate::engine::LuaEngine;
 use crate::running_context::RunningContextHandle;
 use crate::{AipRegistry, HandlerCallContext, RunOutcome, RunningContext};
 use mlua::{Lua, LuaOptions, StdLib};
 use std::sync::Arc;
-
-use super::error::{EngineBuildError, EngineExecutionError, EngineStartError, Result, RunningEngineFinishError};
-use super::lua_runtime_policy::LuaRuntimePolicy;
 
 pub type NativeFunctionInstaller = Arc<dyn Fn(&Lua) -> mlua::Result<()> + Send + Sync>;
 
@@ -73,8 +72,9 @@ impl ScriptEngine {
 	}
 
 	pub fn generate_doc(&self) -> Result<String> {
-		let engine = LuaEngine::from_context_free_registry(self.inner.registry.clone())?;
-		engine.generate_doc()
+		let engine = LuaEngine::from_context_free_registry(self.inner.registry.clone())
+			.map_err(|e| EngineError::Custom(e.to_string()))?;
+		engine.generate_doc().map_err(|e| EngineError::Custom(e.to_string()))
 	}
 
 	pub fn start(&self, context: RunningContext) -> core::result::Result<RunningEngine, EngineStartError> {
@@ -85,24 +85,21 @@ impl ScriptEngine {
 			Ok(engine) => Ok(engine),
 			Err(setup_source) => match context_handle.recover() {
 				Ok(context) => Err(EngineStartError::Setup {
-					source: Box::new(setup_source),
+					source: Box::new(crate::Error::Engine(setup_source)),
 					context,
 				}),
 				Err(recovery) => Err(EngineStartError::ContextRecovery {
-					setup_source: Box::new(setup_source),
+					setup_source: Box::new(crate::Error::Engine(setup_source)),
 					recovery,
 				}),
 			},
 		}
 	}
 
-	pub async fn exec(
-		&self,
-		script: &str,
-		context: RunningContext,
-	) -> core::result::Result<RunOutcome<serde_json::Value>, EngineExecutionError> {
-		let running = self.start(context).map_err(EngineExecutionError::Start)?;
-		running.exec(script).await.map_err(EngineExecutionError::Finish)
+	pub async fn exec(&self, script: &str, context: RunningContext) -> Result<RunOutcome<serde_json::Value>> {
+		let running = self.start(context)?;
+		let outcome = running.exec(script).await?;
+		Ok(outcome)
 	}
 
 	fn create_running_engine(
@@ -115,8 +112,10 @@ impl ScriptEngine {
 			lua,
 			registered_fns: Vec::new(),
 		};
-		engine.init_native_fns()?;
-		engine.register_with_context(self.inner.registry.clone(), call_context)?;
+		engine.init_native_fns().map_err(|e| EngineError::Custom(e.to_string()))?;
+		engine
+			.register_with_context(self.inner.registry.clone(), call_context)
+			.map_err(|e| EngineError::Custom(e.to_string()))?;
 		self.inner.native_functions.install(engine.lua())?;
 
 		Ok(RunningEngine { engine, context })
@@ -138,8 +137,7 @@ impl ScriptEngineBuilder {
 		self.native_functions = native_functions;
 		self
 	}
-
-	pub fn build(self) -> core::result::Result<ScriptEngine, EngineBuildError> {
+	pub fn build(self) -> Result<ScriptEngine> {
 		validate_runtime_policy(&self.lua_policy)?;
 		let registry = self.registry.ok_or(EngineBuildError::MissingRegistry)?;
 
@@ -160,29 +158,34 @@ impl RunningEngine {
 	) -> core::result::Result<RunOutcome<serde_json::Value>, RunningEngineFinishError<serde_json::Value>> {
 		let Self { engine, context } = self;
 		let result = engine.exec(script).await;
+		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
 		drop(engine);
 
 		let context = match context.recover() {
 			Ok(context) => context,
-			Err(source) => return Err(RunningEngineFinishError { result, source }),
+			Err(source) => {
+				return Err(RunningEngineFinishError {
+					result: engine_result,
+					source,
+				});
+			}
 		};
 
-		Ok(RunOutcome::new(result, context))
+		let crate_result = engine_result.map_err(crate::Error::Engine);
+		Ok(RunOutcome::new(crate_result, context))
 	}
 }
 
-
 // region:    --- Support
-
-fn validate_runtime_policy(policy: &LuaRuntimePolicy) -> core::result::Result<(), EngineBuildError> {
+fn validate_runtime_policy(policy: &LuaRuntimePolicy) -> Result<()> {
 	if !policy.std_lib_policy().base {
-		return Err(EngineBuildError::BaseLibraryRequired);
+		return Err(EngineBuildError::BaseLibraryRequired.into());
 	}
 	if policy.limits().max_instructions.is_some() {
-		return Err(EngineBuildError::InstructionLimitUnsupported);
+		return Err(EngineBuildError::InstructionLimitUnsupported.into());
 	}
 	if policy.limits().wall_clock_timeout.is_some() {
-		return Err(EngineBuildError::WallClockTimeoutUnsupported);
+		return Err(EngineBuildError::WallClockTimeoutUnsupported.into());
 	}
 	Ok(())
 }
@@ -305,7 +308,7 @@ mod tests {
 		let error = builder.build().err().ok_or("Should reject a gengine without a registry")?;
 
 		// -- Check
-		assert!(matches!(error, EngineBuildError::MissingRegistry));
+		assert!(matches!(error, EngineError::Build(EngineBuildError::MissingRegistry)));
 
 		Ok(())
 	}

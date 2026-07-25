@@ -1,7 +1,8 @@
 use crate::running_context::ContextRecoveryError;
 use derive_more::Display;
+use derive_more::From;
 
-pub type Result<T> = std::result::Result<T, crate::Error>;
+pub(crate) type Result<T> = std::result::Result<T, EngineError>;
 
 #[derive(Debug, Display)]
 pub enum EngineBuildError {
@@ -22,6 +23,7 @@ pub enum EngineBuildError {
 pub enum EngineStartError {
 	Setup {
 		source: Box<crate::Error>,
+		#[allow(dead_code)]
 		context: crate::RunningContext,
 	},
 	ContextRecovery {
@@ -32,17 +34,47 @@ pub enum EngineStartError {
 
 #[derive(Debug)]
 pub struct RunningEngineFinishError<T> {
+	#[allow(dead_code)]
 	pub result: Result<T>,
 	pub source: ContextRecoveryError,
 }
 
-#[derive(Debug)]
-pub enum EngineExecutionError {
+#[derive(Debug, From)]
+pub enum EngineError {
+	#[from]
+	Build(EngineBuildError),
+	#[from]
 	Start(EngineStartError),
-	Finish(RunningEngineFinishError<serde_json::Value>),
+	#[from]
+	FinishRecovery(Box<RunningEngineFinishError<serde_json::Value>>),
+	#[from(String, &str)]
+	Custom(String),
+}
+
+impl From<mlua::Error> for EngineError {
+	fn from(err: mlua::Error) -> Self {
+		EngineError::Custom(err.to_string())
+	}
+}
+
+impl From<RunningEngineFinishError<serde_json::Value>> for EngineError {
+	fn from(err: RunningEngineFinishError<serde_json::Value>) -> Self {
+		EngineError::FinishRecovery(Box::new(err))
+	}
 }
 
 // region:    --- Error Boilerplate
+
+impl core::fmt::Display for EngineError {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		match self {
+			Self::Build(e) => write!(f, "{e}"),
+			Self::Start(e) => write!(f, "{e}"),
+			Self::FinishRecovery(e) => write!(f, "{e}"),
+			Self::Custom(s) => write!(f, "{s}"),
+		}
+	}
+}
 
 impl std::error::Error for EngineBuildError {}
 
@@ -68,15 +100,6 @@ impl<T> core::fmt::Display for RunningEngineFinishError<T> {
 
 impl<T: core::fmt::Debug> std::error::Error for RunningEngineFinishError<T> {}
 
-impl core::fmt::Display for EngineExecutionError {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		match self {
-			Self::Start(source) => source.fmt(f),
-			Self::Finish(source) => source.fmt(f),
-		}
-	}
-}
-
-impl std::error::Error for EngineExecutionError {}
+impl std::error::Error for EngineError {}
 
 // endregion: --- Error Boilerplate
