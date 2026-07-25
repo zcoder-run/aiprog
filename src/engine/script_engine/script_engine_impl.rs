@@ -1,4 +1,4 @@
-use super::error::{EngineBuildError, EngineError, EngineStartError, Result, RunningEngineFinishError};
+use super::error::{EngineBuildError, EngineError, EngineResult, EngineStartError, RunningEngineFinishError};
 use super::lua_runtime_policy::LuaRuntimePolicy;
 use crate::engine::LuaEngine;
 use crate::running_context::RunningContextHandle;
@@ -71,13 +71,13 @@ impl ScriptEngine {
 		ScriptEngineBuilder::default()
 	}
 
-	pub fn generate_doc(&self) -> Result<String> {
+	pub fn generate_doc(&self) -> EngineResult<String> {
 		let engine = LuaEngine::from_context_free_registry(self.inner.registry.clone())
 			.map_err(|e| EngineError::Custom(e.to_string()))?;
 		engine.generate_doc().map_err(|e| EngineError::Custom(e.to_string()))
 	}
 
-	pub fn start(&self, context: RunningContext) -> core::result::Result<RunningEngine, EngineStartError> {
+	pub fn start(&self, context: RunningContext) -> EngineResult<RunningEngine> {
 		let context_handle = RunningContextHandle::new(context);
 		let call_context = HandlerCallContext::new(context_handle.clone());
 
@@ -87,16 +87,18 @@ impl ScriptEngine {
 				Ok(context) => Err(EngineStartError::Setup {
 					source: Box::new(crate::Error::Engine(setup_source)),
 					context,
-				}),
+				}
+				.into()),
 				Err(recovery) => Err(EngineStartError::ContextRecovery {
 					setup_source: Box::new(crate::Error::Engine(setup_source)),
 					recovery,
-				}),
+				}
+				.into()),
 			},
 		}
 	}
 
-	pub async fn exec(&self, script: &str, context: RunningContext) -> Result<RunOutcome<serde_json::Value>> {
+	pub async fn exec(&self, script: &str, context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
 		let running = self.start(context)?;
 		let outcome = running.exec(script).await?;
 		Ok(outcome)
@@ -106,7 +108,7 @@ impl ScriptEngine {
 		&self,
 		call_context: HandlerCallContext,
 		context: RunningContextHandle,
-	) -> Result<RunningEngine> {
+	) -> EngineResult<RunningEngine> {
 		let lua = create_restricted_lua(&self.inner.lua_policy)?;
 		let mut engine = LuaEngine {
 			lua,
@@ -137,7 +139,7 @@ impl ScriptEngineBuilder {
 		self.native_functions = native_functions;
 		self
 	}
-	pub fn build(self) -> Result<ScriptEngine> {
+	pub fn build(self) -> EngineResult<ScriptEngine> {
 		validate_runtime_policy(&self.lua_policy)?;
 		let registry = self.registry.ok_or(EngineBuildError::MissingRegistry)?;
 
@@ -152,10 +154,7 @@ impl ScriptEngineBuilder {
 }
 
 impl RunningEngine {
-	pub async fn exec(
-		self,
-		script: &str,
-	) -> core::result::Result<RunOutcome<serde_json::Value>, RunningEngineFinishError<serde_json::Value>> {
+	pub async fn exec(self, script: &str) -> EngineResult<RunOutcome<serde_json::Value>> {
 		let Self { engine, context } = self;
 		let result = engine.exec(script).await;
 		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
@@ -167,7 +166,8 @@ impl RunningEngine {
 				return Err(RunningEngineFinishError {
 					result: engine_result,
 					source,
-				});
+				}
+				.into());
 			}
 		};
 
@@ -177,7 +177,7 @@ impl RunningEngine {
 }
 
 // region:    --- Support
-fn validate_runtime_policy(policy: &LuaRuntimePolicy) -> Result<()> {
+fn validate_runtime_policy(policy: &LuaRuntimePolicy) -> EngineResult<()> {
 	if !policy.std_lib_policy().base {
 		return Err(EngineBuildError::BaseLibraryRequired.into());
 	}
@@ -290,7 +290,7 @@ mod tests {
 		let error = engine.start(context).err().ok_or("Should return a setup error")?;
 
 		// -- Check
-		let EngineStartError::Setup { source, context } = error else {
+		let EngineError::Start(EngineStartError::Setup { source, context }) = error else {
 			return Err("Expected setup error with recovered context".into());
 		};
 		assert!(source.to_string().contains("Forced native installer failure"));

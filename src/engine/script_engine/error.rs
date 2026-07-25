@@ -2,7 +2,37 @@ use crate::running_context::ContextRecoveryError;
 use derive_more::Display;
 use derive_more::From;
 
-pub(crate) type Result<T> = std::result::Result<T, EngineError>;
+pub(crate) type EngineResult<T> = std::result::Result<T, EngineError>;
+
+#[derive(Debug, From)]
+pub enum EngineError {
+	#[from]
+	Build(EngineBuildError),
+	#[from]
+	Start(EngineStartError),
+	#[from]
+	FinishRecovery(Box<RunningEngineFinishError<serde_json::Value>>),
+	#[from(String, &str)]
+	Custom(String),
+}
+
+// region:    --- Froms
+
+impl From<mlua::Error> for EngineError {
+	fn from(err: mlua::Error) -> Self {
+		EngineError::Custom(err.to_string())
+	}
+}
+
+impl From<RunningEngineFinishError<serde_json::Value>> for EngineError {
+	fn from(err: RunningEngineFinishError<serde_json::Value>) -> Self {
+		EngineError::FinishRecovery(Box::new(err))
+	}
+}
+
+// endregion: --- Froms
+
+// region:    --- Types
 
 #[derive(Debug, Display)]
 pub enum EngineBuildError {
@@ -35,33 +65,11 @@ pub enum EngineStartError {
 #[derive(Debug)]
 pub struct RunningEngineFinishError<T> {
 	#[allow(dead_code)]
-	pub result: Result<T>,
+	pub result: EngineResult<T>,
 	pub source: ContextRecoveryError,
 }
 
-#[derive(Debug, From)]
-pub enum EngineError {
-	#[from]
-	Build(EngineBuildError),
-	#[from]
-	Start(EngineStartError),
-	#[from]
-	FinishRecovery(Box<RunningEngineFinishError<serde_json::Value>>),
-	#[from(String, &str)]
-	Custom(String),
-}
-
-impl From<mlua::Error> for EngineError {
-	fn from(err: mlua::Error) -> Self {
-		EngineError::Custom(err.to_string())
-	}
-}
-
-impl From<RunningEngineFinishError<serde_json::Value>> for EngineError {
-	fn from(err: RunningEngineFinishError<serde_json::Value>) -> Self {
-		EngineError::FinishRecovery(Box::new(err))
-	}
-}
+// endregion: --- Types
 
 // region:    --- Error Boilerplate
 
