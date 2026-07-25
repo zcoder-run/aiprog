@@ -1,6 +1,6 @@
 // Integration tests for Aiprog JSON handling via the AIProg Lua engine.
 
-use aiprog::{AipRegistry, ScriptEngine, RunningContext};
+use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 use serde_json::json;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;

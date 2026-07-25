@@ -61,9 +61,7 @@ where
 		.collect()
 }
 
-fn compile_path_pattern(
-	pattern: &str,
-) -> core::result::Result<CompiledPathPattern, RegistrySelectionError> {
+fn compile_path_pattern(pattern: &str) -> core::result::Result<CompiledPathPattern, RegistrySelectionError> {
 	if pattern.is_empty() {
 		return Err(invalid_pattern(pattern, "Pattern must not be empty"));
 	}

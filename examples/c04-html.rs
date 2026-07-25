@@ -1,4 +1,4 @@
-use aiprog::{AipRegistry, ScriptEngine, RunningContext};
+use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 use value_ext::JsonValueExt;
 
 #[tokio::main]

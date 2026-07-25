@@ -1,4 +1,4 @@
-use aiprog::{AipRegistry, ScriptEngine, RunningContext};
+use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 use genai::Client;
 use genai::chat::{ChatMessage, ChatRequest};
 

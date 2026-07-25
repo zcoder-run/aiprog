@@ -19,12 +19,10 @@
 //! ---
 //!
 use super::file_types::{DirContext, FileInfo, FileRecord, FileStats};
-use super::support::{
-	self, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns,
-};
-use crate::{AipRegistry, AipRegistryBuilder};
+use super::support::{self, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns};
 use crate::{AipFromLua, AipIntoLua, HandlerCallContext, HandlerResult, LuaExt};
 use crate::{AipOutput, AipParams};
+use crate::{AipRegistry, AipRegistryBuilder};
 use aiprog_macros::{aip_handler, register_handler};
 use mlua::{Lua, Value};
 
@@ -338,8 +336,7 @@ fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) ->
 	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call
-		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut infos: Vec<FileInfo> = Vec::new();
 	for p in paths {
@@ -362,8 +359,7 @@ fn aip_file_list_read_handler(
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call
-		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
@@ -418,8 +414,7 @@ fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -
 	validate_glob_patterns(&globs)?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call
-		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let data = paths
 		.into_iter()
@@ -448,8 +443,7 @@ fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) 
 	};
 	validate_glob_patterns(&globs)?;
 
-	let paths = call
-		.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
 
 	let mut number_of_files: usize = 0;
 	let mut total_size: u64 = 0;
@@ -506,7 +500,9 @@ fn lua_value_to_file_globs(table: &mlua::Table, key: &str) -> crate::Result<File
 			vec.push(s.to_string());
 		}
 		if vec.is_empty() {
-			return Err(crate::Error::custom(format!("Property '{key}' must not be an empty list")));
+			return Err(crate::Error::custom(format!(
+				"Property '{key}' must not be an empty list"
+			)));
 		}
 		Ok(FileGlobs::Many(vec))
 	} else if val.is_nil() || val.x_is_null() {

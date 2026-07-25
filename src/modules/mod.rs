@@ -87,7 +87,7 @@ mod tests {
 	type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 	use super::*;
-	use crate::{ScriptEngine, RegistrySelectionOptions, RunningContext, UnmatchedPatternPolicy};
+	use crate::{RegistrySelectionOptions, RunningContext, ScriptEngine, UnmatchedPatternPolicy};
 
 	#[test]
 	fn test_modules_add_module_independent_composition() -> Result<()> {

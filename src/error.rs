@@ -1,5 +1,5 @@
-use crate::LuaErrorDetails;
 use crate::EngineError;
+use crate::LuaErrorDetails;
 use derive_more::{Display, From};
 
 pub type Result<T> = core::result::Result<T, Error>;

@@ -14,9 +14,9 @@ mod engine;
 mod error;
 mod error_lua_details;
 mod lua_exts;
+pub mod registry;
 mod run_outcome;
 pub(crate) mod running_context;
-pub mod registry;
 
 pub use error::{Error, Result};
 pub use error_lua_details::LuaErrorDetails;

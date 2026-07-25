@@ -86,10 +86,7 @@ fn test_registry_duplicate_path_rejection() -> Result<()> {
 
 	// -- Check
 	assert!(result.is_err(), "expected duplicate path error");
-	let err = result
-		.as_ref()
-		.err()
-		.ok_or("expected duplicate path error")?;
+	let err = result.as_ref().err().ok_or("expected duplicate path error")?;
 	assert!(matches!(err, AipRegistryError::DuplicatePath(_)));
 
 	Ok(())
@@ -108,7 +105,11 @@ fn test_registry_invalid_paths() -> Result<()> {
 	assert!(AipRegistryBuilder::default().register_sync("", test_sync_handler).is_err());
 	assert!(AipRegistryBuilder::default().register_sync("parse", test_sync_handler).is_err());
 	assert!(AipRegistryBuilder::default().register_sync("test.", test_sync_handler).is_err());
-	assert!(AipRegistryBuilder::default().register_sync(".parse", test_sync_handler).is_err());
+	assert!(
+		AipRegistryBuilder::default()
+			.register_sync(".parse", test_sync_handler)
+			.is_err()
+	);
 	assert!(
 		AipRegistryBuilder::default()
 			.register_sync("test..parse", test_sync_handler)
@@ -189,9 +190,7 @@ fn test_registry_merge_duplicate() -> Result<()> {
 async fn test_registry_handler_context_access() -> Result<()> {
 	// -- Setup & Fixtures
 	fn context_handler(call: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
-		let prefix = call
-			.with::<String, _>(Clone::clone)
-			.map_err(HandlerError::custom_from_err)?;
+		let prefix = call.with::<String, _>(Clone::clone).map_err(HandlerError::custom_from_err)?;
 		Ok(TestResponse {
 			data: format!("{prefix}{}", params.data),
 		})
@@ -226,10 +225,7 @@ fn test_registry_to_builder_preserves_source_and_order() -> Result<()> {
 		.build();
 
 	// -- Exec
-	let extended = source
-		.to_builder()
-		.register_async("test.fetch", test_async_handler)?
-		.build();
+	let extended = source.to_builder().register_async("test.fetch", test_async_handler)?.build();
 	let source_fns = source.list_registered_fns();
 	let extended_fns = extended.list_registered_fns();
 
@@ -300,10 +296,7 @@ fn test_registry_exclude_patterns_matching_and_order() -> Result<()> {
 		.build();
 
 	// -- Exec
-	let excluded = source.exclude(
-		["aip.web.**", "app.lookup"],
-		RegistrySelectionOptions::default(),
-	)?;
+	let excluded = source.exclude(["aip.web.**", "app.lookup"], RegistrySelectionOptions::default())?;
 	let paths = excluded
 		.list_registered_fns()
 		.into_iter()
@@ -341,10 +334,7 @@ fn test_registry_select_invalid_and_unmatched_patterns() -> Result<()> {
 		embedded_wildcard,
 		Err(RegistrySelectionError::InvalidPattern { .. })
 	));
-	assert!(matches!(
-		unmatched,
-		Err(RegistrySelectionError::UnmatchedPattern(_))
-	));
+	assert!(matches!(unmatched, Err(RegistrySelectionError::UnmatchedPattern(_))));
 	assert!(allowed_unmatched.list_registered_fns().is_empty());
 
 	Ok(())
@@ -387,10 +377,7 @@ fn test_registry_select_extension_preserves_source_independence() -> Result<()> 
 	// -- Check
 	assert_eq!(source_paths, ["aip.json.parse", "aip.web.get"]);
 	assert_eq!(selected_paths, ["aip.json.parse"]);
-	assert_eq!(
-		extended_paths,
-		["aip.json.parse", "app.lookup", "audit.record"]
-	);
+	assert_eq!(extended_paths, ["aip.json.parse", "app.lookup", "audit.record"]);
 
 	Ok(())
 }

@@ -86,7 +86,10 @@ impl PathPolicy {
 				));
 			}
 
-			if !canonical_roots.iter().any(|existing: &SPath| existing.as_str() == canonical.as_str()) {
+			if !canonical_roots
+				.iter()
+				.any(|existing: &SPath| existing.as_str() == canonical.as_str())
+			{
 				canonical_roots.push(canonical);
 			}
 		}
@@ -101,7 +104,12 @@ impl PathPolicy {
 		})
 	}
 
-	fn resolve(&self, path: &str, base_dir: Option<&str>, allow_missing: bool) -> Result<ResolvedDirPath, DirPolicyError> {
+	fn resolve(
+		&self,
+		path: &str,
+		base_dir: Option<&str>,
+		allow_missing: bool,
+	) -> Result<ResolvedDirPath, DirPolicyError> {
 		if path.trim().is_empty() {
 			return Err(DirPolicyError::InvalidPath("path must not be empty".to_string()));
 		}
@@ -165,8 +173,8 @@ impl PathPolicy {
 			.cloned()
 			.ok_or_else(|| DirPolicyError::OutsideAllowedRoots(canonical.display().to_string()))?;
 
-		let path = SPath::from_std_path_buf(canonical)
-			.map_err(|error| DirPolicyError::InvalidPath(error.to_string()))?;
+		let path =
+			SPath::from_std_path_buf(canonical).map_err(|error| DirPolicyError::InvalidPath(error.to_string()))?;
 
 		Ok(ResolvedDirPath { path, root })
 	}

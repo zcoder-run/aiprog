@@ -1,6 +1,6 @@
 mod _support;
 
-use aiprog::{AipRegistry, ScriptEngine, RunningContext};
+use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 use serde_json::json;
 
 use _support::{TestResult, TestServerBuilder};

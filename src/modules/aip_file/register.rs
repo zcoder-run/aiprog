@@ -1,5 +1,5 @@
-use crate::{AipRegistry, AipRegistryBuilder};
 use crate::Result;
+use crate::{AipRegistry, AipRegistryBuilder};
 
 use super::file_read;
 

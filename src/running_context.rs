@@ -30,9 +30,7 @@ impl RunningContext {
 	where
 		T: Any + Send + Sync + 'static,
 	{
-		self.values
-			.get(&TypeId::of::<T>())
-			.and_then(|value| value.downcast_ref::<T>())
+		self.values.get(&TypeId::of::<T>()).and_then(|value| value.downcast_ref::<T>())
 	}
 
 	pub fn get_mut<T>(&mut self) -> Option<&mut T>
@@ -48,9 +46,7 @@ impl RunningContext {
 	where
 		T: Any + Send + Sync + 'static,
 	{
-		self.values
-			.remove(&TypeId::of::<T>())
-			.and_then(downcast_owned::<T>)
+		self.values.remove(&TypeId::of::<T>()).and_then(downcast_owned::<T>)
 	}
 }
 
@@ -67,10 +63,7 @@ impl HandlerCallContext {
 		self.running.with(action)
 	}
 
-	pub fn with_mut<T, R>(
-		&self,
-		action: impl FnOnce(&mut T) -> R,
-	) -> core::result::Result<R, ContextAccessError>
+	pub fn with_mut<T, R>(&self, action: impl FnOnce(&mut T) -> R) -> core::result::Result<R, ContextAccessError>
 	where
 		T: Any + Send + Sync + 'static,
 	{
@@ -110,9 +103,7 @@ pub enum ContextRecoveryError {
 impl fmt::Display for ContextRecoveryError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::OutstandingHandles => {
-				f.write_str("Running context cannot be recovered while handles remain")
-			}
+			Self::OutstandingHandles => f.write_str("Running context cannot be recovered while handles remain"),
 			Self::LockPoisoned => f.write_str("Running context lock is poisoned"),
 		}
 	}
@@ -134,42 +125,26 @@ impl RunningContextHandle {
 		}
 	}
 
-	pub(crate) fn with<T, R>(
-		&self,
-		action: impl FnOnce(&T) -> R,
-	) -> core::result::Result<R, ContextAccessError>
+	pub(crate) fn with<T, R>(&self, action: impl FnOnce(&T) -> R) -> core::result::Result<R, ContextAccessError>
 	where
 		T: Any + Send + Sync + 'static,
 	{
-		let context = self
-			.inner
-			.lock()
-			.map_err(|_| ContextAccessError::LockPoisoned)?;
-		let value = context
-			.get::<T>()
-			.ok_or(ContextAccessError::MissingValue {
-				type_name: core::any::type_name::<T>(),
-			})?;
+		let context = self.inner.lock().map_err(|_| ContextAccessError::LockPoisoned)?;
+		let value = context.get::<T>().ok_or(ContextAccessError::MissingValue {
+			type_name: core::any::type_name::<T>(),
+		})?;
 
 		Ok(action(value))
 	}
 
-	pub(crate) fn with_mut<T, R>(
-		&self,
-		action: impl FnOnce(&mut T) -> R,
-	) -> core::result::Result<R, ContextAccessError>
+	pub(crate) fn with_mut<T, R>(&self, action: impl FnOnce(&mut T) -> R) -> core::result::Result<R, ContextAccessError>
 	where
 		T: Any + Send + Sync + 'static,
 	{
-		let mut context = self
-			.inner
-			.lock()
-			.map_err(|_| ContextAccessError::LockPoisoned)?;
-		let value = context
-			.get_mut::<T>()
-			.ok_or(ContextAccessError::MissingValue {
-				type_name: core::any::type_name::<T>(),
-			})?;
+		let mut context = self.inner.lock().map_err(|_| ContextAccessError::LockPoisoned)?;
+		let value = context.get_mut::<T>().ok_or(ContextAccessError::MissingValue {
+			type_name: core::any::type_name::<T>(),
+		})?;
 
 		Ok(action(value))
 	}

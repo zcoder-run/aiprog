@@ -2,7 +2,7 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tes
 
 use super::super::file_types::{AbsolutePathPolicy, DirPolicyError, PathPolicy};
 use super::*;
-use crate::{ScriptEngine, RunningContext};
+use crate::{RunningContext, ScriptEngine};
 use tempfile::TempDir;
 
 #[tokio::test]

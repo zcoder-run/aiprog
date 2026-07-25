@@ -46,10 +46,7 @@ impl AipRegistry {
 
 	pub fn to_builder(&self) -> AipRegistryBuilder {
 		let definitions = self.inner.definitions.iter().cloned().collect::<Vec<_>>();
-		let registered_paths = definitions
-			.iter()
-			.map(|definition| definition.path.clone())
-			.collect();
+		let registered_paths = definitions.iter().map(|definition| definition.path.clone()).collect();
 
 		AipRegistryBuilder {
 			definitions,
@@ -73,11 +70,7 @@ impl AipRegistry {
 			.collect()
 	}
 
-	pub fn select<I, S>(
-		&self,
-		patterns: I,
-		options: RegistrySelectionOptions,
-	) -> RegistrySelectionResult<AipRegistry>
+	pub fn select<I, S>(&self, patterns: I, options: RegistrySelectionOptions) -> RegistrySelectionResult<AipRegistry>
 	where
 		I: IntoIterator<Item = S>,
 		S: AsRef<str>,
@@ -85,11 +78,7 @@ impl AipRegistry {
 		transform_by_patterns(self, patterns, SelectionMode::Include, options)
 	}
 
-	pub fn exclude<I, S>(
-		&self,
-		patterns: I,
-		options: RegistrySelectionOptions,
-	) -> RegistrySelectionResult<AipRegistry>
+	pub fn exclude<I, S>(&self, patterns: I, options: RegistrySelectionOptions) -> RegistrySelectionResult<AipRegistry>
 	where
 		I: IntoIterator<Item = S>,
 		S: AsRef<str>,
@@ -325,14 +314,9 @@ where
 	}
 
 	if options.unmatched_patterns == UnmatchedPatternPolicy::Error
-		&& let Some((matcher, _)) = matchers
-			.iter()
-			.zip(matched_patterns)
-			.find(|(_, matched)| !matched)
+		&& let Some((matcher, _)) = matchers.iter().zip(matched_patterns).find(|(_, matched)| !matched)
 	{
-		return Err(RegistrySelectionError::UnmatchedPattern(
-			matcher.source().to_string(),
-		));
+		return Err(RegistrySelectionError::UnmatchedPattern(matcher.source().to_string()));
 	}
 
 	Ok(AipRegistry {

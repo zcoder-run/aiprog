@@ -225,4 +225,3 @@ pub fn validate_glob_patterns(globs: &[String]) -> HandlerResult<()> {
 }
 
 // endregion: --- Error helpers
-

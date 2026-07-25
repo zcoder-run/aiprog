@@ -87,11 +87,7 @@ impl TestServerBuilder {
 			Ok(())
 		});
 
-		Ok(TestServer {
-			addr,
-			handle,
-			request,
-		})
+		Ok(TestServer { addr, handle, request })
 	}
 }
 
@@ -122,10 +118,7 @@ async fn read_request(
 			));
 		}
 
-		if let Some(headers_end) = request_bytes
-			.windows(4)
-			.position(|window| window == b"\r\n\r\n")
-		{
+		if let Some(headers_end) = request_bytes.windows(4).position(|window| window == b"\r\n\r\n") {
 			let content_length = request_content_length(&request_bytes[..headers_end])?;
 			if request_bytes.len() >= headers_end + 4 + content_length {
 				let snapshot = parse_request(&request_bytes[..headers_end + 4 + content_length])?;
@@ -144,9 +137,10 @@ fn request_content_length(headers: &[u8]) -> io::Result<usize> {
 		if let Some((name, value)) = line.split_once(':')
 			&& name.trim().eq_ignore_ascii_case("content-length")
 		{
-			return value.trim().parse::<usize>().map_err(|_| {
-				io::Error::new(io::ErrorKind::InvalidData, "Request Content-Length is invalid")
-			});
+			return value
+				.trim()
+				.parse::<usize>()
+				.map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Request Content-Length is invalid"));
 		}
 	}
 
