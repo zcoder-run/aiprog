@@ -291,7 +291,7 @@ The following constraints are intentionally enforced or remain unresolved:
 
 ## Implementation files
 
-- `src/engine/engine_template.rs`, template configuration, fresh Lua VM creation, start and execution lifecycle.
+- `src/engine/engine.rs`, template configuration, fresh Lua VM creation, start and execution lifecycle.
 - `src/engine/support/lua_engine.rs`, lower-level `LuaEngine` construction and execution APIs.
 - `src/engine/support/lua_engine_register.rs`, registry binding and Lua function installation.
 - `src/running_context.rs`, typed per-run state, scoped handler access, and recovery.

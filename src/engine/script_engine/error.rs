@@ -8,10 +8,13 @@ pub(crate) type EngineResult<T> = std::result::Result<T, EngineError>;
 pub enum EngineError {
 	#[from]
 	Build(EngineBuildError),
+
 	#[from]
 	Start(EngineStartError),
+
 	#[from]
 	FinishRecovery(Box<RunningEngineFinishError<serde_json::Value>>),
+
 	#[from(String, &str)]
 	Custom(String),
 }

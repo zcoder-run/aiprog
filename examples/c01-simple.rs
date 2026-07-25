@@ -2,12 +2,12 @@ use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let engine_template = ScriptEngine::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
 	println!("== aip.json.parse\n");
-	let result = engine_template
+	let result = engine
 		.exec(
 			r#"
 		local extra_text = '{"param_1": "value-1"}'
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	println!("{result:#?}");
 
 	println!("== aip.json.stringify (pretty = true)\n");
-	let result = engine_template
+	let result = engine
 		.exec(
 			r#"
 		local data = {

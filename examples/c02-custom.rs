@@ -55,9 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	register_handler!(registry_builder, "custom.greeting", custom_greetings)?;
 	let registry = registry_builder.build();
 
-	let engine_template = ScriptEngine::builder().with_registry(registry).build()?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
-	let result = engine_template
+	let result = engine
 		.exec(
 			r#"
         local res = custom.greeting({name = "World"})
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// -- Save doc
 
-	let doc = engine_template.generate_doc()?;
+	let doc = engine.generate_doc()?;
 	let out_file = SPath::new("examples/.out/c02-doc.md");
 	ensure_file_dir(&out_file)?;
 	fs::write(out_file, doc)?;

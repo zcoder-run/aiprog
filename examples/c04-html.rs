@@ -3,12 +3,12 @@ use value_ext::JsonValueExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let engine_template = ScriptEngine::builder()
+	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
 		.build()?;
 
 	println!("== aip.html.slim\n");
-	let res = engine_template.exec(
+	let res = engine.exec(
 		r#"
 		local html_string = [[
 		<html><head></head><body><p>Hello &amp; welcome!</p>
