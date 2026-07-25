@@ -4,12 +4,12 @@
 
 Provide isolated Lua script execution through reusable immutable configuration and per-run state.
 
-`EngineTemplate` stores the reusable execution configuration. Each execution creates a fresh Lua VM, binds the selected registry's handlers to one owned `RunningContext`, executes a script, drops the VM, and recovers the context.
+`ScriptEngine` stores the reusable execution configuration. Each execution creates a fresh Lua VM, binds the selected registry's handlers to one owned `RunningContext`, executes a script, drops the VM, and recovers the context.
 
 The implementation separates:
 
 - Immutable API definitions in `AipRegistry`.
-- Lua runtime configuration in `EngineTemplate`.
+- Lua runtime configuration in `ScriptEngine`.
 - Per-execution typed Rust state in `RunningContext`.
 - One-run Lua state in `RunningEngine`.
 
@@ -23,14 +23,14 @@ let registry = AipRegistryBuilder::default()
 	.add_module(WebModule)?
 	.build();
 
-let template = EngineTemplate::builder()
+let engine = ScriptEngine::builder()
 	.with_registry(registry)
 	.build()?;
 
 let mut context = RunningContext::default();
 context.insert(String::from("execution state"));
 
-let outcome = template
+let outcome = engine
 	.exec("return 42", context)
 	.await?;
 
@@ -47,10 +47,10 @@ flowchart TD
 	subgraph reusable["Reusable configuration"]
 		builder["AipRegistryBuilder"]
 		registry["AipRegistry<br/>immutable handler definitions"]
-		template["EngineTemplate<br/>reusable isolated-run configuration"]
+		engine["ScriptEngine<br/>reusable isolated-run configuration"]
 
 		builder --> registry
-		registry --> template
+		registry --> engine
 	end
 
 	subgraph execution["One execution"]
@@ -62,7 +62,7 @@ flowchart TD
 		outcome["RunOutcome<br/>result and recovered context"]
 
 		context --> handle
-		template --> running
+		engine --> running
 		handle --> running
 		running --> lua
 		running --> handlers
@@ -70,33 +70,27 @@ flowchart TD
 		handle --> outcome
 	end
 
-	subgraph direct["Direct context-free execution"]
-		lua_engine["LuaEngine<br/>one directly constructed Lua VM"]
-		direct_lua["Lua VM"]
-
-		lua_engine --> direct_lua
-	end
 ```
 
 The reusable layer contains only immutable registry definitions, runtime policy, and native function installers. A run owns its Lua state and execution context. The context is recovered only after the Lua state and its closures have been dropped.
 
-## EngineTemplate and LuaEngine
+## ScriptEngine and LuaEngine
 
-`EngineTemplate` and `LuaEngine` serve different construction and lifecycle needs:
+`ScriptEngine` is the public reusable engine configuration. `LuaEngine` is its private concrete Lua runtime implementation.
 
-- `EngineTemplate` is the reusable, cloneable template engine configuration. It stores an `AipRegistry`, a `LuaRuntimePolicy`, and approved native function installers, but it does not own a Lua VM or a `RunningContext`.
-- `EngineTemplate::start` creates a `RunningEngine` for one isolated execution. That running engine owns a fresh `LuaEngine`, its fresh Lua VM, the bound registry closures, and the supplied `RunningContext` handle.
-- `LuaEngine` is the lower-level concrete Lua runtime. `LuaEngine::new` and `LuaEngine::from_registry` directly construct a context-free Lua VM for APIs whose handlers do not require caller-supplied execution state.
+- `ScriptEngine` is the reusable, cloneable public engine configuration. It stores an `AipRegistry`, a `LuaRuntimePolicy`, and approved native function installers, but it does not own a Lua VM or a `RunningContext`.
+- `ScriptEngine::start` creates a `RunningEngine` for one isolated execution. That running engine owns a fresh private `LuaEngine`, its fresh Lua VM, the bound registry closures, and the supplied `RunningContext` handle.
+- `LuaEngine` is an implementation detail that constructs and executes the concrete Lua VM used by `RunningEngine`.
 
-Use `EngineTemplate` for isolated executions that need per-run context recovery and reusable policy configuration. Use a directly constructed `LuaEngine` only when a context-free Lua runtime is the intended API. Context-dependent handlers must run through an `EngineTemplate`, which binds them to the supplied `RunningContext`.
+Use `ScriptEngine` for isolated executions that need per-run context recovery and reusable policy configuration. It binds context-dependent handlers to the supplied `RunningContext`.
 
 ## Execution lifecycle
 
 The implemented execution lifecycle is:
 
 1. Build an `AipRegistry` containing reusable handler definitions.
-2. Build an `EngineTemplate` with the registry, Lua policy, and optional native functions.
-3. Supply an owned `RunningContext` to `EngineTemplate::start` or `EngineTemplate::exec`.
+2. Build a `ScriptEngine` with the registry, Lua policy, and optional native functions.
+3. Supply an owned `RunningContext` to `ScriptEngine::start` or `ScriptEngine::exec`.
 4. Create a fresh restricted Lua VM.
 5. Create a `HandlerCallContext` bound to the supplied context.
 6. Bind registry handler factories to that call context.
@@ -105,17 +99,17 @@ The implemented execution lifecycle is:
 9. Drop the `LuaEngine`, Lua VM, and bound closures.
 10. Recover and return the `RunningContext`.
 
-`EngineTemplate::start` exposes the explicit lifecycle:
+`ScriptEngine::start` exposes the explicit lifecycle:
 
 ```rust
-let running = template.start(context)?;
+let running = engine.start(context)?;
 let outcome = running.exec(script).await?;
 ```
 
-`EngineTemplate::exec` is the convenience operation that starts and executes a one-run engine:
+`ScriptEngine::exec` is the convenience operation that starts and executes a one-run engine:
 
 ```rust
-let outcome = template.exec(script, context).await?;
+let outcome = engine.exec(script, context).await?;
 ```
 
 `RunningEngine::exec` consumes `self`, ensuring that one running engine is used for only one execution and allowing its Lua state to be dropped before context recovery.
@@ -172,7 +166,7 @@ Before installing functions into Lua, `AipRegistry::bind` creates an internal `B
 
 The engine installs synchronous handlers with `Lua::create_function` and asynchronous handlers with `Lua::create_async_function`. Handler outputs are converted directly to Lua values. The script result is converted to `serde_json::Value` only at the script engine's public result boundary.
 
-Context-free `LuaEngine` construction remains available for registries whose handlers do not require caller-supplied execution state. Context-dependent handlers must run through `EngineTemplate`.
+The private `LuaEngine` is created by `ScriptEngine` for each run. Context-dependent handlers are bound to the supplied `RunningContext`.
 
 ## Running context
 
@@ -226,7 +220,7 @@ The default policy disables:
 - OS.
 - Debug.
 
-The base library is required. `EngineTemplateBuilder::build` rejects a policy that disables it.
+The base library is required. `ScriptEngineBuilder::build` rejects a policy that disables it.
 
 ```rust
 let policy = LuaRuntimePolicy::default()
@@ -262,18 +256,18 @@ pub struct RunOutcome<T, E = crate::Error> {
 
 Compilation and runtime failures are stored in `RunOutcome::result`, allowing the recovered context to remain available.
 
-If engine setup fails, `EngineTemplate::start` returns `EngineStartError`:
+If engine setup fails, `ScriptEngine::start` returns `EngineError::Start`, which contains an `EngineStartError`:
 
 - `Setup` contains the setup source error and recovered `RunningContext`.
 - `ContextRecovery` reports both the setup source and a context recovery failure.
 
 If execution finishes but the context cannot be recovered, `RunningEngine::exec` returns `RunningEngineFinishError<T>`. It retains the script result alongside the recovery error.
 
-`TemplateExecutionError` wraps start and finish errors for the convenience `EngineTemplate::exec` API.
+`EngineError` wraps build, start, and finish-recovery errors for the convenience `ScriptEngine::exec` API.
 
 ## Isolation guarantees
 
-Every `EngineTemplate::start` creates a fresh Lua VM. Therefore, Lua globals created by one execution are not available to later executions from the same template.
+Every `ScriptEngine::start` creates a fresh Lua VM. Therefore, Lua globals created by one execution are not available to later executions from the same engine.
 
 The template can be cloned and shared because it contains immutable configuration. Each concurrent execution receives its own:
 
@@ -292,7 +286,7 @@ The following constraints are intentionally enforced or remain unresolved:
 - Wall-clock timeouts are configurable but currently rejected as unsupported.
 - Cancellation does not yet have a dedicated public finish and context-recovery protocol.
 - Context recovery requires all `HandlerCallContext` clones to be dropped.
-- `LuaEngine::new` and `LuaEngine::from_registry` are context-free APIs and are unsuitable for handlers that require values from a caller-provided `RunningContext`.
+- `LuaEngine` is private and is created only as part of a `ScriptEngine` execution.
 - Lua policy and native function installation are separate controls. Restricting registry functions alone is not a complete sandbox.
 
 ## Implementation files

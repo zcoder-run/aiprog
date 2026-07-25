@@ -6,7 +6,7 @@ The crate is designed for applications that want an AI system, or another progra
 
 ## Primary entry points
 
-- [`EngineTemplate`](crate::EngineTemplate) creates isolated script execution environments from an [`AipRegistry`](crate::AipRegistry). It is the preferred API for handlers that need execution-scoped state.
+- [`ScriptEngine`](crate::ScriptEngine) creates isolated script execution environments from an [`AipRegistry`](crate::AipRegistry). It is the preferred API for handlers that need execution-scoped state.
 
 - [`AipRegistryBuilder`](crate::AipRegistryBuilder) registers synchronous and asynchronous handlers, combines modules, and builds an immutable [`AipRegistry`](crate::AipRegistry).
 
@@ -14,16 +14,16 @@ The crate is designed for applications that want an AI system, or another progra
 
 ## Execution with context
 
-Use [`EngineTemplate`] when handlers need caller-provided capabilities or state. Insert values into a [`RunningContext`] before execution, then recover them from the returned [`RunOutcome`].
+Use [`ScriptEngine`] when handlers need caller-provided capabilities or state. Insert values into a [`RunningContext`] before execution, then recover them from the returned [`RunOutcome`].
 
 ```rust
-use aiprog::{AipRegistry, EngineTemplate, RunningContext};
+use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 
-let template = EngineTemplate::builder()
+let engine = ScriptEngine::builder()
 	.with_registry(AipRegistry::from_empty())
 	.build()?;
 
-let outcome = template
+let outcome = engine
 	.exec("return { message = 'hello' }", RunningContext::default())
 	.await?;
 
@@ -47,7 +47,7 @@ This explicit capability model prevents a script from obtaining filesystem acces
 
 ## Error handling
 
-Most public APIs return [`Result`](crate::Result), whose error type is [`Error`](crate::Error). Template startup and execution preserve ownership of the caller's context when possible through [`EngineStartError`](crate::EngineStartError), [`RunningEngineFinishError`](crate::RunningEngineFinishError), and [`TemplateExecutionError`](crate::TemplateExecutionError).
+Most public APIs return [`Result`](crate::Result), whose error type is [`Error`](crate::Error). Script engine startup and execution preserve ownership of the caller's context when possible through [`EngineStartError`](crate::EngineStartError), [`RunningEngineFinishError`](crate::RunningEngineFinishError), and [`EngineError`](crate::EngineError).
 
 Use [`RunOutcome::into_parts`](crate::RunOutcome::into_parts) when both the script result and recovered context need to be handled together.
 
