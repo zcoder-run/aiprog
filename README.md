@@ -46,6 +46,16 @@ AIProg asks the AI to write a program using available capabilities.
 
 It moves AI systems from chaining tool calls to orchestrating workflows as code.
 
+## License
+
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
+
+Copyright (c) 2026 BriteSnow, Inc.
 
 ---
 
