@@ -1,4 +1,6 @@
-use super::error::{EngineBuildError, EngineError, EngineResult, EngineStartError, RunningEngineFinishError};
+use super::error::{
+	EngineBuildError, EngineError, EngineResult, EngineStartError, RunningEngineContextError, RunningEngineFinishError,
+};
 use super::lua_runtime_policy::LuaRuntimePolicy;
 use crate::engine::LuaEngine;
 use crate::running_context::RunningContextHandle;
@@ -77,30 +79,22 @@ impl ScriptEngine {
 		engine.generate_doc().map_err(|e| EngineError::Custom(e.to_string()))
 	}
 
-	pub fn start(&self, context: RunningContext) -> EngineResult<RunningEngine> {
-		let context_handle = RunningContextHandle::new(context);
+	pub fn start(&self) -> EngineResult<RunningEngine> {
+		let context_handle = RunningContextHandle::new_empty();
 		let call_context = HandlerCallContext::new(context_handle.clone());
 
-		match self.create_running_engine(call_context, context_handle.clone()) {
+		match self.create_running_engine(call_context, context_handle) {
 			Ok(engine) => Ok(engine),
-			Err(setup_source) => match context_handle.recover() {
-				Ok(context) => Err(EngineStartError::Setup {
-					source: Box::new(crate::Error::Engine(setup_source)),
-					context,
-				}
-				.into()),
-				Err(recovery) => Err(EngineStartError::ContextRecovery {
-					setup_source: Box::new(crate::Error::Engine(setup_source)),
-					recovery,
-				}
-				.into()),
-			},
+			Err(setup_source) => Err(EngineStartError::Setup {
+				source: Box::new(crate::Error::Engine(setup_source)),
+			}
+			.into()),
 		}
 	}
 
 	pub async fn exec(&self, script: &str, context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
-		let running = self.start(context)?;
-		let outcome = running.exec(script).await?;
+		let mut running = self.start()?;
+		let outcome = running.exec(script, context).await?;
 		Ok(outcome)
 	}
 
@@ -154,13 +148,19 @@ impl ScriptEngineBuilder {
 }
 
 impl RunningEngine {
-	pub async fn exec(self, script: &str) -> EngineResult<RunOutcome<serde_json::Value>> {
-		let Self { engine, context } = self;
-		let result = engine.exec(script).await;
-		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
-		drop(engine);
+	pub async fn exec(&mut self, script: &str, context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
+		self.context
+			.set_context(context)
+			.map_err(RunningEngineContextError::from)?;
 
-		let context = match context.recover() {
+		let result = self.engine.exec(script).await;
+		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
+
+		let context = match self
+			.context
+			.take_context()
+			.map_err(RunningEngineContextError::from)
+		{
 			Ok(context) => context,
 			Err(source) => {
 				return Err(RunningEngineFinishError {
@@ -239,6 +239,27 @@ mod tests {
 	type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 	use super::*;
+	use crate::impl_lua_serde_traits;
+	use crate::registry::{HandlerError, HandlerResult};
+	use crate::AipRegistryBuilder;
+	use schemars::JsonSchema;
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+	struct TestParams {
+		data: String,
+	}
+
+	#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+	struct TestResponse {
+		data: String,
+	}
+
+	impl_lua_serde_traits!(TestParams);
+	impl_lua_serde_traits!(TestResponse);
+
+	impl crate::AipParams for TestParams {}
+	impl crate::AipOutput for TestResponse {}
 
 	#[tokio::test]
 	async fn test_script_engine_exec_uses_fresh_lua_state() -> Result<()> {
@@ -252,6 +273,67 @@ mod tests {
 		// -- Check
 		assert_eq!(first.result?, serde_json::Value::Bool(true));
 		assert_eq!(second.result?, serde_json::Value::Bool(true));
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_running_engine_exec_hands_off_context_between_calls() -> Result<()> {
+		// -- Setup & Fixtures
+		let registry = AipRegistryBuilder::default()
+			.register_sync("aip.test.context", test_context_mutation_handler)?
+			.build();
+		let engine = ScriptEngine::builder().with_registry(registry).build()?;
+		let mut running = engine.start()?;
+		let mut context = RunningContext::default();
+		context.insert::<u32>(0);
+
+		// -- Exec
+		let first = running
+			.exec("return aip.test.context({data='first'})", context)
+			.await?;
+		let (first_result, first_context) = first.into_parts();
+		let first_value = first_result?;
+		let first_data = first_value
+			.get("data")
+			.and_then(serde_json::Value::as_str)
+			.ok_or("Expected first handler output")?;
+		let second = running
+			.exec("return aip.test.context({data='second'})", first_context)
+			.await?;
+		let (second_result, second_context) = second.into_parts();
+		let second_value = second_result?;
+		let second_data = second_value
+			.get("data")
+			.and_then(serde_json::Value::as_str)
+			.ok_or("Expected second handler output")?;
+
+		// -- Check
+		assert_eq!(first_data, "1");
+		assert_eq!(second_data, "2");
+		assert_eq!(second_context.get::<u32>(), Some(&2));
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_running_engine_exec_preserves_lua_state() -> Result<()> {
+		// -- Setup & Fixtures
+		let engine = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
+		let mut running = engine.start()?;
+
+		// -- Exec
+		let first = running
+			.exec("session_value = 41; return session_value", RunningContext::default())
+			.await?;
+		let first_context = first.context;
+		let first_result = first.result?;
+		let second = running.exec("return session_value + 1", first_context).await?;
+		let second_result = second.result?;
+
+		// -- Check
+		assert_eq!(first_result, serde_json::Value::from(41));
+		assert_eq!(second_result, serde_json::Value::from(42));
 
 		Ok(())
 	}
@@ -273,31 +355,47 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn test_script_engine_start_returns_context_after_setup_error() -> Result<()> {
+	#[tokio::test]
+	async fn test_running_engine_exec_continues_after_script_error() -> Result<()> {
 		// -- Setup & Fixtures
-		let installer: NativeFunctionInstaller =
-			Arc::new(|_| Err(mlua::Error::RuntimeError("Forced native installer failure".into())));
-		let native_functions = NativeFunctionSet::default().append_installer(installer);
-		let engine = ScriptEngine::builder()
-			.with_registry(AipRegistry::from_empty())
-			.with_native_functions(native_functions)
-			.build()?;
+		let engine = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
+		let mut running = engine.start()?;
 		let mut context = RunningContext::default();
 		context.insert::<u32>(42);
 
 		// -- Exec
-		let error = engine.start(context).err().ok_or("Should return a setup error")?;
+		let failed = running.exec("this is not valid Lua", context).await?;
+		let (failed_result, recovered_context) = failed.into_parts();
+		let next = running.exec("return true", recovered_context).await?;
 
 		// -- Check
-		let EngineError::Start(EngineStartError::Setup { source, context }) = error else {
-			return Err("Expected setup error with recovered context".into());
-		};
-		assert!(source.to_string().contains("Forced native installer failure"));
-		assert_eq!(context.get::<u32>(), Some(&42));
+		assert!(failed_result.is_err());
+		assert_eq!(next.result?, serde_json::Value::Bool(true));
+		assert_eq!(next.context.get::<u32>(), Some(&42));
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_script_engine_start_returns_context_after_setup_error() -> Result<()> {
+		Ok(())
+	}
+
+fn test_context_mutation_handler(
+	call: crate::HandlerCallContext,
+	_params: TestParams,
+) -> HandlerResult<TestResponse> {
+	let value = call
+		.with_mut::<u32, _>(|counter| {
+			*counter += 1;
+			*counter
+		})
+		.map_err(|error| HandlerError::custom(error.to_string()))?;
+
+	Ok(TestResponse {
+		data: value.to_string(),
+	})
+}
 
 	#[test]
 	fn test_script_engine_build_rejects_missing_registry() -> Result<()> {

@@ -1,4 +1,4 @@
-use crate::running_context::ContextRecoveryError;
+use crate::running_context::ContextSlotError;
 use derive_more::Display;
 use derive_more::From;
 
@@ -15,6 +15,9 @@ pub enum EngineError {
 	#[from]
 	FinishRecovery(Box<RunningEngineFinishError<serde_json::Value>>),
 
+	#[from]
+	Context(RunningEngineContextError),
+
 	#[from(String, &str)]
 	Custom(String),
 }
@@ -30,6 +33,16 @@ impl From<mlua::Error> for EngineError {
 impl From<RunningEngineFinishError<serde_json::Value>> for EngineError {
 	fn from(err: RunningEngineFinishError<serde_json::Value>) -> Self {
 		EngineError::FinishRecovery(Box::new(err))
+	}
+}
+
+impl From<ContextSlotError> for RunningEngineContextError {
+	fn from(error: ContextSlotError) -> Self {
+		match error {
+			ContextSlotError::Occupied => Self::SlotOccupied,
+			ContextSlotError::Empty => Self::SlotEmpty,
+			ContextSlotError::LockPoisoned => Self::LockPoisoned,
+		}
 	}
 }
 
@@ -52,16 +65,22 @@ pub enum EngineBuildError {
 	WallClockTimeoutUnsupported,
 }
 
+#[derive(Debug, Display)]
+pub enum RunningEngineContextError {
+	#[display("Running context slot is already occupied")]
+	SlotOccupied,
+
+	#[display("Running context slot is empty")]
+	SlotEmpty,
+
+	#[display("Running context lock is poisoned")]
+	LockPoisoned,
+}
+
 #[derive(Debug)]
 pub enum EngineStartError {
 	Setup {
 		source: Box<crate::Error>,
-		#[allow(dead_code)]
-		context: crate::RunningContext,
-	},
-	ContextRecovery {
-		setup_source: Box<crate::Error>,
-		recovery: ContextRecoveryError,
 	},
 }
 
@@ -69,7 +88,7 @@ pub enum EngineStartError {
 pub struct RunningEngineFinishError<T> {
 	#[allow(dead_code)]
 	pub result: EngineResult<T>,
-	pub source: ContextRecoveryError,
+	pub source: RunningEngineContextError,
 }
 
 // endregion: --- Types
@@ -82,6 +101,7 @@ impl core::fmt::Display for EngineError {
 			Self::Build(e) => write!(f, "{e}"),
 			Self::Start(e) => write!(f, "{e}"),
 			Self::FinishRecovery(e) => write!(f, "{e}"),
+			Self::Context(e) => write!(f, "{e}"),
 			Self::Custom(s) => write!(f, "{s}"),
 		}
 	}
@@ -89,14 +109,12 @@ impl core::fmt::Display for EngineError {
 
 impl std::error::Error for EngineBuildError {}
 
+impl std::error::Error for RunningEngineContextError {}
+
 impl core::fmt::Display for EngineStartError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
 			Self::Setup { source, .. } => write!(f, "Failed to start isolated engine: {source}"),
-			Self::ContextRecovery { setup_source, recovery } => write!(
-				f,
-				"Failed to start isolated engine ({setup_source}) and recover its context: {recovery}"
-			),
 		}
 	}
 }
