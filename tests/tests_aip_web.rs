@@ -123,10 +123,7 @@ async fn test_aip_web_get_http_error_response() -> TestResult {
 #[tokio::test]
 async fn test_aip_web_get_query_params() -> TestResult {
 	// -- Setup & Fixtures
-	let server = TestServerBuilder::default()
-		.with_body("ok".as_bytes())
-		.start()
-		.await?;
+	let server = TestServerBuilder::default().with_body("ok".as_bytes()).start().await?;
 	let url = server.path_url("/search");
 	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)
@@ -166,10 +163,7 @@ async fn test_aip_web_get_query_params() -> TestResult {
 #[tokio::test]
 async fn test_aip_web_post_query_params() -> TestResult {
 	// -- Setup & Fixtures
-	let server = TestServerBuilder::default()
-		.with_body("created".as_bytes())
-		.start()
-		.await?;
+	let server = TestServerBuilder::default().with_body("created".as_bytes()).start().await?;
 	let url = server.path_url("/records?existing=keep");
 	let engine = ScriptEngine::builder()
 		.with_registry(AipRegistry::from_aip_modules()?)

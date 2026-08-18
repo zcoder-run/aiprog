@@ -149,18 +149,12 @@ impl ScriptEngineBuilder {
 
 impl RunningEngine {
 	pub async fn exec(&mut self, script: &str, context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
-		self.context
-			.set_context(context)
-			.map_err(RunningEngineContextError::from)?;
+		self.context.set_context(context).map_err(RunningEngineContextError::from)?;
 
 		let result = self.engine.exec(script).await;
 		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
 
-		let context = match self
-			.context
-			.take_context()
-			.map_err(RunningEngineContextError::from)
-		{
+		let context = match self.context.take_context().map_err(RunningEngineContextError::from) {
 			Ok(context) => context,
 			Err(source) => {
 				return Err(RunningEngineFinishError {
@@ -239,9 +233,9 @@ mod tests {
 	type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 	use super::*;
+	use crate::AipRegistryBuilder;
 	use crate::impl_lua_serde_traits;
 	use crate::registry::{HandlerError, HandlerResult};
-	use crate::AipRegistryBuilder;
 	use schemars::JsonSchema;
 	use serde::{Deserialize, Serialize};
 
@@ -289,18 +283,14 @@ mod tests {
 		context.insert::<u32>(0);
 
 		// -- Exec
-		let first = running
-			.exec("return aip.test.context({data='first'})", context)
-			.await?;
+		let first = running.exec("return aip.test.context({data='first'})", context).await?;
 		let (first_result, first_context) = first.into_parts();
 		let first_value = first_result?;
 		let first_data = first_value
 			.get("data")
 			.and_then(serde_json::Value::as_str)
 			.ok_or("Expected first handler output")?;
-		let second = running
-			.exec("return aip.test.context({data='second'})", first_context)
-			.await?;
+		let second = running.exec("return aip.test.context({data='second'})", first_context).await?;
 		let (second_result, second_context) = second.into_parts();
 		let second_value = second_result?;
 		let second_data = second_value
@@ -381,21 +371,21 @@ mod tests {
 		Ok(())
 	}
 
-fn test_context_mutation_handler(
-	call: crate::HandlerCallContext,
-	_params: TestParams,
-) -> HandlerResult<TestResponse> {
-	let value = call
-		.with_mut::<u32, _>(|counter| {
-			*counter += 1;
-			*counter
-		})
-		.map_err(|error| HandlerError::custom(error.to_string()))?;
+	fn test_context_mutation_handler(
+		call: crate::HandlerCallContext,
+		_params: TestParams,
+	) -> HandlerResult<TestResponse> {
+		let value = call
+			.with_mut::<u32, _>(|counter| {
+				*counter += 1;
+				*counter
+			})
+			.map_err(|error| HandlerError::custom(error.to_string()))?;
 
-	Ok(TestResponse {
-		data: value.to_string(),
-	})
-}
+		Ok(TestResponse {
+			data: value.to_string(),
+		})
+	}
 
 	#[test]
 	fn test_script_engine_build_rejects_missing_registry() -> Result<()> {

@@ -79,9 +79,7 @@ pub enum RunningEngineContextError {
 
 #[derive(Debug)]
 pub enum EngineStartError {
-	Setup {
-		source: Box<crate::Error>,
-	},
+	Setup { source: Box<crate::Error> },
 }
 
 #[derive(Debug)]
