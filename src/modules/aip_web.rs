@@ -8,8 +8,8 @@
 //!
 //! ### Functions
 //!
-//! - `aip.web.get(params: { data: string, user_agent?: string | boolean, headers?: table, redirect_limit?: number, parse?: boolean }) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
-//! - `aip.web.post(params: { data: string, json?: any, body?: string, user_agent?: string | boolean, headers?: table, redirect_limit?: number, parse?: boolean }) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
+//! - `aip.web.get(params: AipWebGetParams) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
+//! - `aip.web.post(params: AipWebPostParams) -> { data: string | table, success: boolean, status: number, url: string, content_type?: string, headers: table, error?: string }`
 //!
 //! ### Constants
 //!
@@ -51,6 +51,10 @@ pub fn register(registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilde
 
 // region:    --- aip.web.get
 
+/// Parameters for `aip.web.get`.
+///
+/// The `query_params` property is a table of string values or arrays of string values:
+/// `{[name:string]: string | string[]}`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipWebGetParams {
@@ -61,7 +65,12 @@ pub struct AipWebGetParams {
 	pub user_agent: Option<AipWebUserAgent>,
 
 	/// Request headers.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
 	pub headers: Option<HashMap<String, AipWebHeaderValue>>,
+
+	/// Query parameters appended to the request URL.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
+	pub query_params: Option<HashMap<String, AipWebHeaderValue>>,
 
 	/// Number of redirects to follow.
 	pub redirect_limit: Option<usize>,
@@ -79,6 +88,8 @@ impl AipFromLua for AipWebGetParams {
 
 		let headers = lua_table_to_headers(table)?;
 
+		let query_params = lua_table_to_query_params(table)?;
+
 		let redirect_limit: Option<usize> = table.x_try_get_i64("redirect_limit")?.map(|n| n as usize);
 
 		let parse: Option<bool> = table.x_try_get_bool("parse")?;
@@ -87,6 +98,7 @@ impl AipFromLua for AipWebGetParams {
 			url,
 			user_agent,
 			headers,
+			query_params,
 			redirect_limit,
 			parse,
 		})
@@ -159,6 +171,10 @@ async fn aip_web_get_handler(_call: HandlerCallContext, params: AipWebGetParams)
 
 // region:    --- aip.web.post
 
+/// Parameters for `aip.web.post`.
+///
+/// The `query_params` property is a table of string values or arrays of string values:
+/// `{[name:string]: string | string[]}`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipWebPostParams {
@@ -175,7 +191,12 @@ pub struct AipWebPostParams {
 	pub user_agent: Option<AipWebUserAgent>,
 
 	/// Request headers.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
 	pub headers: Option<HashMap<String, AipWebHeaderValue>>,
+
+	/// Query parameters appended to the request URL.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
+	pub query_params: Option<HashMap<String, AipWebHeaderValue>>,
 
 	/// Number of redirects to follow.
 	pub redirect_limit: Option<usize>,
@@ -202,6 +223,8 @@ impl AipFromLua for AipWebPostParams {
 
 		let headers = lua_table_to_headers(table)?;
 
+		let query_params = lua_table_to_query_params(table)?;
+
 		let redirect_limit: Option<usize> = table.x_try_get_i64("redirect_limit")?.map(|n| n as usize);
 
 		let parse: Option<bool> = table.x_try_get_bool("parse")?;
@@ -212,6 +235,7 @@ impl AipFromLua for AipWebPostParams {
 			body,
 			user_agent,
 			headers,
+			query_params,
 			redirect_limit,
 			parse,
 		})
@@ -244,6 +268,17 @@ async fn aip_web_post_handler(_call: HandlerCallContext, params: AipWebPostParam
 						AipWebHeaderValue::Many(vals) => webc::HeaderValue::Many(vals),
 					};
 					(name, header_value)
+				})
+				.collect()
+		}),
+		query_params: params.query_params.map(|h| {
+			h.into_iter()
+				.map(|(name, value)| {
+					let query_value = match value {
+						AipWebHeaderValue::Single(v) => webc::HeaderValue::Single(v),
+						AipWebHeaderValue::Many(vals) => webc::HeaderValue::Many(vals),
+					};
+					(name, query_value)
 				})
 				.collect()
 		}),
@@ -423,10 +458,23 @@ fn build_web_get_params(params: &AipWebGetParams) -> webc::WebParams {
 			.collect::<HashMap<String, webc::HeaderValue>>()
 	});
 
+	let query_params = params.query_params.as_ref().map(|h| {
+		h.iter()
+			.map(|(name, value)| {
+				let query_value = match value {
+					AipWebHeaderValue::Single(v) => webc::HeaderValue::Single(v.clone()),
+					AipWebHeaderValue::Many(vals) => webc::HeaderValue::Many(vals.clone()),
+				};
+				(name.clone(), query_value)
+			})
+			.collect::<HashMap<String, webc::HeaderValue>>()
+	});
+
 	webc::WebParams {
 		url: params.url.clone(),
 		user_agent: None,
 		headers,
+		query_params,
 		body_format: webc::BodyFormat::Text,
 	}
 }
@@ -530,7 +578,18 @@ fn lua_table_to_user_agent(table: &mlua::Table) -> crate::Result<Option<AipWebUs
 
 /// Parse the optional `headers` param into a header map, failing loudly with dotted paths on wrong types.
 fn lua_table_to_headers(table: &mlua::Table) -> crate::Result<Option<HashMap<String, AipWebHeaderValue>>> {
-	let Some(val) = table.x_try_get_value("headers")? else {
+	lua_table_to_string_values(table, "headers")
+}
+
+fn lua_table_to_query_params(table: &mlua::Table) -> crate::Result<Option<HashMap<String, AipWebHeaderValue>>> {
+	lua_table_to_string_values(table, "query_params")
+}
+
+fn lua_table_to_string_values(
+	table: &mlua::Table,
+	property_name: &str,
+) -> crate::Result<Option<HashMap<String, AipWebHeaderValue>>> {
+	let Some(val) = table.x_try_get_value(property_name)? else {
 		return Ok(None);
 	};
 	if val.x_is_null() {
@@ -538,22 +597,24 @@ fn lua_table_to_headers(table: &mlua::Table) -> crate::Result<Option<HashMap<Str
 	}
 	let t = val.as_table().ok_or_else(|| {
 		crate::Error::custom(format!(
-			"Property 'headers' expected to be of type 'table', but was of type '{}'",
+			"Property '{property_name}' expected to be of type 'table', but was of type '{}'",
 			val.type_name()
 		))
 	})?;
 	let mut map = HashMap::new();
 	for pair in t.pairs::<String, mlua::Value>() {
-		let (key, entry_val) = pair.map_err(|e| crate::Error::cc("Fail to read 'headers' entry", e))?;
+		let (key, entry_val) =
+			pair.map_err(|e| crate::Error::cc(format!("Fail to read '{property_name}' entry"), e))?;
 		let header_val = match entry_val {
 			mlua::Value::String(s) => AipWebHeaderValue::Single(s.to_string_lossy().to_string()),
 			mlua::Value::Table(arr) => {
 				let mut vec = Vec::new();
 				for item in arr.sequence_values::<mlua::Value>() {
-					let item = item.map_err(|e| crate::Error::cc(format!("Fail to read 'headers.{key}' entry"), e))?;
+					let item =
+						item.map_err(|e| crate::Error::cc(format!("Fail to read '{property_name}.{key}' entry"), e))?;
 					let s = item.x_as_lua_str().ok_or_else(|| {
 						crate::Error::custom(format!(
-							"Property 'headers.{key}' entries expected to be of type 'string', but got type '{}'",
+							"Property '{property_name}.{key}' entries expected to be of type 'string', but got type '{}'",
 							item.type_name()
 						))
 					})?;
@@ -561,14 +622,14 @@ fn lua_table_to_headers(table: &mlua::Table) -> crate::Result<Option<HashMap<Str
 				}
 				if vec.is_empty() {
 					return Err(crate::Error::custom(format!(
-						"Property 'headers.{key}' must not be an empty list"
+						"Property '{property_name}.{key}' must not be an empty list"
 					)));
 				}
 				AipWebHeaderValue::Many(vec)
 			}
 			other => {
 				return Err(crate::Error::custom(format!(
-					"Property 'headers.{key}' expected to be of type 'string or string[]', but was of type '{}'",
+					"Property '{property_name}.{key}' expected to be of type 'string or string[]', but was of type '{}'",
 					other.type_name()
 				)));
 			}

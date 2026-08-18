@@ -119,3 +119,91 @@ async fn test_aip_web_get_http_error_response() -> TestResult {
 
 	Ok(())
 }
+
+#[tokio::test]
+async fn test_aip_web_get_query_params() -> TestResult {
+	// -- Setup & Fixtures
+	let server = TestServerBuilder::default()
+		.with_body("ok".as_bytes())
+		.start()
+		.await?;
+	let url = server.path_url("/search");
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	// -- Exec
+	let result = engine
+		.exec(
+			&format!(
+				r#"return aip.web.get{{ url = "{url}", query_params = {{ ["space key"] = "hello world", tag = {{ "rust", "web" }} }} }}"#
+			),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
+	let request = server.request()?;
+	let query = request.path.split_once('?').ok_or("Expected query string")?.1;
+	let query_pairs = url::form_urlencoded::parse(query.as_bytes())
+		.map(|(name, value)| (name.into_owned(), value.into_owned()))
+		.collect::<Vec<_>>();
+
+	// -- Check
+	assert_eq!(result["data"], "ok");
+	assert_eq!(result["success"], true);
+	assert_eq!(request.method, "GET");
+	assert!(request.path.starts_with("/search?"));
+	assert!(request.path.contains("space+key=hello+world"));
+	assert!(query_pairs.contains(&("space key".to_string(), "hello world".to_string())));
+	assert!(query_pairs.contains(&("tag".to_string(), "rust".to_string())));
+	assert!(query_pairs.contains(&("tag".to_string(), "web".to_string())));
+
+	server.close().await?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aip_web_post_query_params() -> TestResult {
+	// -- Setup & Fixtures
+	let server = TestServerBuilder::default()
+		.with_body("created".as_bytes())
+		.start()
+		.await?;
+	let url = server.path_url("/records?existing=keep");
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	// -- Exec
+	let result = engine
+		.exec(
+			&format!(
+				r#"return aip.web.post{{ url = "{url}", body = "payload", query_params = {{ ["filter/value"] = "a&b=c", id = "42", tag = {{ "one", "two" }} }} }}"#
+			),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
+	let request = server.request()?;
+	let query = request.path.split_once('?').ok_or("Expected query string")?.1;
+	let query_pairs = url::form_urlencoded::parse(query.as_bytes())
+		.map(|(name, value)| (name.into_owned(), value.into_owned()))
+		.collect::<Vec<_>>();
+
+	// -- Check
+	assert_eq!(result["data"], "created");
+	assert_eq!(result["success"], true);
+	assert_eq!(request.method, "POST");
+	assert!(request.path.starts_with("/records?existing=keep&"));
+	assert!(request.path.contains("filter%2Fvalue=a%26b%3Dc"));
+	assert!(query_pairs.contains(&("existing".to_string(), "keep".to_string())));
+	assert!(query_pairs.contains(&("filter/value".to_string(), "a&b=c".to_string())));
+	assert!(query_pairs.contains(&("id".to_string(), "42".to_string())));
+	assert!(query_pairs.contains(&("tag".to_string(), "one".to_string())));
+	assert!(query_pairs.contains(&("tag".to_string(), "two".to_string())));
+
+	server.close().await?;
+
+	Ok(())
+}

@@ -43,7 +43,11 @@ pub struct WebParams {
 	/// Per-request User-Agent override. `None` uses the client's default.
 	pub user_agent: Option<String>,
 	/// Additional headers to merge with the client's defaults.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
 	pub headers: Option<HashMap<String, HeaderValue>>,
+	/// Optional query parameters appended to the request URL.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
+	pub query_params: Option<HashMap<String, HeaderValue>>,
 	/// Desired format for the response body. Defaults to `Text`.
 	pub body_format: BodyFormat,
 }
@@ -54,7 +58,11 @@ pub struct WebPostParams {
 	/// Per-request User-Agent override. `None` uses the client's default.
 	pub user_agent: Option<String>,
 	/// Additional headers to merge with the client's defaults.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
 	pub headers: Option<HashMap<String, HeaderValue>>,
+	/// Optional query parameters appended to the request URL.
+	/// Expected TypeScript shape: `{[name:string]: string | string[]}`.
+	pub query_params: Option<HashMap<String, HeaderValue>>,
 	/// Request body. `None` means no body is sent.
 	pub body: Option<RequestBody>,
 	/// Desired format for the response body. Defaults to `Text`.
@@ -133,7 +141,8 @@ pub struct WebClient {
 
 impl WebClient {
 	pub async fn web_get(&self, params: WebParams) -> Result<WebResponse> {
-		let mut request = self.inner.request(reqwest::Method::GET, &params.url);
+		let request_url = append_query_params(&params.url, params.query_params.as_ref());
+		let mut request = self.inner.request(reqwest::Method::GET, &request_url);
 
 		// User-Agent override
 		if let Some(ua) = params.user_agent.as_ref() {
@@ -215,7 +224,8 @@ impl WebClient {
 	}
 
 	pub async fn web_post(&self, params: WebPostParams) -> Result<WebResponse> {
-		let mut request = self.inner.request(reqwest::Method::POST, &params.url);
+		let request_url = append_query_params(&params.url, params.query_params.as_ref());
+		let mut request = self.inner.request(reqwest::Method::POST, &request_url);
 
 		// User-Agent override
 		if let Some(ua) = params.user_agent.as_ref() {
@@ -308,3 +318,48 @@ impl WebClient {
 		})
 	}
 }
+
+// region:    --- Support
+
+fn append_query_params(url: &str, query_params: Option<&HashMap<String, HeaderValue>>) -> String {
+	let Some(query_params) = query_params else {
+		return url.to_string();
+	};
+
+	let mut query = url::form_urlencoded::Serializer::new(String::new());
+	for (name, value) in query_params {
+		match value {
+			HeaderValue::Single(value) => {
+				query.append_pair(name, value);
+			}
+			HeaderValue::Many(values) => {
+				for value in values {
+					query.append_pair(name, value);
+				}
+			}
+		}
+	}
+	let encoded_query = query.finish();
+	if encoded_query.is_empty() {
+		return url.to_string();
+	}
+
+	let (base_url, fragment) = match url.split_once('#') {
+		Some((base_url, fragment)) => (base_url, Some(fragment)),
+		None => (url, None),
+	};
+	let separator = if base_url.contains('?') { '&' } else { '?' };
+
+	let capacity = url.len().saturating_add(1).saturating_add(encoded_query.len());
+	let mut result = String::with_capacity(capacity);
+	result.push_str(base_url);
+	result.push(separator);
+	result.push_str(&encoded_query);
+	if let Some(fragment) = fragment {
+		result.push('#');
+		result.push_str(fragment);
+	}
+	result
+}
+
+// endregion: --- Support

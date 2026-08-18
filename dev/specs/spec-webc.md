@@ -92,6 +92,8 @@ pub struct WebParams {
     pub url: String,
     pub user_agent: Option<String>,
     pub headers: Option<HashMap<String, HeaderValue>>,
+    /// Optional query parameters appended to the request URL.
+    pub query_params: Option<HashMap<String, HeaderValue>>,
     pub body_format: BodyFormat,
 }
 
@@ -102,6 +104,8 @@ pub struct WebPostParams {
     pub user_agent: Option<String>,
     /// Additional headers to merge with the client's defaults.
     pub headers: Option<HashMap<String, HeaderValue>>,
+    /// Optional query parameters appended to the request URL.
+    pub query_params: Option<HashMap<String, HeaderValue>>,
     /// Request body. `None` means no body is sent.
     pub body: Option<RequestBody>,
     /// Desired format for the response body. Defaults to `Text`.
@@ -154,6 +158,7 @@ impl WebClient {
 - **Thread safety and async**: `reqwest::Client` is `Send + Sync`. `WebClient` follows the same pattern. A single instance can be shared across tasks (e.g., via `Arc<WebClient>`).
 - **Builder infallibility**: Builder `with_*` methods are infallible; only `build()` may fail (e.g., TLS backend initialization errors).
 - **Header value multiplicity**: `HeaderValue` supports both single and multiple values per header name, matching HTTP semantics. Response headers with multiple values are joined with `", "` in the response map.
+- **Query parameter serialization**: `query_params` uses `HeaderValue`, with `Single` values serialized once and `Many` values serialized by repeating the parameter name, for example `tag=rust&tag=web`. Parameter names and values are URL-encoded. Added parameters use `?` when the URL has no query string and `&` when it already has one. Existing paths and query parameters are preserved, and added parameters are placed before any URL fragment. Omitted or empty query parameters leave the URL unchanged.
 - **Potential future extensions**: `web_post`, `web_put`, request timeouts, proxy support, TLS configuration, cookie store, etc.
 
 ## Implementation
