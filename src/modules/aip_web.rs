@@ -171,6 +171,16 @@ async fn aip_web_get_handler(_call: HandlerCallContext, params: AipWebGetParams)
 
 // region:    --- aip.web.post
 
+/// Body payload for POST requests.
+///
+/// Accepts a raw string (sent as-is) or a JSON object / table (JSON-encoded).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(untagged)]
+pub enum AipWebBody {
+	String(String),
+	Json(serde_json::Value),
+}
+
 /// Parameters for `aip.web.post`.
 ///
 /// The `query_params` property is a table of string values or arrays of string values:
@@ -181,11 +191,16 @@ pub struct AipWebPostParams {
 	/// The URL to request.
 	pub url: String,
 
-	/// JSON payload to send as the request body (serialized). Takes precedence over `body`.
-	pub json: Option<serde_json::Value>,
+	/// Request payload as raw string or JSON object/table (`string | object`).
+	///
+	/// - String: sent as raw text as-is. Inferred `Content-Type` is `text/plain` if `content_type` is not specified.
+	/// - Object / Table: JSON-encoded before sending. Inferred `Content-Type` is `application/json` if `content_type` is not specified.
+	pub body: Option<AipWebBody>,
 
-	/// Raw string body.
-	pub body: Option<String>,
+	/// Optional Content-Type header override.
+	///
+	/// When provided, this sets the HTTP `Content-Type` header without changing body serialization.
+	pub content_type: Option<String>,
 
 	/// User-Agent behavior. `true` uses `AIProg`, `false` disables the default, and a string is used as-is.
 	pub user_agent: Option<AipWebUserAgent>,
@@ -210,14 +225,27 @@ impl AipFromLua for AipWebPostParams {
 		let table = params_table(&value)?;
 		let url = required_string(table, "url")?;
 
-		let json: Option<serde_json::Value> = match table.x_try_get_value("json")? {
-			Some(v) => v
-				.x_to_json_value()
-				.map_err(|e| crate::Error::custom(format!("Property 'json' is not a valid JSON value: {e}")))?,
-			None => None,
+		let body = match table.x_try_get_value("body")? {
+			Some(v) if !v.x_is_null() => match v {
+				mlua::Value::String(s) => Some(AipWebBody::String(s.to_str()?.to_string())),
+				mlua::Value::Table(_) => {
+					let json_val = v
+						.x_to_json_value()
+						.map_err(|e| crate::Error::custom(format!("Property 'body' is not a valid JSON value: {e}")))?
+						.ok_or_else(|| crate::Error::custom("Property 'body' table cannot be converted to nil"))?;
+					Some(AipWebBody::Json(json_val))
+				}
+				other => {
+					return Err(crate::Error::custom(format!(
+						"Property 'body' expected to be of type 'string or table', but was of type '{}'",
+						other.type_name()
+					)));
+				}
+			},
+			_ => None,
 		};
 
-		let body = table.x_try_get_string("body")?;
+		let content_type = table.x_try_get_string("content_type")?;
 
 		let user_agent = lua_table_to_user_agent(table)?;
 
@@ -231,8 +259,8 @@ impl AipFromLua for AipWebPostParams {
 
 		Ok(AipWebPostParams {
 			url,
-			json,
 			body,
+			content_type,
 			user_agent,
 			headers,
 			query_params,
@@ -252,16 +280,43 @@ async fn aip_web_post_handler(_call: HandlerCallContext, params: AipWebPostParam
 		params.redirect_limit,
 	)?;
 
-	let body = match params.json {
-		Some(json_val) => Some(webc::RequestBody::Json(json_val)),
-		None => params.body.map(webc::RequestBody::Text),
+	let (body, inferred_content_type) = match params.body {
+		Some(AipWebBody::Json(json_val)) => {
+			let text = serde_json::to_string(&json_val).map_err(|err| {
+				aip_web_error(
+					"SERIALIZE_FAILED",
+					"Failed to serialize JSON body",
+					None,
+					Some(err.to_string()),
+				)
+			})?;
+			(Some(webc::RequestBody::Text(text)), Some("application/json"))
+		}
+		Some(AipWebBody::String(text)) => (Some(webc::RequestBody::Text(text)), Some("text/plain")),
+		None => (None, None),
 	};
+
+	let mut headers = params.headers.unwrap_or_default();
+
+	if let Some(ct) = params.content_type {
+		headers.retain(|k, _| !k.eq_ignore_ascii_case("content-type"));
+		headers.insert("Content-Type".to_string(), AipWebHeaderValue::Single(ct));
+	} else if let Some(inferred_ct) = inferred_content_type {
+		let has_ct = headers.keys().any(|k| k.eq_ignore_ascii_case("content-type"));
+		if !has_ct {
+			headers.insert(
+				"Content-Type".to_string(),
+				AipWebHeaderValue::Single(inferred_ct.to_string()),
+			);
+		}
+	}
 
 	let post_params = webc::WebPostParams {
 		url: params.url.clone(),
 		user_agent: None,
-		headers: params.headers.map(|h| {
-			h.into_iter()
+		headers: Some(
+			headers
+				.into_iter()
 				.map(|(name, value)| {
 					let header_value = match value {
 						AipWebHeaderValue::Single(v) => webc::HeaderValue::Single(v),
@@ -269,8 +324,8 @@ async fn aip_web_post_handler(_call: HandlerCallContext, params: AipWebPostParam
 					};
 					(name, header_value)
 				})
-				.collect()
-		}),
+				.collect(),
+		),
 		query_params: params.query_params.map(|h| {
 			h.into_iter()
 				.map(|(name, value)| {

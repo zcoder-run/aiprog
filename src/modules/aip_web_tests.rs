@@ -80,7 +80,7 @@ async fn test_api_web_post_json() -> Result<()> {
 	let url = server.path_url("/test");
 
 	// -- Exec
-	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }}, parse = true }}"#,);
+	let script = format!(r#"return aip.web.post{{ url = "{url}", body = {{ key = "value" }}, parse = true }}"#,);
 	let res = _test_support::eval_script(&engine, &script).await?;
 
 	// -- Check
@@ -135,11 +135,117 @@ async fn test_api_web_post_error() -> Result<()> {
 	server.close().await?; // shut down the server to force a connection error
 
 	// -- Exec
-	let script = format!(r#"return aip.web.post{{ url = "{url}", json = {{ key = "value" }} }}"#,);
+	let script = format!(r#"return aip.web.post{{ url = "{url}", body = {{ key = "value" }} }}"#,);
 	let result = _test_support::eval_script(&engine, &script).await;
 
 	// -- Check
 	assert!(result.is_err(), "Expected connection error but got Ok");
+
+	Ok(())
+}
+
+
+#[tokio::test]
+async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
+	modules::aip_web::install_constants(&engine)?;
+
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "application/json")
+		.body(r#"{"saved":true}"#)
+		.validate(|snap| {
+			assert_eq!(snap.method, "POST");
+			assert_eq!(
+				snap.headers.get("content-type").map(|s| s.as_str()),
+				Some("application/vnd.custom+json")
+			);
+			assert_eq!(snap.body, r#"{"msg":"hello"}"#);
+		})
+		.start()
+		.await?;
+	let url = server.path_url("/custom-json");
+
+	// -- Exec
+	let script = format!(
+		r#"return aip.web.post{{ url = "{url}", body = {{ msg = "hello" }}, content_type = "application/vnd.custom+json", parse = true }}"#,
+	);
+	let res = _test_support::eval_script(&engine, &script).await?;
+
+	// -- Check
+	assert!(res.x_get_bool("success")?);
+	assert!(res.x_get_bool("/data/saved")?);
+
+	server.close().await?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_api_web_post_explicit_content_type_override_string() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
+	modules::aip_web::install_constants(&engine)?;
+
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "text/plain")
+		.body("csv accepted")
+		.validate(|snap| {
+			assert_eq!(snap.method, "POST");
+			assert_eq!(
+				snap.headers.get("content-type").map(|s| s.as_str()),
+				Some("text/csv")
+			);
+			assert_eq!(snap.body, "a,b,c\n1,2,3");
+		})
+		.start()
+		.await?;
+	let url = server.path_url("/csv");
+
+	// -- Exec
+	let script = format!(
+		r#"return aip.web.post{{ url = "{url}", body = "a,b,c\n1,2,3", content_type = "text/csv" }}"#,
+	);
+	let res = _test_support::eval_script(&engine, &script).await?;
+
+	// -- Check
+	assert!(res.x_get_bool("success")?);
+	assert_eq!(res.x_get_str("data")?, "csv accepted");
+
+	server.close().await?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_api_web_post_omitted_body() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
+	modules::aip_web::install_constants(&engine)?;
+
+	let server = _test_support::TestServerBuilder::new()
+		.status(200)
+		.header("Content-Type", "text/plain")
+		.body("empty body accepted")
+		.validate(|snap| {
+			assert_eq!(snap.method, "POST");
+			assert!(snap.body.is_empty(), "Expected empty body");
+		})
+		.start()
+		.await?;
+	let url = server.path_url("/empty");
+
+	// -- Exec
+	let script = format!(r#"return aip.web.post{{ url = "{url}" }}"#);
+	let res = _test_support::eval_script(&engine, &script).await?;
+
+	// -- Check
+	assert!(res.x_get_bool("success")?);
+	assert_eq!(res.x_get_str("data")?, "empty body accepted");
+
+	server.close().await?;
 
 	Ok(())
 }

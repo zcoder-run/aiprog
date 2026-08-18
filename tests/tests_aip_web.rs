@@ -40,6 +40,123 @@ async fn test_aip_web_get_parse_json_simple() -> TestResult {
 	Ok(())
 }
 
+
+#[tokio::test]
+async fn test_aip_web_post_string_inferred_content_type() -> TestResult {
+	// -- Setup & Fixtures
+	let server = TestServerBuilder::default()
+		.with_header("Content-Type", "text/plain")
+		.with_body("received".as_bytes())
+		.start()
+		.await?;
+	let url = server.path_url("/text");
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	// -- Exec
+	let result = engine
+		.exec(
+			&format!(r#"return aip.web.post{{ url = "{url}", body = "plain text message" }}"#),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
+	let request = server.request()?;
+
+	// -- Check
+	assert_eq!(result["data"], "received");
+	assert_eq!(result["status"], 200);
+	assert_eq!(request.method, "POST");
+	assert_eq!(request.body, "plain text message");
+	assert!(
+		request
+			.headers
+			.get("content-type")
+			.is_some_and(|content_type| content_type.starts_with("text/plain"))
+	);
+
+	server.close().await?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aip_web_post_explicit_content_type_override() -> TestResult {
+	// -- Setup & Fixtures
+	let server = TestServerBuilder::default()
+		.with_header("Content-Type", "application/json")
+		.with_body(r#"{"status":"ok"}"#.as_bytes())
+		.start()
+		.await?;
+	let url = server.path_url("/override");
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	// -- Exec
+	let result = engine
+		.exec(
+			&format!(
+				r#"return aip.web.post{{ url = "{url}", body = {{ item = "test" }}, content_type = "application/vnd.api+json", parse = true }}"#
+			),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
+	let request = server.request()?;
+
+	// -- Check
+	assert_eq!(result["data"], json!({ "status": "ok" }));
+	assert_eq!(request.method, "POST");
+	assert_eq!(
+		request.headers.get("content-type").map(|s| s.as_str()),
+		Some("application/vnd.api+json")
+	);
+	assert_eq!(
+		serde_json::from_str::<serde_json::Value>(&request.body)?,
+		json!({ "item": "test" })
+	);
+
+	server.close().await?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aip_web_post_omitted_body() -> TestResult {
+	// -- Setup & Fixtures
+	let server = TestServerBuilder::default()
+		.with_header("Content-Type", "text/plain")
+		.with_body("triggered".as_bytes())
+		.start()
+		.await?;
+	let url = server.path_url("/action");
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	// -- Exec
+	let result = engine
+		.exec(
+			&format!(r#"return aip.web.post{{ url = "{url}" }}"#),
+			RunningContext::default(),
+		)
+		.await?
+		.result?;
+	let request = server.request()?;
+
+	// -- Check
+	assert_eq!(result["data"], "triggered");
+	assert_eq!(result["status"], 200);
+	assert_eq!(request.method, "POST");
+	assert!(request.body.is_empty());
+
+	server.close().await?;
+
+	Ok(())
+}
+
 #[tokio::test]
 async fn test_aip_web_post_json_request_body() -> TestResult {
 	// -- Setup & Fixtures
@@ -57,7 +174,7 @@ async fn test_aip_web_post_json_request_body() -> TestResult {
 	let result = engine
 		.exec(
 			&format!(
-				r#"return aip.web.post{{ url = "{url}", json = {{ name = "Ada", active = true }}, parse = true }}"#
+				r#"return aip.web.post{{ url = "{url}", body = {{ name = "Ada", active = true }}, parse = true }}"#
 			),
 			RunningContext::default(),
 		)
