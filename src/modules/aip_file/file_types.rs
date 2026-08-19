@@ -21,6 +21,11 @@ impl DirContext {
 		}
 	}
 
+	pub fn current_dir() -> Result<Self, DirPolicyError> {
+		let policy = PathPolicy::new(["."], AbsolutePathPolicy::Deny)?;
+		Ok(Self::new(policy.clone(), policy))
+	}
+
 	pub fn resolve_read(&self, path: &str, base_dir: Option<&str>) -> Result<ResolvedDirPath, DirPolicyError> {
 		self.read_policy.resolve(path, base_dir, false)
 	}
@@ -49,6 +54,12 @@ impl DirContext {
 
 	pub(crate) fn authorize_existing_read(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
 		self.read_policy.authorize_existing(path)
+	}
+}
+
+impl Default for DirContext {
+	fn default() -> Self {
+		Self::current_dir().expect("Current working directory must be valid for default DirContext")
 	}
 }
 

@@ -109,3 +109,17 @@ fn test_aip_file_dir_context_denies_symlink_escape() -> Result<()> {
 	assert!(matches!(result, Err(DirPolicyError::OutsideAllowedRoots(_))));
 	Ok(())
 }
+
+#[test]
+fn test_aip_file_dir_context_default() -> Result<()> {
+	let context = DirContext::default();
+	let current_dir = simple_fs::SPath::from_std_path(std::env::current_dir()?)?;
+	let canonical_current_dir = current_dir.canonicalize()?;
+
+	let resolved = context.resolve_read_target("Cargo.toml", None)?;
+	assert_eq!(resolved.root().as_str(), canonical_current_dir.as_str());
+
+	let denied_absolute = context.resolve_read(current_dir.as_str(), None);
+	assert!(matches!(denied_absolute, Err(DirPolicyError::AbsolutePathDenied(_))));
+	Ok(())
+}

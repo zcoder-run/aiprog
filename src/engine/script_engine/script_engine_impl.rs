@@ -3,6 +3,7 @@ use super::error::{
 };
 use super::lua_runtime_policy::LuaRuntimePolicy;
 use crate::engine::LuaEngine;
+use crate::modules::DirContext;
 use crate::running_context::RunningContextHandle;
 use crate::{AipRegistry, HandlerCallContext, RunOutcome, RunningContext};
 use mlua::{Lua, LuaOptions, StdLib};
@@ -148,7 +149,11 @@ impl ScriptEngineBuilder {
 }
 
 impl RunningEngine {
-	pub async fn exec(&mut self, script: &str, context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
+	pub async fn exec(&mut self, script: &str, mut context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
+		if context.get::<DirContext>().is_none() {
+			context.insert(DirContext::default());
+		}
+
 		self.context.set_context(context).map_err(RunningEngineContextError::from)?;
 
 		let result = self.engine.exec(script).await;
@@ -397,6 +402,22 @@ mod tests {
 
 		// -- Check
 		assert!(matches!(error, EngineError::Build(EngineBuildError::MissingRegistry)));
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_running_engine_exec_seeds_default_dir_context() -> Result<()> {
+		// -- Setup & Fixtures
+		let engine = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
+		let mut running = engine.start()?;
+		let context = RunningContext::default();
+
+		// -- Exec
+		let outcome = running.exec("return true", context).await?;
+
+		// -- Check
+		assert!(outcome.context.get::<DirContext>().is_some());
 
 		Ok(())
 	}

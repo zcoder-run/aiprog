@@ -2,7 +2,7 @@ use aiprog::{AipRegistry, RunningContext, ScriptEngine};
 use genai::Client;
 use genai::chat::{ChatMessage, ChatRequest};
 
-const MODEL: &str = "gpt-5.4-mini";
+const MODEL: &str = "gpt-5.6-luna";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
