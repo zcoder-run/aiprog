@@ -47,13 +47,13 @@ This explicit capability model prevents a script from obtaining filesystem acces
 
 ## Error handling
 
-Most public APIs return [`Result`](crate::Result), whose error type is [`Error`](crate::Error). Script engine startup and execution preserve ownership of the caller's context when possible through [`EngineStartError`](crate::EngineStartError), [`RunningEngineFinishError`](crate::RunningEngineFinishError), and [`EngineError`](crate::EngineError).
+Most public APIs return [`Result`](crate::Result), whose error type is [`Error`](crate::Error). Script engine startup and execution preserve ownership of the caller's context when possible through [`EngineError`](crate::EngineError).
 
 Use [`RunOutcome::into_parts`](crate::RunOutcome::into_parts) when both the script result and recovered context need to be handled together.
 
 ## Schema inspection
 
-[`SchemaRef`](crate::SchemaRef) and [`SchemaPropRef`](crate::SchemaPropRef) provide borrowed convenience views over `schemars` schemas. They are useful for consumers that generate documentation or UI from registered handler schemas.
+[`SchemaRef`](crate::schema_ref::SchemaRef) and [`SchemaPropRef`](crate::schema_ref::SchemaPropRef) provide borrowed convenience views over `schemars` schemas. They are useful for consumers that generate documentation or UI from registered handler schemas.
 
 ## Feature organization
 

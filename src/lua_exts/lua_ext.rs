@@ -6,7 +6,7 @@ use mlua::{BorrowedStr, Table, Value};
 /// TODO: Will need to handle the case where the found value is not of correct type. Probably should return `Result<Option<>>`
 #[allow(dead_code)]
 pub trait LuaExt {
-	/// return true if NULL, Nil, or None (for Option<Value>)
+	/// return true if NULL, Nil, or None (for `Option<Value>`)
 	fn x_is_null(&self) -> bool;
 
 	fn x_as_lua_str(&self) -> Option<BorrowedStr>;
@@ -40,7 +40,7 @@ pub trait LuaExt {
 	fn x_try_get_i64(&self, key: &str) -> Result<Option<i64>>;
 	fn x_try_get_f64(&self, key: &str) -> Result<Option<f64>>;
 
-	/// Returns the sequential list part of a table as an owned Vec<Value>.
+	/// Returns the sequential list part of a table as an owned `Vec<Value>`.
 	///
 	/// - If `self` is not a table, returns `None`.
 	/// - If it is a table and has key `1`, returns the contiguous sequence from 1 until the first `nil`.
