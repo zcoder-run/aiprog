@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::{AipRegistry, AipRegistryBuilder};
 
-use super::file_read;
+use super::{file_read, file_write};
 
 /// Build and return an [`AipRegistry`] containing all `aip.file` handlers.
 ///
@@ -15,6 +15,7 @@ pub fn init_registry() -> Result<AipRegistry> {
 
 pub fn register(registry: AipRegistryBuilder) -> Result<AipRegistryBuilder> {
 	let registry = registry.merge(file_read::init_registry()?)?;
+	let registry = registry.merge(file_write::init_registry()?)?;
 
 	Ok(registry)
 }
