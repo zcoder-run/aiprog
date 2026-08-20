@@ -19,27 +19,34 @@
 //!
 //! ---
 //!
-use super::file_types::FileInfo;
 use super::file_types::DirContext;
+use super::file_types::FileInfo;
 use super::support::{self, aip_file_error, file_info_from_meta};
+use crate::register_handler;
 use crate::{AipFromLua, AipIntoLua, LuaExt};
 use crate::{AipOutput, AipParams};
 use crate::{AipRegistry, AipRegistryBuilder};
 use crate::{HandlerCallContext, HandlerResult};
-use crate::register_handler;
 use aiprog_macros::aip_handler;
 use mlua::{Lua, Value};
 
 // region:    --- aip.file.write
 
+/// Parameters for writing content to a file.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileWriteParams {
+	/// Target file path to write to (relative to base directory or workspace).
 	pub path: String,
+	/// Text content to write into the file.
 	pub content: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
+	/// Whether to trim leading whitespace from content before writing.
 	pub trim_start: Option<bool>,
+	/// Whether to trim trailing whitespace from content before writing.
 	pub trim_end: Option<bool>,
+	/// Whether to ensure the written content ends with a single newline character.
 	pub single_trailing_newline: Option<bool>,
 }
 
@@ -65,6 +72,7 @@ impl AipFromLua for AipFileWriteParams {
 
 impl AipParams for AipFileWriteParams {}
 
+/// Output result returned by file write operations containing target file metadata.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipFileWriteOutput(pub FileInfo);
 
@@ -80,11 +88,15 @@ impl AipOutput for AipFileWriteOutput {}
 
 // region:    --- aip.file.append
 
+/// Parameters for appending content to a file.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileAppendParams {
+	/// Target file path to append to (relative to base directory or workspace).
 	pub path: String,
+	/// Text content to append to the file.
 	pub content: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
 }
 
@@ -108,12 +120,17 @@ impl AipParams for AipFileAppendParams {}
 
 // region:    --- aip.file.copy
 
+/// Parameters for copying a file from a source location to a destination.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileCopyParams {
+	/// Source file path to copy from.
 	pub src: String,
+	/// Destination file path to copy to.
 	pub dest: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
+	/// Whether to overwrite the destination file if it already exists. Defaults to false.
 	pub overwrite: Option<bool>,
 }
 
@@ -139,12 +156,17 @@ impl AipParams for AipFileCopyParams {}
 
 // region:    --- aip.file.move
 
+/// Parameters for moving or renaming a file from a source location to a destination.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileMoveParams {
+	/// Source file path to move.
 	pub src: String,
+	/// Destination file path to move to.
 	pub dest: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
+	/// Whether to overwrite the destination file if it already exists. Defaults to false.
 	pub overwrite: Option<bool>,
 }
 
@@ -170,10 +192,13 @@ impl AipParams for AipFileMoveParams {}
 
 // region:    --- aip.file.delete
 
+/// Parameters for deleting a file or directory from the filesystem.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileDeleteParams {
+	/// Path of the file or directory to delete.
 	pub path: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
 }
 
@@ -192,12 +217,17 @@ impl AipParams for AipFileDeleteParams {}
 
 // region:    --- aip.file.ensure_exists
 
+/// Parameters for ensuring a file exists on disk, optionally providing default content.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileEnsureExistsParams {
+	/// Target file path to check or create.
 	pub path: String,
+	/// Optional initial content to write if the file does not exist.
 	pub content: Option<String>,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
+	/// Whether to populate content when the file exists but has zero length.
 	pub content_when_empty: Option<bool>,
 }
 
@@ -223,10 +253,13 @@ impl AipParams for AipFileEnsureExistsParams {}
 
 // region:    --- aip.file.ensure_dir
 
+/// Parameters for ensuring a directory exists on disk.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileEnsureDirParams {
+	/// Directory path to check or create.
 	pub path: String,
+	/// Optional base directory from which relative paths are resolved.
 	pub base_dir: Option<String>,
 }
 
@@ -245,6 +278,7 @@ impl AipParams for AipFileEnsureDirParams {}
 
 // region:    --- Shared Outputs
 
+/// Boolean output result returned by filesystem operations such as delete and ensure_dir.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct AipFileBoolOutput(pub bool);
 
@@ -262,10 +296,7 @@ impl AipOutput for AipFileBoolOutput {}
 
 /// Writes text content to a target file, creating parent directories as needed.
 #[aip_handler]
-fn aip_file_write_handler(
-	call: HandlerCallContext,
-	params: AipFileWriteParams,
-) -> HandlerResult<AipFileWriteOutput> {
+fn aip_file_write_handler(call: HandlerCallContext, params: AipFileWriteParams) -> HandlerResult<AipFileWriteOutput> {
 	let resolved = call
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
@@ -281,8 +312,7 @@ fn aip_file_write_handler(
 		params.single_trailing_newline,
 	);
 
-	std::fs::write(resolved.path().as_str(), content)
-		.map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
+	std::fs::write(resolved.path().as_str(), content).map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
 
 	let info = file_info_from_meta(resolved.path(), true, resolved.root(), false)
 		.map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
@@ -292,10 +322,7 @@ fn aip_file_write_handler(
 
 /// Appends text content to a target file, creating the file and parent directories if they do not exist.
 #[aip_handler]
-fn aip_file_append_handler(
-	call: HandlerCallContext,
-	params: AipFileAppendParams,
-) -> HandlerResult<AipFileWriteOutput> {
+fn aip_file_append_handler(call: HandlerCallContext, params: AipFileAppendParams) -> HandlerResult<AipFileWriteOutput> {
 	let resolved = call
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
@@ -322,10 +349,7 @@ fn aip_file_append_handler(
 
 /// Copies a file from source to destination.
 #[aip_handler]
-fn aip_file_copy_handler(
-	call: HandlerCallContext,
-	params: AipFileCopyParams,
-) -> HandlerResult<AipFileWriteOutput> {
+fn aip_file_copy_handler(call: HandlerCallContext, params: AipFileCopyParams) -> HandlerResult<AipFileWriteOutput> {
 	let src_resolved = call
 		.with::<DirContext, _>(|dir| dir.resolve_read(&params.src, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
@@ -364,10 +388,7 @@ fn aip_file_copy_handler(
 
 /// Moves or renames a file from source to destination.
 #[aip_handler]
-fn aip_file_move_handler(
-	call: HandlerCallContext,
-	params: AipFileMoveParams,
-) -> HandlerResult<AipFileWriteOutput> {
+fn aip_file_move_handler(call: HandlerCallContext, params: AipFileMoveParams) -> HandlerResult<AipFileWriteOutput> {
 	let src_resolved = call
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.src, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
@@ -410,10 +431,7 @@ fn aip_file_move_handler(
 
 /// Deletes a file from disk if it exists.
 #[aip_handler]
-fn aip_file_delete_handler(
-	call: HandlerCallContext,
-	params: AipFileDeleteParams,
-) -> HandlerResult<AipFileBoolOutput> {
+fn aip_file_delete_handler(call: HandlerCallContext, params: AipFileDeleteParams) -> HandlerResult<AipFileBoolOutput> {
 	let resolved = call
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
@@ -468,8 +486,7 @@ fn aip_file_ensure_exists_handler(
 		if let Some(parent) = resolved.path().parent() {
 			std::fs::create_dir_all(parent.as_str()).map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
 		}
-		std::fs::write(target_path, default_content)
-			.map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
+		std::fs::write(target_path, default_content).map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
 	}
 
 	let info = file_info_from_meta(resolved.path(), true, resolved.root(), false)
@@ -499,8 +516,7 @@ fn aip_file_ensure_dir_handler(
 			))
 		}
 	} else {
-		std::fs::create_dir_all(target_path)
-			.map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
+		std::fs::create_dir_all(target_path).map_err(|e| aip_file_error("WRITE_FAILED", &e.to_string()))?;
 		Ok(AipFileBoolOutput(true))
 	}
 }
@@ -572,286 +588,7 @@ fn required_string(table: &mlua::Table, key: &str) -> crate::Result<String> {
 // region:    --- Tests
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use mlua::Lua;
-
-	#[test]
-	fn test_format_content_variations() {
-		let input = "  \nhello world\n\n\n".to_string();
-		let formatted = format_content(input, Some(true), Some(true), Some(true));
-		assert_eq!(formatted, "hello world\n");
-	}
-
-	#[test]
-	fn test_write_params_from_lua() -> crate::Result<()> {
-		let lua = Lua::new();
-		let table = lua.create_table()?;
-		table.set("path", "foo/bar.txt")?;
-		table.set("content", "hello")?;
-		table.set("trim_start", true)?;
-		table.set("single_trailing_newline", true)?;
-
-		let params = AipFileWriteParams::from_lua(&lua, Value::Table(table))?;
-		assert_eq!(params.path, "foo/bar.txt");
-		assert_eq!(params.content, "hello");
-		assert_eq!(params.trim_start, Some(true));
-		assert_eq!(params.trim_end, None);
-		assert_eq!(params.single_trailing_newline, Some(true));
-		Ok(())
-	}
-
-	#[test]
-	fn test_copy_move_params_from_lua() -> crate::Result<()> {
-		let lua = Lua::new();
-		let table = lua.create_table()?;
-		table.set("src", "a.txt")?;
-		table.set("dest", "b.txt")?;
-		table.set("overwrite", true)?;
-
-		let copy_params = AipFileCopyParams::from_lua(&lua, Value::Table(table.clone()))?;
-		assert_eq!(copy_params.src, "a.txt");
-		assert_eq!(copy_params.dest, "b.txt");
-		assert_eq!(copy_params.overwrite, Some(true));
-
-		let move_params = AipFileMoveParams::from_lua(&lua, Value::Table(table))?;
-		assert_eq!(move_params.src, "a.txt");
-		assert_eq!(move_params.dest, "b.txt");
-		assert_eq!(move_params.overwrite, Some(true));
-		Ok(())
-	}
-
-	#[test]
-	fn test_delete_params_from_lua() -> crate::Result<()> {
-		let lua = Lua::new();
-		let table = lua.create_table()?;
-		table.set("path", "file.txt")?;
-		table.set("base_dir", "/tmp")?;
-
-		let params = AipFileDeleteParams::from_lua(&lua, Value::Table(table))?;
-		assert_eq!(params.path, "file.txt");
-		assert_eq!(params.base_dir, Some("/tmp".to_string()));
-		Ok(())
-	}
-
-	#[test]
-	fn test_write_append_delete_handlers() -> crate::Result<()> {
-		let temp_dir = std::env::temp_dir().join(format!("aiprog_test_write_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-		std::fs::create_dir_all(&temp_dir)?;
-
-		let dir_ctx = DirContext::from_base_dir(temp_dir.to_str().unwrap())
-			.map_err(|e| crate::Error::custom(e.to_string()))?;
-
-		let mut running_ctx = crate::running_context::RunningContext::default();
-		running_ctx.insert(dir_ctx);
-		let handle = crate::running_context::RunningContextHandle::new(running_ctx);
-		let call = HandlerCallContext::new(handle);
-
-		// Write
-		let write_params = AipFileWriteParams {
-			path: "sub/test.txt".to_string(),
-			content: "  initial content\n".to_string(),
-			base_dir: None,
-			trim_start: Some(true),
-			trim_end: None,
-			single_trailing_newline: Some(true),
-		};
-		let write_out = aip_file_write_handler(call.clone(), write_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(write_out.0.name, "test.txt");
-		assert_eq!(write_out.0.path, "sub/test.txt");
-
-		let read_content = std::fs::read_to_string(temp_dir.join("sub/test.txt"))?;
-		assert_eq!(read_content, "initial content\n");
-
-		// Append
-		let append_params = AipFileAppendParams {
-			path: "sub/test.txt".to_string(),
-			content: "appended line\n".to_string(),
-			base_dir: None,
-		};
-		let append_out = aip_file_append_handler(call.clone(), append_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(append_out.0.name, "test.txt");
-
-		let read_after_append = std::fs::read_to_string(temp_dir.join("sub/test.txt"))?;
-		assert_eq!(read_after_append, "initial content\nappended line\n");
-
-		// Delete existing
-		let delete_params = AipFileDeleteParams {
-			path: "sub/test.txt".to_string(),
-			base_dir: None,
-		};
-		let delete_out = aip_file_delete_handler(call.clone(), delete_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert!(delete_out.0);
-		assert!(!temp_dir.join("sub/test.txt").exists());
-
-		// Delete non-existing
-		let delete_params_missing = AipFileDeleteParams {
-			path: "sub/test.txt".to_string(),
-			base_dir: None,
-		};
-		let delete_missing_out = aip_file_delete_handler(call, delete_params_missing).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert!(!delete_missing_out.0);
-
-		let _ = std::fs::remove_dir_all(&temp_dir);
-		Ok(())
-	}
-
-	#[test]
-	fn test_copy_and_move_handlers() -> crate::Result<()> {
-		let temp_dir = std::env::temp_dir().join(format!("aiprog_test_copy_move_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-		std::fs::create_dir_all(&temp_dir)?;
-
-		let dir_ctx = DirContext::from_base_dir(temp_dir.to_str().unwrap())
-			.map_err(|e| crate::Error::custom(e.to_string()))?;
-
-		let mut running_ctx = crate::running_context::RunningContext::default();
-		running_ctx.insert(dir_ctx);
-		let handle = crate::running_context::RunningContextHandle::new(running_ctx);
-		let call = HandlerCallContext::new(handle);
-
-		// Prepare source file
-		let src_file = temp_dir.join("origin.txt");
-		std::fs::write(&src_file, "original content")?;
-
-		// Copy without overwrite
-		let copy_params = AipFileCopyParams {
-			src: "origin.txt".to_string(),
-			dest: "nested/copy.txt".to_string(),
-			base_dir: None,
-			overwrite: Some(false),
-		};
-		let copy_out = aip_file_copy_handler(call.clone(), copy_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(copy_out.0.name, "copy.txt");
-		assert_eq!(copy_out.0.path, "nested/copy.txt");
-		assert_eq!(std::fs::read_to_string(temp_dir.join("nested/copy.txt"))?, "original content");
-		assert!(src_file.exists());
-
-		// Copy conflict without overwrite fails
-		let copy_conflict_params = AipFileCopyParams {
-			src: "origin.txt".to_string(),
-			dest: "nested/copy.txt".to_string(),
-			base_dir: None,
-			overwrite: Some(false),
-		};
-		let copy_err = aip_file_copy_handler(call.clone(), copy_conflict_params);
-		assert!(copy_err.is_err());
-
-		// Copy conflict with overwrite succeeds
-		std::fs::write(&src_file, "updated content")?;
-		let copy_overwrite_params = AipFileCopyParams {
-			src: "origin.txt".to_string(),
-			dest: "nested/copy.txt".to_string(),
-			base_dir: None,
-			overwrite: Some(true),
-		};
-		let copy_overwrite_out = aip_file_copy_handler(call.clone(), copy_overwrite_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(copy_overwrite_out.0.name, "copy.txt");
-		assert_eq!(std::fs::read_to_string(temp_dir.join("nested/copy.txt"))?, "updated content");
-
-		// Move file
-		let move_params = AipFileMoveParams {
-			src: "origin.txt".to_string(),
-			dest: "moved/target.txt".to_string(),
-			base_dir: None,
-			overwrite: Some(false),
-		};
-		let move_out = aip_file_move_handler(call.clone(), move_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(move_out.0.name, "target.txt");
-		assert_eq!(move_out.0.path, "moved/target.txt");
-		assert_eq!(std::fs::read_to_string(temp_dir.join("moved/target.txt"))?, "updated content");
-		assert!(!src_file.exists());
-
-		let _ = std::fs::remove_dir_all(&temp_dir);
-		Ok(())
-	}
-
-	#[test]
-	fn test_ensure_exists_and_ensure_dir_handlers() -> crate::Result<()> {
-		let temp_dir = std::env::temp_dir().join(format!("aiprog_test_ensure_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-		std::fs::create_dir_all(&temp_dir)?;
-
-		let dir_ctx = DirContext::from_base_dir(temp_dir.to_str().unwrap())
-			.map_err(|e| crate::Error::custom(e.to_string()))?;
-
-		let mut running_ctx = crate::running_context::RunningContext::default();
-		running_ctx.insert(dir_ctx);
-		let handle = crate::running_context::RunningContextHandle::new(running_ctx);
-		let call = HandlerCallContext::new(handle);
-
-		// Ensure dir creates new directory hierarchy
-		let ensure_dir_params = AipFileEnsureDirParams {
-			path: "nested/a/b".to_string(),
-			base_dir: None,
-		};
-		let created_dir = aip_file_ensure_dir_handler(call.clone(), ensure_dir_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert!(created_dir.0);
-		assert!(temp_dir.join("nested/a/b").is_dir());
-
-		// Ensure dir returns false when already present
-		let ensure_dir_again_params = AipFileEnsureDirParams {
-			path: "nested/a/b".to_string(),
-			base_dir: None,
-		};
-		let created_dir_again = aip_file_ensure_dir_handler(call.clone(), ensure_dir_again_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert!(!created_dir_again.0);
-
-		// Ensure exists creates missing file with initial content
-		let ensure_file_params = AipFileEnsureExistsParams {
-			path: "nested/a/b/file.txt".to_string(),
-			content: Some("initial content".to_string()),
-			base_dir: None,
-			content_when_empty: None,
-		};
-		let file_out = aip_file_ensure_exists_handler(call.clone(), ensure_file_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(file_out.0.name, "file.txt");
-		assert_eq!(std::fs::read_to_string(temp_dir.join("nested/a/b/file.txt"))?, "initial content");
-
-		// Ensure exists on non-empty file does not overwrite content
-		let ensure_existing_file_params = AipFileEnsureExistsParams {
-			path: "nested/a/b/file.txt".to_string(),
-			content: Some("overwritten content".to_string()),
-			base_dir: None,
-			content_when_empty: Some(true),
-		};
-		let file_existing_out = aip_file_ensure_exists_handler(call.clone(), ensure_existing_file_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(file_existing_out.0.name, "file.txt");
-		assert_eq!(std::fs::read_to_string(temp_dir.join("nested/a/b/file.txt"))?, "initial content");
-
-		// Ensure exists on empty file fills content when content_when_empty is true
-		let empty_file_path = temp_dir.join("nested/a/b/empty.txt");
-		std::fs::write(&empty_file_path, "")?;
-		let ensure_empty_file_params = AipFileEnsureExistsParams {
-			path: "nested/a/b/empty.txt".to_string(),
-			content: Some("populated content".to_string()),
-			base_dir: None,
-			content_when_empty: Some(true),
-		};
-		let file_empty_out = aip_file_ensure_exists_handler(call, ensure_empty_file_params).map_err(|e| crate::Error::custom(e.to_string()))?;
-		assert_eq!(file_empty_out.0.name, "empty.txt");
-		assert_eq!(std::fs::read_to_string(empty_file_path)?, "populated content");
-
-		let _ = std::fs::remove_dir_all(&temp_dir);
-		Ok(())
-	}
-
-	#[test]
-	fn test_write_init_registry() -> crate::Result<()> {
-		let registry = init_registry()?;
-		let handlers = registry.list_registered_fns();
-		assert!(handlers.iter().any(|f| f.path == "aip.file.write"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.append"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.copy"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.move"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.delete"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.ensure_exists"));
-		assert!(handlers.iter().any(|f| f.path == "aip.file.ensure_dir"));
-
-		let merged = crate::modules::aip_file::register::init_registry()?;
-		let merged_handlers = merged.list_registered_fns();
-		assert!(merged_handlers.iter().any(|f| f.path == "aip.file.read"));
-		assert!(merged_handlers.iter().any(|f| f.path == "aip.file.write"));
-		Ok(())
-	}
-}
+#[path = "file_write_tests.rs"]
+mod tests;
 
 // endregion: --- Tests

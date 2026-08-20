@@ -179,3 +179,141 @@ async fn test_aiprog_file_param_base_dir_and_denial() -> TestResult {
 
 	Ok(())
 }
+
+#[tokio::test]
+async fn test_aiprog_file_write_and_append_flow() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	let dir_context = DirContext::from_base_dir(workspace)?;
+
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local write_res = aip.file.write({
+            path = "output/greeting.txt",
+            content = "  hello world\n",
+            trim_start = true,
+            single_trailing_newline = true
+        })
+
+        local append_res = aip.file.append({
+            path = "output/greeting.txt",
+            content = "second line\n"
+        })
+
+        local read_res = aip.file.read({
+            path = "output/greeting.txt"
+        })
+
+        return {
+            write_name = write_res.name,
+            append_name = append_res.name,
+            content = read_res.content
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["write_name"], json!("greeting.txt"));
+	assert_eq!(result["append_name"], json!("greeting.txt"));
+	assert_eq!(result["content"], json!("hello world\nsecond line\n"));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_copy_move_delete_flow() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	let dir_context = DirContext::from_base_dir(workspace)?;
+
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        aip.file.write({ path = "source.txt", content = "original data" })
+        local copy_res = aip.file.copy({ src = "source.txt", dest = "backup/copy.txt" })
+        local move_res = aip.file.move({ src = "backup/copy.txt", dest = "moved/final.txt" })
+        local deleted = aip.file.delete({ path = "source.txt" })
+        local exists_source = aip.file.exists({ path = "source.txt" })
+        local exists_moved = aip.file.exists({ path = "moved/final.txt" })
+
+        return {
+            copy_name = copy_res.name,
+            move_name = move_res.name,
+            deleted = deleted,
+            exists_source = exists_source,
+            exists_moved = exists_moved
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["copy_name"], json!("copy.txt"));
+	assert_eq!(result["move_name"], json!("final.txt"));
+	assert_eq!(result["deleted"], json!(true));
+	assert_eq!(result["exists_source"], json!(false));
+	assert_eq!(result["exists_moved"], json!(true));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_ensure_exists_and_ensure_dir() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	let dir_context = DirContext::from_base_dir(workspace)?;
+
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local dir_created = aip.file.ensure_dir({ path = "deeply/nested/dir" })
+        local dir_again = aip.file.ensure_dir({ path = "deeply/nested/dir" })
+
+        local file_res = aip.file.ensure_exists({
+            path = "deeply/nested/dir/init.txt",
+            content = "default config"
+        })
+
+        local read_res = aip.file.read({ path = "deeply/nested/dir/init.txt" })
+
+        return {
+            dir_created = dir_created,
+            dir_again = dir_again,
+            file_name = file_res.name,
+            content = read_res.content
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["dir_created"], json!(true));
+	assert_eq!(result["dir_again"], json!(false));
+	assert_eq!(result["file_name"], json!("init.txt"));
+	assert_eq!(result["content"], json!("default config"));
+
+	Ok(())
+}
