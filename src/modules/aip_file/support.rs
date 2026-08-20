@@ -44,7 +44,7 @@ pub fn list_files_matching(
 	}
 
 	let resolved_dir = dir_context
-		.resolve_read(base_dir.unwrap_or("."), None)
+		.resolve_read(".", base_dir)
 		.map_err(|e| crate::Error::cc("Directory policy rejected list path", e.to_string()))?;
 	let dir = resolved_dir.path().clone();
 

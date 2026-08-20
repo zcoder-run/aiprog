@@ -9,31 +9,73 @@ use std::path::{Path, PathBuf};
 /// Execution-scoped filesystem capability policy.
 #[derive(Debug, Clone)]
 pub struct DirContext {
+	base_dir: SPath,
 	read_policy: PathPolicy,
 	write_policy: PathPolicy,
 }
 
+// region:    --- Constructors
+
 impl DirContext {
-	pub fn new(read_policy: PathPolicy, write_policy: PathPolicy) -> Self {
-		Self {
+	pub fn new(
+		base_dir: impl Into<SPath>,
+		read_policy: PathPolicy,
+		write_policy: PathPolicy,
+	) -> Result<Self, DirPolicyError> {
+		let base_dir = base_dir.into();
+		let resolved = read_policy.authorize_existing(&base_dir)?;
+		if !resolved.path().is_dir() {
+			return Err(DirPolicyError::InvalidBaseDir(base_dir.as_str().to_string()));
+		}
+		Ok(Self {
+			base_dir: resolved.path().clone(),
 			read_policy,
 			write_policy,
-		}
+		})
+	}
+
+	pub fn from_base_dir(base_dir: impl Into<SPath>) -> Result<Self, DirPolicyError> {
+		let base_dir = base_dir.into();
+		let policy = PathPolicy::new([base_dir.clone()], AbsolutePathPolicy::Deny)?;
+		Self::new(base_dir, policy.clone(), policy)
 	}
 
 	pub fn current_dir() -> Result<Self, DirPolicyError> {
-		let policy = PathPolicy::new(["."], AbsolutePathPolicy::Deny)?;
-		Ok(Self::new(policy.clone(), policy))
+		Self::from_base_dir(".")
 	}
+}
 
+// endregion: --- Constructors
+
+// region:    --- Resolvers
+
+impl DirContext {
 	pub fn resolve_read(&self, path: &str, base_dir: Option<&str>) -> Result<ResolvedDirPath, DirPolicyError> {
-		self.read_policy.resolve(path, base_dir, false)
+		self.read_policy.resolve(path, &self.base_dir, base_dir, false)
 	}
 
 	pub fn resolve_write(&self, path: &str, base_dir: Option<&str>) -> Result<ResolvedDirPath, DirPolicyError> {
-		self.write_policy.resolve(path, base_dir, true)
+		self.write_policy.resolve(path, &self.base_dir, base_dir, true)
 	}
 
+	pub(crate) fn resolve_read_target(
+		&self,
+		path: &str,
+		base_dir: Option<&str>,
+	) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.read_policy.resolve(path, &self.base_dir, base_dir, true)
+	}
+
+	pub(crate) fn authorize_existing_read(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
+		self.read_policy.authorize_existing(path)
+	}
+}
+
+// endregion: --- Resolvers
+
+// region:    --- Policy Assertions
+
+impl DirContext {
 	pub fn assert_write(&self, path: &SPath) -> Result<bool, DirPolicyError> {
 		let _ = path;
 		Ok(true)
@@ -43,19 +85,27 @@ impl DirContext {
 		let _ = path;
 		Ok(true)
 	}
+}
 
-	pub(crate) fn resolve_read_target(
-		&self,
-		path: &str,
-		base_dir: Option<&str>,
-	) -> Result<ResolvedDirPath, DirPolicyError> {
-		self.read_policy.resolve(path, base_dir, true)
+// endregion: --- Policy Assertions
+
+// region:    --- Getters
+
+impl DirContext {
+	pub fn base_dir(&self) -> &SPath {
+		&self.base_dir
 	}
 
-	pub(crate) fn authorize_existing_read(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
-		self.read_policy.authorize_existing(path)
+	pub fn read_policy(&self) -> &PathPolicy {
+		&self.read_policy
+	}
+
+	pub fn write_policy(&self) -> &PathPolicy {
+		&self.write_policy
 	}
 }
+
+// endregion: --- Getters
 
 impl Default for DirContext {
 	fn default() -> Self {
@@ -70,12 +120,16 @@ pub enum AbsolutePathPolicy {
 	Deny,
 }
 
+// region:    --- PathPolicy
+
 /// A set of canonical directory roots allowed for one class of operations.
 #[derive(Debug, Clone)]
 pub struct PathPolicy {
 	allowed_roots: Vec<SPath>,
 	absolute_paths: AbsolutePathPolicy,
 }
+
+// region:    --- Constructors
 
 impl PathPolicy {
 	pub fn new(
@@ -114,10 +168,17 @@ impl PathPolicy {
 			absolute_paths,
 		})
 	}
+}
 
-	fn resolve(
+// endregion: --- Constructors
+
+// region:    --- Resolvers
+
+impl PathPolicy {
+	pub fn resolve(
 		&self,
 		path: &str,
+		default_base: &SPath,
 		base_dir: Option<&str>,
 		allow_missing: bool,
 	) -> Result<ResolvedDirPath, DirPolicyError> {
@@ -133,7 +194,7 @@ impl PathPolicy {
 		let candidate = if supplied_path.is_absolute() {
 			supplied_path.to_path_buf()
 		} else {
-			let base = self.resolve_base(base_dir)?;
+			let base = self.resolve_base(default_base, base_dir)?;
 			base.join(supplied_path)
 		};
 
@@ -141,12 +202,9 @@ impl PathPolicy {
 		self.authorize_canonical(canonical)
 	}
 
-	fn resolve_base(&self, base_dir: Option<&str>) -> Result<PathBuf, DirPolicyError> {
-		let first_root = self.allowed_roots.first().ok_or(DirPolicyError::NoAllowedRoots)?;
-		let root = Path::new(first_root.as_str());
-
+	pub fn resolve_base(&self, default_base: &SPath, base_dir: Option<&str>) -> Result<PathBuf, DirPolicyError> {
 		let Some(base_dir) = base_dir else {
-			return Ok(root.to_path_buf());
+			return Ok(PathBuf::from(default_base.as_str()));
 		};
 
 		let supplied_base = Path::new(base_dir);
@@ -157,7 +215,7 @@ impl PathPolicy {
 		let candidate = if supplied_base.is_absolute() {
 			supplied_base.to_path_buf()
 		} else {
-			root.join(supplied_base)
+			Path::new(default_base.as_str()).join(supplied_base)
 		};
 		let canonical = canonicalize_candidate(&candidate, false)?;
 		let resolved = self.authorize_canonical(canonical)?;
@@ -169,14 +227,14 @@ impl PathPolicy {
 		Ok(PathBuf::from(resolved.path.as_str()))
 	}
 
-	fn authorize_existing(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
+	pub fn authorize_existing(&self, path: &SPath) -> Result<ResolvedDirPath, DirPolicyError> {
 		let canonical = path
 			.canonicalize()
 			.map_err(|error| DirPolicyError::InvalidPath(format!("{}: {error}", path.as_str())))?;
 		self.authorize_canonical(PathBuf::from(canonical.as_str()))
 	}
 
-	fn authorize_canonical(&self, canonical: PathBuf) -> Result<ResolvedDirPath, DirPolicyError> {
+	pub fn authorize_canonical(&self, canonical: PathBuf) -> Result<ResolvedDirPath, DirPolicyError> {
 		let root = self
 			.allowed_roots
 			.iter()
@@ -191,12 +249,34 @@ impl PathPolicy {
 	}
 }
 
+// endregion: --- Resolvers
+
+// region:    --- Getters
+
+impl PathPolicy {
+	pub fn allowed_roots(&self) -> &[SPath] {
+		&self.allowed_roots
+	}
+
+	pub fn absolute_paths(&self) -> AbsolutePathPolicy {
+		self.absolute_paths
+	}
+}
+
+// endregion: --- Getters
+
+// endregion: --- PathPolicy
+
+// region:    --- ResolvedDirPath
+
 /// A policy-authorized path and the allowed root that contains it.
 #[derive(Debug, Clone)]
 pub struct ResolvedDirPath {
 	path: SPath,
 	root: SPath,
 }
+
+// region:    --- Getters
 
 impl ResolvedDirPath {
 	pub fn path(&self) -> &SPath {
@@ -207,6 +287,12 @@ impl ResolvedDirPath {
 		&self.root
 	}
 }
+
+// endregion: --- Getters
+
+// endregion: --- ResolvedDirPath
+
+// region:    --- DirPolicyError
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirPolicyError {
@@ -232,6 +318,8 @@ impl fmt::Display for DirPolicyError {
 }
 
 impl std::error::Error for DirPolicyError {}
+
+// endregion: --- DirPolicyError
 
 // endregion: --- DirContext
 

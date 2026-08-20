@@ -12,20 +12,10 @@ async fn test_read_file_ok() -> Result<()> {
 	std::fs::write(&file_path, "world")?;
 
 	// Build FileContext using SPath
-	let workspace =
-		simple_fs::SPath::from_std_path(tmp.path()).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-	let read_policy = PathPolicy::new([workspace.clone()], AbsolutePathPolicy::Deny)?;
-	let write_policy = PathPolicy::new([workspace], AbsolutePathPolicy::Deny)?;
-	let dir_context = DirContext::new(read_policy, write_policy);
+	let (_root, dir_context) = setup_test_context(&tmp)?;
 
 	// Register the single handler directly via the registry (for unit test)
-	let registry = super::init_registry()?;
-	let template = ScriptEngine::builder().with_registry(registry).build()?;
-	let mut context = RunningContext::default();
-	context.insert(dir_context);
-
-	let outcome = template.exec("return aip.file.read({ path = 'hello.txt' })", context).await?;
-	let back = outcome.result?;
+	let back = eval_file_script("return aip.file.read({ path = 'hello.txt' })", dir_context).await?;
 
 	assert_eq!(back["content"], serde_json::json!("world"));
 	Ok(())
@@ -38,14 +28,14 @@ fn test_aip_file_dir_context_separate_read_write_permissions() -> Result<()> {
 	let write_tmp = TempDir::new()?;
 	let read_root = simple_fs::SPath::from_std_path(read_tmp.path())?;
 	let write_root = simple_fs::SPath::from_std_path(write_tmp.path())?;
-	let read_policy = PathPolicy::new([read_root], AbsolutePathPolicy::Deny)?;
-	let write_policy = PathPolicy::new([write_root], AbsolutePathPolicy::Deny)?;
-	let context = DirContext::new(read_policy, write_policy);
+	let read_policy = PathPolicy::new([read_root.clone()], AbsolutePathPolicy::Allow)?;
+	let write_policy = PathPolicy::new([write_root.clone()], AbsolutePathPolicy::Allow)?;
+	let context = DirContext::new(read_root, read_policy, write_policy)?;
 
 	// -- Exec
 	let readable = context.resolve_read_target("input.txt", None)?;
-	let writable = context.resolve_write("output/new.txt", None)?;
-	let denied_write = context.resolve_write("../outside.txt", None);
+	let writable = context.resolve_write("output/new.txt", Some(write_root.as_str()))?;
+	let denied_write = context.resolve_write("../outside.txt", Some(write_root.as_str()));
 
 	// -- Check
 	assert!(readable.path().as_str().contains(read_tmp.path().to_string_lossy().as_ref()));
@@ -60,7 +50,7 @@ fn test_aip_file_dir_context_denies_absolute_paths() -> Result<()> {
 	let tmp = TempDir::new()?;
 	let root = simple_fs::SPath::from_std_path(tmp.path())?;
 	let policy = PathPolicy::new([root.clone()], AbsolutePathPolicy::Deny)?;
-	let context = DirContext::new(policy.clone(), policy);
+	let context = DirContext::new(root.clone(), policy.clone(), policy)?;
 
 	// -- Exec
 	let result = context.resolve_read(root.as_str(), None);
@@ -76,7 +66,7 @@ fn test_aip_file_dir_context_temporary_assertions_return_true() -> Result<()> {
 	let tmp = TempDir::new()?;
 	let root = simple_fs::SPath::from_std_path(tmp.path())?;
 	let policy = PathPolicy::new([root.clone()], AbsolutePathPolicy::Deny)?;
-	let context = DirContext::new(policy.clone(), policy);
+	let context = DirContext::new(root.clone(), policy.clone(), policy)?;
 
 	// -- Exec
 	let readable = context.assert_read(&root)?;
@@ -99,8 +89,8 @@ fn test_aip_file_dir_context_denies_symlink_escape() -> Result<()> {
 	std::fs::write(outside.path().join("secret.txt"), "secret")?;
 	symlink(outside.path(), allowed.path().join("escape"))?;
 	let root = simple_fs::SPath::from_std_path(allowed.path())?;
-	let policy = PathPolicy::new([root], AbsolutePathPolicy::Allow)?;
-	let context = DirContext::new(policy.clone(), policy);
+	let policy = PathPolicy::new([root.clone()], AbsolutePathPolicy::Allow)?;
+	let context = DirContext::new(root, policy.clone(), policy)?;
 
 	// -- Exec
 	let result = context.resolve_read("escape/secret.txt", None);
@@ -123,3 +113,79 @@ fn test_aip_file_dir_context_default() -> Result<()> {
 	assert!(matches!(denied_absolute, Err(DirPolicyError::AbsolutePathDenied(_))));
 	Ok(())
 }
+
+#[tokio::test]
+async fn test_aip_file_dir_context_subfolder_base_dir() -> Result<()> {
+	let tmp = TempDir::new()?;
+	let sub_dir = tmp.path().join("sub");
+	std::fs::create_dir_all(&sub_dir)?;
+	std::fs::write(sub_dir.join("sub_hello.txt"), "hello from sub")?;
+
+	let sub_spath = simple_fs::SPath::from_std_path(&sub_dir)?;
+	let dir_context = DirContext::from_base_dir(sub_spath)?;
+
+	let back = eval_file_script("return aip.file.read({ path = 'sub_hello.txt' })", dir_context).await?;
+
+	assert_eq!(back["content"], serde_json::json!("hello from sub"));
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aip_file_dir_context_base_dir_param_override() -> Result<()> {
+	let tmp = TempDir::new()?;
+	let sub_dir = tmp.path().join("sub");
+	std::fs::create_dir_all(&sub_dir)?;
+	std::fs::write(sub_dir.join("nested.txt"), "nested content")?;
+
+	let (_root, dir_context) = setup_test_context(&tmp)?;
+
+	let back = eval_file_script(
+		"return aip.file.read({ path = 'nested.txt', base_dir = 'sub' })",
+		dir_context,
+	)
+	.await?;
+
+	assert_eq!(back["content"], serde_json::json!("nested content"));
+	Ok(())
+}
+
+#[test]
+fn test_aip_file_dir_context_invalid_base_dir_outside_roots() -> Result<()> {
+	let tmp_allowed = TempDir::new()?;
+	let tmp_outside = TempDir::new()?;
+
+	let allowed_root = simple_fs::SPath::from_std_path(tmp_allowed.path())?;
+	let outside_dir = simple_fs::SPath::from_std_path(tmp_outside.path())?;
+
+	let policy = PathPolicy::new([allowed_root], AbsolutePathPolicy::Allow)?;
+	let result = DirContext::new(outside_dir, policy.clone(), policy);
+
+	assert!(matches!(result, Err(DirPolicyError::OutsideAllowedRoots(_))));
+	Ok(())
+}
+
+// region:    --- Test Support
+
+fn setup_test_engine() -> Result<ScriptEngine> {
+	let registry = super::init_registry()?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
+	Ok(engine)
+}
+
+fn setup_test_context(tmp: &TempDir) -> Result<(simple_fs::SPath, DirContext)> {
+	let root = simple_fs::SPath::from_std_path(tmp.path())?;
+	let context = DirContext::from_base_dir(root.clone())?;
+	Ok((root, context))
+}
+
+async fn eval_file_script(script: &str, dir_context: DirContext) -> Result<serde_json::Value> {
+	let engine = setup_test_engine()?;
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let outcome = engine.exec(script, context).await?;
+	let value = outcome.result?;
+	Ok(value)
+}
+
+// endregion: --- Test Support
