@@ -41,6 +41,9 @@ pub fn generate_doc_from_fns(fns: &[AipRegisteredFn]) -> Result<String> {
 
 	let mut doc = String::new();
 	doc.push_str(include_str!("engine_doc_preamble.md"));
+	// TODO: Should have a support::ensure_end_with_two_nline
+	doc.push_str("\n\n");
+
 	for (i, reg_fn) in fns.iter().enumerate() {
 		let error_schema = if use_inline_error[i] {
 			Some(&inline_error_schema)
