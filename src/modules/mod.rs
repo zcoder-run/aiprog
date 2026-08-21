@@ -5,6 +5,7 @@ use crate::{AipModule, AipRegistry, AipRegistryBuilder, NativeFunctionSet};
 mod aip_file;
 mod aip_html;
 mod aip_json;
+pub mod aip_md;
 mod aip_web;
 
 pub use aip_file::file_types::{AbsolutePathPolicy, DirContext, DirPolicyError, PathPolicy, ResolvedDirPath};
@@ -24,6 +25,9 @@ pub struct FileModule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HtmlModule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MdModule;
 
 impl AipModule for JsonModule {
 	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
@@ -56,6 +60,12 @@ impl AipModule for HtmlModule {
 	}
 }
 
+impl AipModule for MdModule {
+	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		aip_md::register(builder)
+	}
+}
+
 // endregion: --- Module Types
 
 // region:    --- Combined Registry
@@ -70,6 +80,7 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 		.add_module(WebModule)?
 		.add_module(FileModule)?
 		.add_module(HtmlModule)?
+		.add_module(MdModule)?
 		.build())
 }
 
@@ -132,6 +143,22 @@ mod tests {
 		// -- Check
 		assert!(!paths.is_empty());
 		assert!(paths.iter().all(|path| path.starts_with("aip.json.")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_modules_init_registry_contains_md_module() -> Result<()> {
+		// -- Exec
+		let registry = init_registry()?;
+		let paths = registry
+			.list_registered_fns()
+			.into_iter()
+			.map(|registered| registered.path)
+			.collect::<Vec<_>>();
+
+		// -- Check
+		assert!(paths.iter().any(|path| path == "aip.md.make_table"));
 
 		Ok(())
 	}
