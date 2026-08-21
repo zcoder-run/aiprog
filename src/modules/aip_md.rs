@@ -39,6 +39,8 @@ pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBu
 #[serde_with::skip_serializing_none]
 pub struct AipMdMakeTableParams {
 	/// Optional list of column header titles.
+	///
+	/// Recommended: Always provide `headers` whenever column names are available or known, to produce standard Markdown pipe tables with header and delimiter rows.
 	pub headers: Option<Vec<String>>,
 
 	/// 2D array of table rows. Each cell can be a string, number, boolean, or null/nil.
@@ -216,7 +218,10 @@ impl AipOutput for AipMdMakeTableOutput {}
 
 /// Formats structured headers and row data into a Markdown pipe table.
 ///
-/// When to use: Use this function when building a markdown programatically from a dataset.
+/// ### When to use:
+///  Use this function when building a markdown table programmatically from a dataset.
+///  Always provide `headers` whenever column names are available or known,
+///  to ensure the output includes a proper header row and separator line.
 #[aip_handler]
 fn aip_md_make_table_handler(
 	_call: HandlerCallContext,
