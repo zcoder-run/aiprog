@@ -38,10 +38,6 @@ impl Error {
 	pub fn body_parse_failed(val: impl Into<String>) -> Self {
 		Self::BodyParseFailed(val.into())
 	}
-
-	pub fn custom_from_err(err: impl std::error::Error) -> Self {
-		Self::Custom(err.to_string())
-	}
 }
 
 // endregion: --- Custom

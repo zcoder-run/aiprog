@@ -551,13 +551,13 @@ pub fn format_content(
 	single_trailing_newline: Option<bool>,
 ) -> String {
 	if trim_start.unwrap_or(false) {
-		content = crate::support::text::trim_start_if_needed(content);
+		content = crate::base::text::trim_start_if_needed(content);
 	}
 	if trim_end.unwrap_or(false) {
-		content = crate::support::text::trim_end_if_needed(content);
+		content = crate::base::text::trim_end_if_needed(content);
 	}
 	if single_trailing_newline.unwrap_or(false) {
-		content = crate::support::text::ensure_single_trailing_newline(content);
+		content = crate::base::text::ensure_single_trailing_newline(content);
 	}
 	content
 }

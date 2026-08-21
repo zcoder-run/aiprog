@@ -1,22 +1,24 @@
-// region:    --- Modules
 #![doc = include_str!("../docs/rustdoc/lib.md")]
 
+// region:    --- Modules
 extern crate self as aiprog; // for aiprog_macros
 
 #[cfg(test)]
 mod _test_support;
 
-pub mod modules;
-pub mod schema_ref;
-mod support;
-
+mod base;
 mod engine;
-mod error;
 mod error_lua_details;
 mod lua_exts;
-pub mod registry;
 mod run_outcome;
-pub(crate) mod running_context;
+mod running_context;
+mod support;
+
+pub mod modules;
+pub mod registry;
+pub mod schema_ref;
+
+mod error;
 
 pub use error::{Error, Result};
 pub use error_lua_details::LuaErrorDetails;
@@ -28,9 +30,6 @@ pub use running_context::{ContextAccessError, ContextRecoveryError, HandlerCallC
 pub use engine::*;
 pub use lua_exts::*;
 pub use registry::*;
-
-pub mod types;
-pub mod webc;
 
 // -- Re-exports for macro support
 pub use mlua;

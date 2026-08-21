@@ -1,7 +1,7 @@
 //! Helper functions for JSON operations.
 
 // use crate::support::text::truncate_with_ellipsis;
-use crate::support::text::truncate_with_ellipsis;
+use crate::base::text::truncate_with_ellipsis;
 use crate::{Error, Result};
 use jsonc_parser::ParseOptions;
 use serde_json::Value;

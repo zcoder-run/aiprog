@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-use crate::types::Extrude;
+use crate::base::types::Extrude;
 
 /// Options for configuring the LineBlockIter.
 pub struct LineBlockIterOptions<'b> {

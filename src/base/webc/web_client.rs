@@ -1,4 +1,4 @@
-use crate::webc::error::{Error, Result};
+use super::{Error, Result};
 use reqwest::Client as ReqwestClient;
 use std::collections::HashMap;
 
@@ -9,7 +9,9 @@ use std::collections::HashMap;
 pub enum BodyFormat {
 	#[default]
 	Text,
+	#[allow(unused)]
 	Json,
+	#[allow(unused)]
 	Binary,
 }
 
@@ -27,12 +29,14 @@ pub enum HeaderValue {
 pub enum Body {
 	Text(String),
 	Json(serde_json::Value),
+	#[allow(unused)]
 	Binary(Vec<u8>),
 }
 
 /// Request body to send in a POST (or other) request.
 #[derive(Debug, Clone)]
 pub enum RequestBody {
+	#[allow(unused)]
 	Json(serde_json::Value),
 	Text(String),
 }
