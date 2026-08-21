@@ -34,6 +34,237 @@ async fn test_aiprog_file_default_context_reads_current_dir() -> TestResult {
 }
 
 #[tokio::test]
+async fn test_aiprog_file_list_contains_literal() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	std::fs::write(tmp.path().join("a.txt"), "Hello World\nLine 2")?;
+	std::fs::write(tmp.path().join("b.txt"), "hello world\nLine 2")?;
+	std::fs::write(tmp.path().join("c.txt"), "other content\nLine 2")?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local match_case = aip.file.list({ globs = "*.txt", contains = "Hello World" })
+        local match_nocase = aip.file.list({
+            globs = "*.txt",
+            contains = { text = "hello world", ignore_case = true }
+        })
+        local match_explicit_case = aip.file.list({
+            globs = "*.txt",
+            contains = { text = "Hello World", ignore_case = false }
+        })
+
+        return {
+            count_case = #match_case,
+            name_case = match_case[1].name,
+            count_nocase = #match_nocase,
+            count_explicit_case = #match_explicit_case
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["count_case"], json!(1));
+	assert_eq!(result["name_case"], json!("a.txt"));
+	assert_eq!(result["count_nocase"], json!(2));
+	assert_eq!(result["count_explicit_case"], json!(1));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_list_contains_regex() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	std::fs::write(tmp.path().join("item1.txt"), "pub fn test_alpha() {}")?;
+	std::fs::write(tmp.path().join("item2.txt"), "pub fn TEST_beta() {}")?;
+	std::fs::write(tmp.path().join("item3.txt"), "pub fn helper() {}")?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local match_regex = aip.file.list({
+            globs = "*.txt",
+            contains = { regex = "fn\\s+test_[a-z]+" }
+        })
+        local match_regex_nocase = aip.file.list({
+            globs = "*.txt",
+            contains = { regex = "fn\\s+test_[a-z]+", ignore_case = true }
+        })
+        local match_inline_flag = aip.file.list({
+            globs = "*.txt",
+            contains = { regex = "(?i)fn\\s+test_[a-z]+", ignore_case = false }
+        })
+        local match_inline_disable = aip.file.list({
+            globs = "*.txt",
+            contains = { regex = "(?-i)TEST_beta", ignore_case = true }
+        })
+
+        return {
+            count_regex = #match_regex,
+            count_regex_nocase = #match_regex_nocase,
+            count_inline_flag = #match_inline_flag,
+            count_inline_disable = #match_inline_disable
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["count_regex"], json!(1));
+	assert_eq!(result["count_regex_nocase"], json!(2));
+	assert_eq!(result["count_inline_flag"], json!(2));
+	assert_eq!(result["count_inline_disable"], json!(1));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_first_and_list_read_contains() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	std::fs::write(tmp.path().join("f1.txt"), "target alpha content\n")?;
+	std::fs::write(tmp.path().join("f2.txt"), "target beta content\n")?;
+	std::fs::write(tmp.path().join("f3.txt"), "other content\n")?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local first_match = aip.file.first({
+            globs = "*.txt",
+            contains = "target"
+        })
+
+        local list_read_match = aip.file.list_read({
+            globs = "*.txt",
+            contains = "beta"
+        })
+
+        return {
+            has_first = first_match ~= nil,
+            list_read_count = #list_read_match,
+            list_read_name = list_read_match[1].name,
+            list_read_content = list_read_match[1].content
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["has_first"], json!(true));
+	assert_eq!(result["list_read_count"], json!(1));
+	assert_eq!(result["list_read_name"], json!("f2.txt"));
+	assert_eq!(result["list_read_content"], json!("target beta content\n"));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_stats_contains() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	let content1 = "keyword match 12345";
+	let content2 = "keyword match 67890";
+	let content3 = "unrelated";
+	std::fs::write(tmp.path().join("s1.txt"), content1)?;
+	std::fs::write(tmp.path().join("s2.txt"), content2)?;
+	std::fs::write(tmp.path().join("s3.txt"), content3)?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local stats = aip.file.stats({
+            globs = "*.txt",
+            contains = "keyword match"
+        })
+
+        return {
+            number_of_files = stats.number_of_files,
+            total_size = stats.total_size,
+            has_ctime = stats.ctime_first ~= nil,
+            has_mtime = stats.mtime_first ~= nil
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["number_of_files"], json!(2));
+	assert_eq!(result["total_size"], json!(content1.len() + content2.len()));
+	assert_eq!(result["has_ctime"], json!(true));
+	assert_eq!(result["has_mtime"], json!(true));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_aiprog_file_contains_invalid_regex() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	std::fs::write(tmp.path().join("a.txt"), "hello")?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local res = aip.file.list({
+            globs = "*.txt",
+            contains = { regex = "[unclosed_bracket" }
+        })
+        return res
+    "#;
+
+	// -- Exec
+	let outcome = engine.exec(lua_code, context).await?;
+
+	// -- Check
+	assert!(outcome.result.is_err());
+	let err_msg = outcome.result.unwrap_err().to_string();
+	assert!(err_msg.contains("INVALID_REGEX"));
+
+	Ok(())
+}
+
+#[tokio::test]
 async fn test_aiprog_file_custom_dir_context_isolation() -> TestResult {
 	// -- Setup & Fixtures
 	let tmp = TempDir::new()?;

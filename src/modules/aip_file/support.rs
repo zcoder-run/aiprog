@@ -4,8 +4,9 @@
 //! Lua conversion helpers.
 
 use crate::registry::{HandlerError, HandlerResult};
+use crate::base::file::ContentMatcher;
 use mlua::{Lua, Value};
-use simple_fs::{ListOptions, SPath, list_files, read_to_string};
+use simple_fs::{SPath, read_to_string};
 
 use super::file_types::{DirContext, FileInfo, FileRecord, FileStats, ResolvedDirPath};
 
@@ -18,6 +19,7 @@ use super::file_types::{DirContext, FileInfo, FileRecord, FileStats, ResolvedDir
 pub fn list_files_matching(
 	globs: &[String],
 	base_dir: Option<&str>,
+	matcher: Option<&ContentMatcher>,
 	dir_context: &DirContext,
 ) -> crate::Result<Vec<ResolvedDirPath>> {
 	// Separate include and exclude patterns.
@@ -48,18 +50,21 @@ pub fn list_files_matching(
 		.map_err(|e| crate::Error::cc("Directory policy rejected list path", e.to_string()))?;
 	let dir = resolved_dir.path().clone();
 
-	let opts = ListOptions::default().with_relative_glob().with_exclude_globs(&exclude_strs);
+	let entries = crate::base::file::list_matched_files(
+		&dir,
+		crate::base::file::ListParams {
+			globs: &include_strs,
+			exclude_globs: &exclude_strs,
+			content_matcher: matcher.cloned(),
+			with_meta: false,
+		},
+	)?;
 
-	let mut files = list_files(&dir, Some(&include_strs), Some(opts))
-		.map_err(|e| crate::Error::cc("File listing failed", e.to_string()))?;
-
-	// simple-fs may return paths relative to the directory; join to ensure full paths.
-	files = files.into_iter().map(|f| dir.join(f)).collect();
-	files
+	entries
 		.into_iter()
-		.map(|path| {
+		.map(|entry| {
 			dir_context
-				.authorize_existing_read(&path)
+				.authorize_existing_read(&entry.path)
 				.map_err(|e| crate::Error::cc("Directory policy rejected listed path", e.to_string()))
 		})
 		.collect()

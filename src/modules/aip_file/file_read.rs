@@ -9,17 +9,18 @@
 //! ### Functions
 //!
 //! - `aip.file.read(params: { path: string, base_dir?: string }) -> { info: FileInfo, content: string }`
-//! - `aip.file.list(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean }) -> FileInfo[]`
-//! - `aip.file.list_read(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean }) -> FileRecord[]`
-//! - `aip.file.first(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean }) -> FileInfo | nil`
+//! - `aip.file.list(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileInfo[]`
+//! - `aip.file.list_read(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileRecord[]`
+//! - `aip.file.first(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileInfo | nil`
 //! - `aip.file.info(params: { path: string, base_dir?: string }) -> FileInfo | nil`
 //! - `aip.file.exists(params: { path: string, base_dir?: string }) -> boolean`
-//! - `aip.file.stats(params: { globs?: string | string[], base_dir?: string }) -> FileStats | nil`
+//! - `aip.file.stats(params: { globs?: string | string[], base_dir?: string, contains?: ContainsCond }) -> FileStats | nil`
 //!
 //! ---
 //!
-use super::file_types::{DirContext, FileInfo, FileRecord, FileStats};
+use super::file_types::{ContainsCond, DirContext, FileInfo, FileRecord, FileStats};
 use super::support::{self, aip_file_error, file_info_from_meta, list_files_matching, validate_glob_patterns};
+use crate::base::file::ContentMatcher;
 use crate::{AipFromLua, AipIntoLua, HandlerCallContext, HandlerResult, LuaExt};
 use crate::{AipOutput, AipParams};
 use crate::{AipRegistry, AipRegistryBuilder};
@@ -89,6 +90,7 @@ pub struct AipFileListParams {
 	pub base_dir: Option<String>,
 	pub absolute: Option<bool>,
 	pub with_meta: Option<bool>,
+	pub contains: Option<ContainsCond>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -115,12 +117,14 @@ impl AipFromLua for AipFileListParams {
 		let base_dir = table.x_try_get_string("base_dir")?;
 		let absolute = table.x_try_get_bool("absolute")?;
 		let with_meta = table.x_try_get_bool("with_meta")?;
+		let contains = lua_value_to_optional_contains_cond(table, "contains")?;
 
 		Ok(AipFileListParams {
 			globs,
 			base_dir,
 			absolute,
 			with_meta,
+			contains,
 		})
 	}
 }
@@ -271,6 +275,7 @@ impl AipOutput for AipFileFirstOutput {}
 pub struct AipFileStatsParams {
 	pub globs: Option<FileGlobs>,
 	pub base_dir: Option<String>,
+	pub contains: Option<ContainsCond>,
 }
 
 impl AipFromLua for AipFileStatsParams {
@@ -278,7 +283,12 @@ impl AipFromLua for AipFileStatsParams {
 		let table = params_table(&value)?;
 		let globs = lua_value_to_optional_file_globs(table, "globs")?;
 		let base_dir = table.x_try_get_string("base_dir")?;
-		Ok(AipFileStatsParams { globs, base_dir })
+		let contains = lua_value_to_optional_contains_cond(table, "contains")?;
+		Ok(AipFileStatsParams {
+			globs,
+			base_dir,
+			contains,
+		})
 	}
 }
 
@@ -338,10 +348,17 @@ fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) ->
 fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
+	let matcher: Option<ContentMatcher> = params
+		.contains
+		.as_ref()
+		.map(TryInto::try_into)
+		.transpose()?;
 	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| {
+		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
+	})??;
 
 	let mut infos: Vec<FileInfo> = Vec::new();
 	for p in paths {
@@ -362,9 +379,16 @@ fn aip_file_list_read_handler(
 ) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
+	let matcher: Option<ContentMatcher> = params
+		.contains
+		.as_ref()
+		.map(TryInto::try_into)
+		.transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| {
+		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
+	})??;
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
@@ -417,9 +441,16 @@ fn aip_file_exists_handler(
 fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
+	let matcher: Option<ContentMatcher> = params
+		.contains
+		.as_ref()
+		.map(TryInto::try_into)
+		.transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| {
+		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
+	})??;
 
 	let data = paths
 		.into_iter()
@@ -447,8 +478,15 @@ fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) 
 		None => return Ok(AipFileStatsOutput(None)),
 	};
 	validate_glob_patterns(&globs)?;
+	let matcher: Option<ContentMatcher> = params
+		.contains
+		.as_ref()
+		.map(TryInto::try_into)
+		.transpose()?;
 
-	let paths = call.with::<DirContext, _>(|dir| list_files_matching(&globs, params.base_dir.as_deref(), dir))??;
+	let paths = call.with::<DirContext, _>(|dir| {
+		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
+	})??;
 
 	let mut number_of_files: usize = 0;
 	let mut total_size: u64 = 0;
@@ -530,6 +568,43 @@ fn lua_value_to_optional_file_globs(table: &mlua::Table, key: &str) -> crate::Re
 	lua_value_to_file_globs(table, key).map(Some)
 }
 
+#[allow(unused)]
+pub(crate) fn lua_value_to_optional_contains_cond(
+	table: &mlua::Table,
+	key: &str,
+) -> crate::Result<Option<ContainsCond>> {
+	let val: Value = table.get(key)?;
+	if val.is_nil() || val.x_is_null() {
+		return Ok(None);
+	}
+
+	if let Some(s) = val.x_as_lua_str() {
+		return Ok(Some(ContainsCond::String(s.to_string())));
+	}
+
+	if let Some(sub_table) = val.as_table() {
+		let text_opt = sub_table.x_try_get_string("text")?;
+		let regex_opt = sub_table.x_try_get_string("regex")?;
+		let ignore_case = sub_table.x_try_get_bool("ignore_case")?;
+
+		match (text_opt, regex_opt) {
+			(Some(_), Some(_)) => Err(crate::Error::custom(format!(
+				"Property '{key}' table cannot contain both 'text' and 'regex'"
+			))),
+			(Some(text), None) => Ok(Some(ContainsCond::Text { text, ignore_case })),
+			(None, Some(regex)) => Ok(Some(ContainsCond::Regex { regex, ignore_case })),
+			(None, None) => Err(crate::Error::custom(format!(
+				"Property '{key}' table must contain either 'text' or 'regex'"
+			))),
+		}
+	} else {
+		Err(crate::Error::custom(format!(
+			"Property '{key}' expected to be of type 'string or table', but was of type '{}'",
+			val.type_name()
+		)))
+	}
+}
+
 /// Extract the params table from a Lua value, failing with the actual type on mismatch.
 fn params_table(value: &Value) -> crate::Result<&mlua::Table> {
 	value.as_table().ok_or_else(|| {
@@ -550,6 +625,103 @@ fn required_string(table: &mlua::Table, key: &str) -> crate::Result<String> {
 // endregion: --- Support: Lua value helpers
 
 // region:    --- Tests
+
+#[cfg(test)]
+mod contains_cond_tests {
+	use super::*;
+	use crate::base::file::ContentMatcher;
+	use mlua::Lua;
+
+	#[test]
+	fn test_contains_cond_conversion_literal() {
+		let cond = ContainsCond::String("Hello".to_string());
+		let matcher: ContentMatcher = cond.try_into().unwrap();
+		assert!(matcher.matches_str("Say Hello to all"));
+		assert!(!matcher.matches_str("Say hello to all"));
+
+		let cond_nocase = ContainsCond::Text {
+			text: "Hello".to_string(),
+			ignore_case: Some(true),
+		};
+		let matcher_nocase: ContentMatcher = cond_nocase.try_into().unwrap();
+		assert!(matcher_nocase.matches_str("Say hello to all"));
+	}
+
+	#[test]
+	fn test_contains_cond_conversion_regex() {
+		let cond = ContainsCond::Regex {
+			regex: r"fn\s+test_[a-z]+".to_string(),
+			ignore_case: Some(false),
+		};
+		let matcher: ContentMatcher = cond.try_into().unwrap();
+		assert!(matcher.matches_str("pub fn test_abc()"));
+		assert!(!matcher.matches_str("pub fn TEST_abc()"));
+
+		let invalid_cond = ContainsCond::Regex {
+			regex: r"[a-z".to_string(),
+			ignore_case: None,
+		};
+		let err: crate::Result<ContentMatcher> = invalid_cond.try_into();
+		assert!(err.is_err());
+		assert!(err.unwrap_err().to_string().contains("[INVALID_REGEX]"));
+	}
+
+	#[test]
+	fn test_lua_value_to_optional_contains_cond() -> crate::Result<()> {
+		let lua = Lua::new();
+
+		// String shorthand
+		let table = lua.create_table()?;
+		table.set("contains", "search_target")?;
+		let res = lua_value_to_optional_contains_cond(&table, "contains")?;
+		assert_eq!(res, Some(ContainsCond::String("search_target".to_string())));
+
+		// Table with text and ignore_case
+		let text_table = lua.create_table()?;
+		text_table.set("text", "search_target")?;
+		text_table.set("ignore_case", true)?;
+		let table2 = lua.create_table()?;
+		table2.set("contains", text_table)?;
+		let res2 = lua_value_to_optional_contains_cond(&table2, "contains")?;
+		assert_eq!(
+			res2,
+			Some(ContainsCond::Text {
+				text: "search_target".to_string(),
+				ignore_case: Some(true),
+			})
+		);
+
+		// Table with regex
+		let regex_table = lua.create_table()?;
+		regex_table.set("regex", r"\d+")?;
+		let table3 = lua.create_table()?;
+		table3.set("contains", regex_table)?;
+		let res3 = lua_value_to_optional_contains_cond(&table3, "contains")?;
+		assert_eq!(
+			res3,
+			Some(ContainsCond::Regex {
+				regex: r"\d+".to_string(),
+				ignore_case: None,
+			})
+		);
+
+		// Table with both text and regex fails
+		let invalid_table = lua.create_table()?;
+		invalid_table.set("text", "foo")?;
+		invalid_table.set("regex", "bar")?;
+		let table4 = lua.create_table()?;
+		table4.set("contains", invalid_table)?;
+		let res4 = lua_value_to_optional_contains_cond(&table4, "contains");
+		assert!(res4.is_err());
+
+		// Absent / nil returns None
+		let empty_table = lua.create_table()?;
+		let res5 = lua_value_to_optional_contains_cond(&empty_table, "contains")?;
+		assert_eq!(res5, None);
+
+		Ok(())
+	}
+}
 
 #[cfg(test)]
 #[path = "file_read_tests.rs"]

@@ -428,3 +428,54 @@ pub struct FileStats {
 }
 
 // endregion: --- FileStats
+
+// region:    --- ContainsCond
+
+/// Content containment condition for filtering files by their content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum ContainsCond {
+	/// Exact substring match (case-sensitive by default).
+	String(String),
+	/// Configured literal text match.
+	Text {
+		text: String,
+		#[serde(default)]
+		ignore_case: Option<bool>,
+	},
+	/// Configured regular expression match.
+	Regex {
+		regex: String,
+		#[serde(default)]
+		ignore_case: Option<bool>,
+	},
+}
+
+impl TryFrom<ContainsCond> for crate::base::file::ContentMatcher {
+	type Error = crate::Error;
+
+	fn try_from(cond: ContainsCond) -> Result<Self, Self::Error> {
+		(&cond).try_into()
+	}
+}
+
+impl TryFrom<&ContainsCond> for crate::base::file::ContentMatcher {
+	type Error = crate::Error;
+
+	fn try_from(cond: &ContainsCond) -> Result<Self, Self::Error> {
+		match cond {
+			ContainsCond::String(text) => Ok(crate::base::file::ContentMatcher::new_literal(text, false)),
+			ContainsCond::Text { text, ignore_case } => Ok(crate::base::file::ContentMatcher::new_literal(
+				text,
+				ignore_case.unwrap_or(false),
+			)),
+			ContainsCond::Regex { regex, ignore_case } => {
+				crate::base::file::ContentMatcher::new_regex(regex, ignore_case.unwrap_or(false)).map_err(|e| {
+					crate::Error::custom(format!("[INVALID_REGEX] Invalid regex pattern: '{regex}': {e}"))
+				})
+			}
+		}
+	}
+}
+
+// endregion: --- ContainsCond
