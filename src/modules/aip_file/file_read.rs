@@ -82,7 +82,10 @@ impl AipOutput for AipFileReadOutput {}
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AipFileListParams {
+	/// Glob pattern or list of glob patterns to match files.
+	/// Supports negative globs prefixed with `!` (e.g., `!some-dir/*.*`), special to this API.
 	pub globs: FileGlobs,
+
 	pub base_dir: Option<String>,
 	pub absolute: Option<bool>,
 	pub with_meta: Option<bool>,
@@ -329,6 +332,8 @@ fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) ->
 
 /// Will list the files for the given file globs
 /// Lists files matching the given glob patterns, returning metadata for each.
+///
+/// Negative globs prefixed with `!` (e.g., `!**/*.tmp`) are supported to exclude matching files, special to this API.
 #[aip_handler]
 fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
