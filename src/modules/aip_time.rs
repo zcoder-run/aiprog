@@ -1,12 +1,6 @@
 //! Defines the `time` module, used in the Lua engine.
 //!
-//! ---
-//!
-//! ## Lua documentation
-//!
-//! The `aip.time` module exposes functions to retrieve, offset, format, and parse date and time information.
-//!
-//! ### Functions
+//! ## Lua functions
 //!
 //! - `aip.time.now_utc_micro(params?: TimeOffsetParams) -> integer`
 //! - `aip.time.now_local(params?: TimeOffsetParams) -> AipTimeData`
@@ -18,8 +12,6 @@
 //! - `aip.time.from_utc_micro(params: TimeOffsetParams) -> AipTimeData`
 //! - `aip.time.from_local_micro(params: TimeOffsetParams) -> AipTimeData`
 //! - `aip.time.parse(params: AipTimeParseParams) -> AipTimeData`
-//!
-//! ---
 
 #![allow(non_camel_case_types)]
 
@@ -204,7 +196,8 @@ pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBu
 
 // region:    --- Handlers
 
-/// Returns current Unix epoch time in microseconds, with optional offset.
+/// Returns current Unix epoch time in microseconds as a scalar integer, with optional offset.
+/// Note: Returns an integer number directly, not an AipTimeData table.
 #[aip_handler]
 fn aip_time_now_utc_micro_handler(
 	_call: HandlerCallContext,
@@ -215,7 +208,7 @@ fn aip_time_now_utc_micro_handler(
 	Ok(AipTimeMicroOutput(base.saturating_add(offset)))
 }
 
-/// Returns current local date-time data, with optional offset.
+/// Returns current local date-time as an AipTimeData table, with optional offset.
 #[aip_handler]
 fn aip_time_now_local_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
@@ -225,7 +218,7 @@ fn aip_time_now_local_handler(_call: HandlerCallContext, params: TimeOffsetParam
 	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
 }
 
-/// Returns current UTC date-time data, with optional offset.
+/// Returns current UTC date-time as an AipTimeData table, with optional offset.
 #[aip_handler]
 fn aip_time_now_utc_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
@@ -235,7 +228,7 @@ fn aip_time_now_utc_handler(_call: HandlerCallContext, params: TimeOffsetParams)
 	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
 }
 
-/// Returns local date-time data anchored at today's midnight (00:00:00.000000), with optional offset.
+/// Returns local date-time data anchored at today's midnight (00:00:00.000000) as an AipTimeData table, with optional offset.
 #[aip_handler]
 fn aip_time_today_local_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = base::time::today_local_midnight_micro().map_err(HandlerError::custom_from_err)?;
@@ -245,7 +238,7 @@ fn aip_time_today_local_handler(_call: HandlerCallContext, params: TimeOffsetPar
 	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
 }
 
-/// Returns UTC date-time data anchored at today's midnight (00:00:00.000000), with optional offset.
+/// Returns UTC date-time data anchored at today's midnight (00:00:00.000000) as an AipTimeData table, with optional offset.
 #[aip_handler]
 fn aip_time_today_utc_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = base::time::today_utc_midnight_micro().map_err(HandlerError::custom_from_err)?;
@@ -255,7 +248,7 @@ fn aip_time_today_utc_handler(_call: HandlerCallContext, params: TimeOffsetParam
 	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
 }
 
-/// Applies offsets to a given epoch microsecond timestamp.
+/// Applies offsets to a given epoch microsecond timestamp and returns the resulting scalar integer timestamp.
 #[aip_handler]
 fn aip_time_offset_micro_handler(
 	_call: HandlerCallContext,
@@ -266,7 +259,7 @@ fn aip_time_offset_micro_handler(
 	Ok(AipTimeMicroOutput(base.saturating_add(offset)))
 }
 
-/// Converts an epoch microsecond timestamp to date-time data, respecting is_local and optional offsets.
+/// Converts an epoch microsecond timestamp to an AipTimeData table, respecting is_local and optional offsets.
 #[aip_handler]
 fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
@@ -281,7 +274,7 @@ fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetPara
 	build_aip_time_data(&dt, is_local).map_err(HandlerError::custom_from_err)
 }
 
-/// Converts an epoch microsecond timestamp to UTC date-time data.
+/// Converts an epoch microsecond timestamp to UTC date-time data as an AipTimeData table.
 #[aip_handler]
 fn aip_time_from_utc_micro_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
@@ -291,7 +284,7 @@ fn aip_time_from_utc_micro_handler(_call: HandlerCallContext, params: TimeOffset
 	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
 }
 
-/// Converts an epoch microsecond timestamp to local date-time data.
+/// Converts an epoch microsecond timestamp to local date-time data as an AipTimeData table.
 #[aip_handler]
 fn aip_time_from_local_micro_handler(
 	_call: HandlerCallContext,
@@ -304,7 +297,7 @@ fn aip_time_from_local_micro_handler(
 	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
 }
 
-/// Parses an RFC 3339 or ISO 8601 string into an AipTimeData record.
+/// Parses an RFC 3339 or ISO 8601 string into an AipTimeData table.
 #[aip_handler]
 fn aip_time_parse_handler(_call: HandlerCallContext, params: AipTimeParseParams) -> HandlerResult<AipTimeData> {
 	let dt = base::time::parse_rfc3339_or_iso8601(&params.text)
