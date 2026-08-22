@@ -548,3 +548,54 @@ async fn test_aiprog_file_ensure_exists_and_ensure_dir() -> TestResult {
 
 	Ok(())
 }
+
+#[tokio::test]
+async fn test_aiprog_file_list_default_excludes_and_overrides() -> TestResult {
+	// -- Setup & Fixtures
+	let tmp = TempDir::new()?;
+	let workspace = simple_fs::SPath::from_std_path(tmp.path())?;
+	std::fs::create_dir_all(tmp.path().join("target/debug"))?;
+	std::fs::create_dir_all(tmp.path().join("node_modules/lib"))?;
+	std::fs::create_dir_all(tmp.path().join(".git"))?;
+	std::fs::create_dir_all(tmp.path().join("src"))?;
+
+	std::fs::write(tmp.path().join("target/debug/binary.txt"), "target content")?;
+	std::fs::write(tmp.path().join("node_modules/lib/dep.js"), "module content")?;
+	std::fs::write(tmp.path().join(".git/config"), "git config")?;
+	std::fs::write(tmp.path().join(".DS_Store"), "junk")?;
+	std::fs::write(tmp.path().join("src/main.rs"), "fn main() {}")?;
+
+	let dir_context = DirContext::from_base_dir(workspace)?;
+	let engine = ScriptEngine::builder()
+		.with_registry(AipRegistry::from_aip_modules()?)
+		.build()?;
+
+	let mut context = RunningContext::default();
+	context.insert(dir_context);
+
+	let lua_code = r#"
+        local all_files = aip.file.list({ globs = "**/*" })
+        local target_files = aip.file.list({ globs = "target/**/*" })
+        local custom_excluded = aip.file.list({ globs = { "**/*", "!**/*.rs" } })
+
+        return {
+            all_count = #all_files,
+            all_first = all_files[1].name,
+            target_count = #target_files,
+            target_first = target_files[1].name,
+            custom_count = #custom_excluded
+        }
+    "#;
+
+	// -- Exec
+	let result = engine.exec(lua_code, context).await?.result?;
+
+	// -- Check
+	assert_eq!(result["all_count"], json!(1));
+	assert_eq!(result["all_first"], json!("main.rs"));
+	assert_eq!(result["target_count"], json!(1));
+	assert_eq!(result["target_first"], json!("binary.txt"));
+	assert_eq!(result["custom_count"], json!(0));
+
+	Ok(())
+}
