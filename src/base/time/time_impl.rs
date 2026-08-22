@@ -67,6 +67,12 @@ pub fn epoch_micro_to_local_datetime(epoch_micro: i64) -> Result<OffsetDateTime>
 	Ok(utc_dt.to_offset(local_offset))
 }
 
+/// Converts an epoch microsecond timestamp to an `OffsetDateTime` with a specified `UtcOffset`.
+pub fn epoch_micro_to_offset_datetime(epoch_micro: i64, offset: UtcOffset) -> Result<OffsetDateTime> {
+	let utc_dt = epoch_micro_to_utc_datetime(epoch_micro)?;
+	Ok(utc_dt.to_offset(offset))
+}
+
 /// Converts an `OffsetDateTime` to Unix epoch microseconds.
 pub fn datetime_to_epoch_micro(dt: &OffsetDateTime) -> i64 {
 	(dt.unix_timestamp_nanos() / 1_000) as i64
@@ -164,6 +170,16 @@ mod tests {
 		let dt = epoch_micro_to_utc_datetime(micro)?;
 		let roundtrip = datetime_to_epoch_micro(&dt);
 		assert_eq!(micro, roundtrip);
+		Ok(())
+	}
+
+	#[test]
+	fn test_epoch_micro_to_offset_datetime() -> Result<()> {
+		let micro = 1_787_421_612_123_456i64;
+		let offset = UtcOffset::from_whole_seconds(-18_000).map_err(|e| format!("{e}"))?;
+		let dt = epoch_micro_to_offset_datetime(micro, offset)?;
+		assert_eq!(dt.offset().whole_seconds(), -18_000);
+		assert_eq!(datetime_to_epoch_micro(&dt), micro);
 		Ok(())
 	}
 

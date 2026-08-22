@@ -9,8 +9,6 @@
 //! - `aip.time.today_utc(params?: TimeOffsetParams) -> AipTimeData`
 //! - `aip.time.offset_micro(params: TimeOffsetParams) -> integer`
 //! - `aip.time.from_micro(params: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.from_utc_micro(params: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.from_local_micro(params: TimeOffsetParams) -> AipTimeData`
 //! - `aip.time.parse(params: AipTimeParseParams) -> AipTimeData`
 
 #![allow(non_camel_case_types)]
@@ -34,6 +32,9 @@ pub struct TimeOffsetParams {
 
 	/// Whether to evaluate/format in local timezone. Defaults to false (UTC).
 	pub is_local: Option<bool>,
+
+	/// Explicit UTC offset in seconds (e.g. -18000 for EST, 19800 for IST).
+	pub utc_offset_seconds: Option<i32>,
 
 	/// Offset in days (supports fractional and negative numbers).
 	pub day: Option<f64>,
@@ -128,6 +129,7 @@ impl AipFromLua for TimeOffsetParams {
 					Ok(Self {
 						epoch_micro: table.get("epoch_micro")?,
 						is_local: table.get("is_local")?,
+						utc_offset_seconds: table.get("utc_offset_seconds")?,
 						..Default::default()
 					})
 				} else {
@@ -186,8 +188,6 @@ pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBu
 	register_handler!(registry, "aip.time.today_utc", aip_time_today_utc_handler)?;
 	register_handler!(registry, "aip.time.offset_micro", aip_time_offset_micro_handler)?;
 	register_handler!(registry, "aip.time.from_micro", aip_time_from_micro_handler)?;
-	register_handler!(registry, "aip.time.from_utc_micro", aip_time_from_utc_micro_handler)?;
-	register_handler!(registry, "aip.time.from_local_micro", aip_time_from_local_micro_handler)?;
 	register_handler!(registry, "aip.time.parse", aip_time_parse_handler)?;
 	Ok(registry)
 }
@@ -259,42 +259,34 @@ fn aip_time_offset_micro_handler(
 	Ok(AipTimeMicroOutput(base.saturating_add(offset)))
 }
 
-/// Converts an epoch microsecond timestamp to an AipTimeData table, respecting is_local and optional offsets.
+/// Converts an epoch microsecond timestamp to an AipTimeData table, respecting is_local, utc_offset_seconds, and optional offsets.
 #[aip_handler]
 fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
 	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
 	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
 	let target_micro = base.saturating_add(offset);
-	let is_local = params.is_local.unwrap_or(false);
-	let dt = if is_local {
-		base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?
+	let (dt, is_local) = if let Some(secs) = params.utc_offset_seconds {
+		let utc_offset = time::UtcOffset::from_whole_seconds(secs)
+			.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{secs}': {e}")))?;
+		let is_local = params.is_local.unwrap_or_else(|| {
+			time::UtcOffset::current_local_offset().map(|loc| loc == utc_offset).unwrap_or(false)
+		});
+		(
+			base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset).map_err(HandlerError::custom_from_err)?,
+			is_local,
+		)
+	} else if params.is_local.unwrap_or(false) {
+		(
+			base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?,
+			true,
+		)
 	} else {
-		base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?
+		(
+			base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?,
+			false,
+		)
 	};
 	build_aip_time_data(&dt, is_local).map_err(HandlerError::custom_from_err)
-}
-
-/// Converts an epoch microsecond timestamp to UTC date-time data as an AipTimeData table.
-#[aip_handler]
-fn aip_time_from_utc_micro_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
-}
-
-/// Converts an epoch microsecond timestamp to local date-time data as an AipTimeData table.
-#[aip_handler]
-fn aip_time_from_local_micro_handler(
-	_call: HandlerCallContext,
-	params: TimeOffsetParams,
-) -> HandlerResult<AipTimeData> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
 }
 
 /// Parses an RFC 3339 or ISO 8601 string into an AipTimeData table.
@@ -476,23 +468,30 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_aip_time_from_utc_and_local_micro() -> Result<()> {
+	async fn test_aip_time_from_micro_variants() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
 			local base = 1787421612000000
-			local as_utc = aip.time.from_utc_micro({ epoch_micro = base })
-			local as_local = aip.time.from_local_micro({ epoch_micro = base })
-			return { utc = as_utc, local_t = as_local }
+			local as_utc = aip.time.from_micro({ epoch_micro = base })
+			local as_local = aip.time.from_micro({ epoch_micro = base, is_local = true })
+			local as_offset = aip.time.from_micro({ epoch_micro = base, utc_offset_seconds = -18000 })
+			local as_ist = aip.time.from_micro({ epoch_micro = base, utc_offset_seconds = 19800 })
+			return { utc = as_utc, local_t = as_local, offset_t = as_offset, ist_t = as_ist }
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
 		assert_eq!(res["utc"]["is_local"], false);
 		assert_eq!(res["utc"]["epoch_micro"], 1787421612000000i64);
+		assert_eq!(res["utc"]["utc_offset_seconds"], 0);
 		assert_eq!(res["local_t"]["is_local"], true);
 		assert_eq!(res["local_t"]["epoch_micro"], 1787421612000000i64);
+		assert_eq!(res["offset_t"]["utc_offset_seconds"], -18000);
+		assert_eq!(res["offset_t"]["epoch_micro"], 1787421612000000i64);
+		assert_eq!(res["ist_t"]["utc_offset_seconds"], 19800);
+		assert_eq!(res["ist_t"]["epoch_micro"], 1787421612000000i64);
 
 		// Test scalar integer input directly
 		let script_scalar = r#"
-			local as_utc = aip.time.from_utc_micro(1787421612000000)
+			local as_utc = aip.time.from_micro(1787421612000000)
 			return as_utc
 		"#;
 		let res_scalar = _test_support::eval_script(&engine, script_scalar).await?;
