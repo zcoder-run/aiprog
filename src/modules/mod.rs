@@ -6,6 +6,7 @@ mod aip_file;
 mod aip_html;
 mod aip_json;
 pub mod aip_md;
+pub mod aip_time;
 mod aip_web;
 
 pub use aip_file::file_types::{AbsolutePathPolicy, DirContext, DirPolicyError, PathPolicy, ResolvedDirPath};
@@ -28,6 +29,9 @@ pub struct HtmlModule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MdModule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TimeModule;
 
 impl AipModule for JsonModule {
 	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
@@ -66,6 +70,12 @@ impl AipModule for MdModule {
 	}
 }
 
+impl AipModule for TimeModule {
+	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		aip_time::register(builder)
+	}
+}
+
 // endregion: --- Module Types
 
 // region:    --- Combined Registry
@@ -81,6 +91,7 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 		.add_module(FileModule)?
 		.add_module(HtmlModule)?
 		.add_module(MdModule)?
+		.add_module(TimeModule)?
 		.build())
 }
 
@@ -159,6 +170,23 @@ mod tests {
 
 		// -- Check
 		assert!(paths.iter().any(|path| path == "aip.md.make_table"));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_modules_init_registry_contains_time_module() -> Result<()> {
+		// -- Exec
+		let registry = init_registry()?;
+		let paths = registry
+			.list_registered_fns()
+			.into_iter()
+			.map(|registered| registered.path)
+			.collect::<Vec<_>>();
+
+		// -- Check
+		assert!(paths.iter().any(|path| path == "aip.time.now_utc_micro"));
+		assert!(paths.iter().any(|path| path == "aip.time.parse"));
 
 		Ok(())
 	}

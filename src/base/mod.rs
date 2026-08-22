@@ -6,6 +6,7 @@ pub mod file;
 pub mod jsons;
 pub mod md;
 pub mod text;
+pub mod time;
 pub mod webc;
 
 // endregion: --- Modules
