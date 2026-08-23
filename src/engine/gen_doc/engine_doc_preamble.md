@@ -35,26 +35,29 @@ Reusable types shared across multiple handlers (e.g., `FileGlobs`, `FileInfo`) a
 
 ## Additional Lua Native Functions
 
-In addition to the handlers exposed by registered modules, the Lua runtime provides a set of global utility functions. These are installed by the engine at initialization and are available in every script.
+Global Lua utilities available in every script.
 
-The following functions follow the same signature notation outlined in [Function Signatures](#function-signatures). All are global functions. Unless specified otherwise, they do not return errors.
+```ts
+null / Null / NULL // engine null sentinel, distinct from nil
 
-- `null` / `Null` / `NULL` — global constants that hold the engine's null sentinel. This sentinel is distinct from Lua's built-in `nil` and can be tested with the null-checking functions below.
+is_null(x: any): boolean
+is_not_null(x: any): boolean
+nil_if_null(x: any): any
+value_or(...values: any[]): any // first non-nil/non-null value
 
-- `is_null(x: any): boolean` — returns `true` if `x` is `nil` or the engine's null sentinel.
+is_table(x: any): boolean
+is_list(x: any): boolean   // array-like table
+is_object(x: any): boolean // object-like table
 
-- `is_not_null(x: any): boolean` — returns `true` if `x` is neither `nil` nor the null sentinel.
+merge(
+  target?: table|nil|null,
+  ...sources: table|nil|null
+): table|nil // shallow, mutates target; nil/null inputs are skipped
 
-- `nil_if_null(x: any): any` — returns `x` if it is a meaningful value; otherwise returns `nil`. Useful for converting the null sentinel into Lua's `nil` for standard operations.
+merge_deep(
+  target?: table|nil|null,
+  ...sources: table|nil|null
+): table|nil // recursive, mutates target; nil/null inputs are skipped
+```
 
-- `value_or(...values: any[]): any` — returns the first argument that is not null or the engine's null sentinel; returns `nil` if all arguments are null/nil or no arguments are provided. Provides a fallback pattern similar to `??` in many languages.
-
-- `is_table(x: any): boolean` — returns `true` if `x` is a Lua table (excluding `nil` and null).
-
-- `is_list(x: any): boolean` — returns `true` if `x` is a Lua table that appears to be an array-like list (its first numeric index is not `nil`).
-
-- `is_object(x: any): boolean` — returns `true` if `x` is a Lua table that appears to be a dictionary/object (its first numeric index is `nil`).
-
-- `merge(target?: table|nil|null, ...sources: table|nil|null): table|nil` — Merges source tables into a target. The target may be `nil` or `null`; if so, the first non‑`nil`/non‑`null` table is used as the target. Arguments that are `nil` or `null` are skipped. Returns the target (modified in place) or `nil` if no non‑`nil`/non‑`null` table is provided. Raises an error if any source besides the target is not a table, `nil`, or `null`.
-
-- `merge_deep(target?: table|nil|null, ...sources: table|nil|null): table|nil` — Deep merges source tables into a target. The target may be `nil` or `null`; if so, the first non‑`nil`/non‑`null` table is used as the target. When both keys hold tables, they are recursively merged; otherwise the target's value is overwritten. Arguments that are `nil` or `null` are skipped. Returns the target (modified in place) or `nil` if no non‑`nil`/non‑`null` table is provided. Raises an error if any source besides the target is not a table, `nil`, or `null`.
+`merge*` uses the first non-nil/non-null table as the target when needed and errors on invalid source types.

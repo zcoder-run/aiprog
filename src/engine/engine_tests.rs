@@ -300,13 +300,13 @@ fn test_generate_doc_content() -> Result<()> {
 	let doc = engine.generate_doc()?;
 
 	// Check for expected sections
-	assert!(doc.contains("### aip.test.echo"));
-	assert!(doc.contains("### aip.test.echo_async"));
-	// Verify TypeScript block is present
+	assert!(doc.contains("## aip.test.*"));
+	assert!(doc.contains("echo(params: AipTestEchoParams): AipTestEchoOutput"));
+	assert!(doc.contains("echo_async(params: AipTestEchoParams): AipTestEchoOutput"));
+	// // Verify TypeScript block and types are present
 	assert!(doc.contains("```ts"));
-	assert!(doc.contains("type Params"));
-	assert!(doc.contains("type Output"));
-	assert!(doc.contains("type Error"));
+	assert!(doc.contains("### aip.test.* Types"));
+	assert!(doc.contains("type AipTestEchoParams ="));
 
 	Ok(())
 }

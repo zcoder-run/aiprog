@@ -12,6 +12,85 @@ use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+// -- Module grouping tests
+
+#[test]
+fn test_group_fns_by_module() {
+	let params_schema = schema_for!(String);
+	let output_schema = schema_for!(String);
+	let error_schema: Schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+	let fn1 = AipRegisteredFn {
+		path: "aip.file.list".to_string(),
+		params_schema: params_schema.clone(),
+		output_schema: output_schema.clone(),
+		error_schema: error_schema.clone(),
+		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
+	};
+	let fn2 = AipRegisteredFn {
+		path: "aip.file.read".to_string(),
+		params_schema: params_schema.clone(),
+		output_schema: output_schema.clone(),
+		error_schema: error_schema.clone(),
+		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
+	};
+	let fn3 = AipRegisteredFn {
+		path: "aip.time.now".to_string(),
+		params_schema: params_schema.clone(),
+		output_schema: output_schema.clone(),
+		error_schema: error_schema.clone(),
+		kind: AipFnKind::Sync,
+		description: None,
+		title: None,
+	};
+
+	let fns = vec![&fn3, &fn1, &fn2];
+	let groups = super::gen_doc_impl::group_fns_by_module(&fns);
+
+	assert_eq!(groups.len(), 2);
+	assert_eq!(groups[0].module_path, "aip.file");
+	assert_eq!(groups[0].fns.len(), 2);
+	assert_eq!(groups[0].fns[0].path, "aip.file.list");
+	assert_eq!(groups[0].fns[1].path, "aip.file.read");
+
+	assert_eq!(groups[1].module_path, "aip.time");
+	assert_eq!(groups[1].fns.len(), 1);
+	assert_eq!(groups[1].fns[0].path, "aip.time.now");
+}
+
+#[test]
+fn test_path_to_type_name() {
+	assert_eq!(path_to_type_name("aip.file.list", "Params"), "AipFileListParams");
+	assert_eq!(path_to_type_name("aip.time.offset", "Output"), "AipTimeOffsetOutput");
+	assert_eq!(path_to_type_name("my_func", "Params"), "MyFuncParams");
+	assert_eq!(path_to_type_name("custom-tool_name.do_work", "Params"), "CustomToolNameDoWorkParams");
+}
+
+#[test]
+fn test_render_fn_signature() {
+	let params_schema = schema_for!(SimpleParams);
+	let output_schema = schema_for!(String);
+	let error_schema: Schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+	let reg_fn = AipRegisteredFn {
+		path: "aip.file.read".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("Reads a file from disk.".to_string()),
+		title: None,
+	};
+
+	let sig = render_fn_signature(&reg_fn);
+	assert!(sig.contains("// Reads a file from disk.\n"));
+	assert!(sig.contains("aip.file.read(params: AipFileReadParams): string\n"));
+}
+
 type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
 // -- Test schemas
@@ -20,6 +99,91 @@ type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 struct SimpleParams {
 	name: String,
 	age: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ReadParams {
+	path: String,
+}
+
+#[test]
+fn test_render_module_signatures() {
+	let params_schema1 = schema_for!(SimpleParams);
+	let params_schema2 = schema_for!(ReadParams);
+	let output_schema = schema_for!(String);
+	let error_schema: Schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+	let fn1 = AipRegisteredFn {
+		path: "aip.file.list".to_string(),
+		params_schema: params_schema1,
+		output_schema: output_schema.clone(),
+		error_schema: error_schema.clone(),
+		kind: AipFnKind::Sync,
+		description: Some("Lists files matching glob patterns.".to_string()),
+		title: None,
+	};
+	let fn2 = AipRegisteredFn {
+		path: "aip.file.read".to_string(),
+		params_schema: params_schema2,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("Reads a file from disk.".to_string()),
+		title: None,
+	};
+
+	let fns = vec![&fn1, &fn2];
+	let result = render_module_signatures("aip.file", &fns);
+
+	assert!(result.starts_with("## aip.file.*\n\n```ts\n"));
+	assert!(result.contains("// Lists files matching glob patterns.\n"));
+	assert!(result.contains("aip.file.list(params: AipFileListParams): string\n"));
+	assert!(result.contains("// Reads a file from disk.\n"));
+	assert!(result.contains("aip.file.read(params: AipFileReadParams): string\n"));
+	assert!(result.ends_with("```\n\n"));
+}
+
+#[test]
+fn test_render_module_deduplication() {
+	let params_schema = schema_for!(SimpleParams);
+	let output_schema = schema_for!(String);
+	let error_schema: Schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+	let fn1 = AipRegisteredFn {
+		path: "aip.time.add".to_string(),
+		params_schema: params_schema.clone(),
+		output_schema: output_schema.clone(),
+		error_schema: error_schema.clone(),
+		kind: AipFnKind::Sync,
+		description: Some("Adds time offset.".to_string()),
+		title: None,
+	};
+	let fn2 = AipRegisteredFn {
+		path: "aip.time.sub".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("Subtracts time offset.".to_string()),
+		title: None,
+	};
+
+	let fns = vec![&fn1, &fn2];
+	let group = super::gen_doc_impl::ModuleGroup {
+		module_path: "aip.time".to_string(),
+		fns,
+	};
+	let (sig_block, types) = render_module(&group);
+
+	assert!(sig_block.contains("aip.time.add(params: AipTimeAddParams): string\n"));
+	assert!(sig_block.contains("aip.time.sub(params: AipTimeAddParams): string\n"));
+	assert_eq!(types.len(), 1);
+	assert_eq!(types[0].name, "AipTimeAddParams");
+
+	let types_block = render_module_types("aip.time", &types);
+	assert!(types_block.contains("### aip.time.* Types\n\n```ts\n"));
+	assert!(types_block.contains("type AipTimeAddParams = {"));
+	assert!(!types_block.contains("AipTimeSubParams"));
 }
 
 // region:    --- Handler metadata tests
@@ -352,7 +516,7 @@ fn test_generate_doc_shared_types() -> TestResult {
 	});
 
 	let doc = engine.generate_doc()?;
-	assert!(doc.contains("### test.fn"));
+	assert!(doc.contains("## test.*"));
 	assert!(doc.contains("## Shared Types"));
 	assert!(doc.contains("type SharedConfig"));
 	assert!(doc.contains("// A shared configuration object"));
@@ -396,7 +560,7 @@ fn test_generate_doc_skips_common_error_block() -> TestResult {
 
 	let doc = engine.generate_doc()?;
 
-	// The common error type should appear only in the preamble, not per-function.
+	// The common error type should appear only in the preamble, not per module.
 	let error_type_count = doc.matches("type Error = {\n  message: string;\n};").count();
 	assert_eq!(
 		error_type_count, 1,
@@ -488,12 +652,14 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 	let doc = engine.generate_doc()?;
 
 	// -- Check
-	assert!(doc.contains("### aip.doc.sync"));
+	assert!(doc.contains("## aip.doc.*"));
 	assert!(!doc.contains("Sync handler title"));
 	assert!(doc.contains("Sync handler description text."));
-	assert!(doc.contains("type Params = {"));
+	assert!(doc.contains("aip.doc.sync(params: AipDocSyncParams): AipDocSyncOutput"));
+	assert!(doc.contains("### aip.doc.* Types"));
+	assert!(doc.contains("type AipDocSyncParams = {"));
 	assert!(doc.contains("name: string;"));
-	assert!(doc.contains("type Output = {"));
+	assert!(doc.contains("type AipDocSyncOutput = {"));
 	assert!(doc.contains("greeting: string;"));
 	Ok(())
 }
@@ -509,12 +675,14 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	let doc = engine.generate_doc()?;
 
 	// -- Check
-	assert!(doc.contains("### aip.doc.async"));
+	assert!(doc.contains("## aip.doc.*"));
 	assert!(!doc.contains("Async handler title"));
 	assert!(doc.contains("Async handler description."));
-	assert!(doc.contains("type Params = {"));
+	assert!(doc.contains("aip.doc.async(params: AipDocAsyncParams): AipDocAsyncOutput"));
+	assert!(doc.contains("### aip.doc.* Types"));
+	assert!(doc.contains("type AipDocAsyncParams = {"));
 	assert!(doc.contains("value: number;"));
-	assert!(doc.contains("type Output = {"));
+	assert!(doc.contains("type AipDocAsyncOutput = {"));
 	assert!(doc.contains("doubled: number;"));
 	Ok(())
 }
@@ -537,11 +705,10 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 	let doc = engine.generate_doc()?;
 
 	// -- Check
-	assert!(doc.contains("### aip.doc.fallback"));
+	assert!(doc.contains("## aip.doc.*"));
 	// Should fall back to Params schema description
 	assert!(doc.contains("Root description for the params."));
-	// Should NOT have a title heading (no handler metadata)
-	assert!(!doc.contains("#### "));
+	assert!(doc.contains("aip.doc.fallback(params: AipDocFallbackParams): AipDocFallbackOutput"));
 	Ok(())
 }
 

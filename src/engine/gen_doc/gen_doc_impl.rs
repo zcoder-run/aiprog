@@ -1,15 +1,47 @@
 // region:    --- Modules
 
-use super::fn_renderer::render_fn;
+use super::fn_renderer::{render_module, render_module_types};
 use super::type_renderer::render_type_block;
 use crate::AipRegisteredFn;
 use crate::Result;
 use crate::engine::LuaEngine;
 use crate::schema_ref::SchemaRef;
 use schemars::Schema;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 // endregion: --- Modules
+
+// region:    --- Module Grouping
+
+#[derive(Debug, Clone)]
+pub(crate) struct ModuleGroup<'a> {
+	pub module_path: String,
+	pub fns: Vec<&'a AipRegisteredFn>,
+}
+
+/// Group registered functions by module namespace prefix (e.g., `aip.file` from `aip.file.list`).
+/// Modules and functions within each module are sorted deterministically.
+pub(crate) fn group_fns_by_module<'a>(fns: &'a [&'a AipRegisteredFn]) -> Vec<ModuleGroup<'a>> {
+	let mut map: BTreeMap<String, Vec<&'a AipRegisteredFn>> = BTreeMap::new();
+	for f in fns {
+		let module_path = match f.path.rsplit_once('.') {
+			Some((module, _)) => module.to_string(),
+			None => f.path.clone(),
+		};
+		map.entry(module_path).or_default().push(*f);
+	}
+	map.into_iter()
+		.map(|(module_path, mut group_fns)| {
+			group_fns.sort_by(|a, b| a.path.cmp(&b.path));
+			ModuleGroup {
+				module_path,
+				fns: group_fns,
+			}
+		})
+		.collect()
+}
+
+// endregion: --- Module Grouping
 
 // region:    --- Doc Generation
 
@@ -24,18 +56,13 @@ pub fn generate_doc_from_fns(fns: &[AipRegisteredFn]) -> Result<String> {
 	let mut fns: Vec<&AipRegisteredFn> = fns.iter().collect();
 	fns.sort_by(|a, b| a.path.cmp(&b.path));
 
-	// Detect error schemas that are HandlerError<KindNone> and should be inlined.
-	let use_inline_error: Vec<bool> = fns.iter().map(|f| is_kind_none_error_schema(&f.error_schema)).collect();
-
-	let inline_error_schema = inline_error_schema();
-
 	let mut all_ref_keys = HashSet::new();
 	let mut definitions: HashMap<String, Schema> = HashMap::new();
 
-	for (i, reg_fn) in fns.iter().enumerate() {
+	for reg_fn in &fns {
 		collect_schema_info(&reg_fn.params_schema, &mut all_ref_keys, &mut definitions);
 		collect_schema_info(&reg_fn.output_schema, &mut all_ref_keys, &mut definitions);
-		if !use_inline_error[i] {
+		if !is_kind_none_error_schema(&reg_fn.error_schema) {
 			collect_schema_info(&reg_fn.error_schema, &mut all_ref_keys, &mut definitions);
 		}
 	}
@@ -45,13 +72,13 @@ pub fn generate_doc_from_fns(fns: &[AipRegisteredFn]) -> Result<String> {
 	// TODO: Should have a support::ensure_end_with_two_nline
 	doc.push_str("\n\n");
 
-	for (i, reg_fn) in fns.iter().enumerate() {
-		let error_schema = if use_inline_error[i] {
-			Some(&inline_error_schema)
-		} else {
-			None
-		};
-		doc.push_str(&render_fn(reg_fn, error_schema));
+	let groups = group_fns_by_module(&fns);
+	for group in &groups {
+		let (signatures_block, module_types) = render_module(group);
+		doc.push_str(&signatures_block);
+		if !module_types.is_empty() {
+			doc.push_str(&render_module_types(&group.module_path, &module_types));
+		}
 	}
 
 	if !all_ref_keys.is_empty() {
@@ -110,18 +137,6 @@ fn is_kind_none_error_schema(schema: &Schema) -> bool {
 	} else {
 		false
 	}
-}
-
-/// Create an inlined error schema equivalent to `HandlerError<KindNone>`.
-fn inline_error_schema() -> Schema {
-	Schema::try_from(serde_json::json!({
-		"type": "object",
-		"properties": {
-			"message": { "type": "string" }
-		},
-		"required": ["message"]
-	}))
-	.expect("Failed to create inline error schema")
 }
 
 // endregion: --- Schema Helpers
