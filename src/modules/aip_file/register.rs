@@ -1,6 +1,7 @@
 use crate::Result;
 use crate::{AipRegistry, AipRegistryBuilder};
 
+use super::FileModule;
 use super::{file_read, file_write};
 
 /// Build and return an [`AipRegistry`] containing all `aip.file` handlers.
@@ -10,7 +11,7 @@ use super::{file_read, file_write};
 /// existing registry.
 #[allow(dead_code)]
 pub fn init_registry() -> Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
+	Ok(AipRegistryBuilder::default().add_module(FileModule)?.build())
 }
 
 pub fn register(registry: AipRegistryBuilder) -> Result<AipRegistryBuilder> {

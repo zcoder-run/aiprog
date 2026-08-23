@@ -4,15 +4,16 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tes
 
 use value_ext::JsonValueExt as _;
 
+use crate::AipRegistryBuilder;
 use crate::_test_support;
-use crate::modules;
+use crate::modules::WebModule;
 
 #[tokio::test]
 async fn test_api_web_constants() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
 	// Install the constants (must be done after the functions are installed)
-	modules::aip_web::install_constants(&engine)?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	// -- Exec
 	let script = r#"
@@ -35,8 +36,8 @@ async fn test_api_web_constants() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_get_simple() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -64,8 +65,8 @@ async fn test_api_web_get_simple() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_json() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -96,8 +97,8 @@ async fn test_api_web_post_json() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_body() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -127,8 +128,8 @@ async fn test_api_web_post_body() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_error() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new().start().await?;
 	let url = server.path_url("/test");
@@ -147,8 +148,8 @@ async fn test_api_web_post_error() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -184,8 +185,8 @@ async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
 #[tokio::test]
 async fn test_api_web_post_explicit_content_type_override_string() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -217,8 +218,8 @@ async fn test_api_web_post_explicit_content_type_override_string() -> Result<()>
 #[tokio::test]
 async fn test_api_web_post_omitted_body() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(modules::aip_web::init_registry)?;
-	modules::aip_web::install_constants(&engine)?;
+	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
+	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)

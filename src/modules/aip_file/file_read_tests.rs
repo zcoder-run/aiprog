@@ -2,7 +2,7 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tes
 
 use super::super::file_types::{AbsolutePathPolicy, DirPolicyError, PathPolicy};
 use super::*;
-use crate::{RunningContext, ScriptEngine};
+use crate::{AipRegistryBuilder, RunningContext, ScriptEngine};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -167,7 +167,7 @@ fn test_aip_file_dir_context_invalid_base_dir_outside_roots() -> Result<()> {
 // region:    --- Test Support
 
 fn setup_test_engine() -> Result<ScriptEngine> {
-	let registry = super::init_registry()?;
+	let registry = AipRegistryBuilder::default().add_module(super::super::FileModule)?.build();
 	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 	Ok(engine)
 }

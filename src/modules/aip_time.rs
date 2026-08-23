@@ -16,7 +16,7 @@
 use crate::base;
 use crate::derive::{AipOutput, AipParams};
 use crate::registry::{HandlerError, HandlerResult};
-use crate::{AipFromLua, AipIntoLua, AipRegistry, AipRegistryBuilder, HandlerCallContext};
+use crate::{AipFromLua, AipIntoLua, AipModule, AipRegistry, AipRegistryBuilder, HandlerCallContext};
 use aiprog_macros::{aip_handler, register_handler};
 use mlua::LuaSerdeExt;
 use time::OffsetDateTime;
@@ -174,10 +174,19 @@ impl AipIntoLua for AipTimeMicroOutput {
 
 // region:    --- Module Registration
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TimeModule;
+
+impl AipModule for TimeModule {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		register(builder)
+	}
+}
+
 /// Build and return an [`AipRegistry`] containing all `aip.time` handlers.
 #[allow(dead_code)]
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
+	Ok(AipRegistryBuilder::default().add_module(TimeModule)?.build())
 }
 
 pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {

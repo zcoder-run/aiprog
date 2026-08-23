@@ -16,21 +16,26 @@
 
 use crate::LuaExt;
 use crate::registry::HandlerResult;
-use crate::{AipFromLua, AipIntoLua, AipParams, HandlerCallContext};
+use crate::{AipFromLua, AipIntoLua, AipModule, AipParams, HandlerCallContext};
 use crate::{AipOutput, AipRegistry, AipRegistryBuilder};
 use aiprog_macros::{aip_handler, register_handler};
 use mlua::Lua;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HtmlModule;
+
+impl AipModule for HtmlModule {
+	fn register(mut builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		register_handler!(builder, "aip.html.slim", aip_html_slim_handler)?;
+		register_handler!(builder, "aip.html.to_md", aip_html_to_md_handler)?;
+		Ok(builder)
+	}
+}
+
 /// Build and return an [`AipRegistry`] containing all `aip.html` handlers.
 #[allow(dead_code)]
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
-}
-
-pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-	register_handler!(registry, "aip.html.slim", aip_html_slim_handler)?;
-	register_handler!(registry, "aip.html.to_md", aip_html_to_md_handler)?;
-	Ok(registry)
+	Ok(AipRegistryBuilder::default().add_module(HtmlModule)?.build())
 }
 
 // region:    --- aip.html.slim

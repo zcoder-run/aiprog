@@ -19,11 +19,11 @@
 //! ---
 //!
 
-use crate::LuaJsonExt;
+use crate::{AipModule, LuaJsonExt, NativeFunctionSet};
 use crate::base::webc;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::{AipFromLua, AipIntoLua, HandlerCallContext, LuaExt};
-use crate::{AipRegistry, AipRegistryBuilder};
+use crate::AipRegistryBuilder;
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -32,14 +32,20 @@ const DEFAULT_UA_AIPROG: &str = "aiprog";
 const DEFAULT_UA_BROWSER: &str =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
-/// Build and return an [`AipRegistry`] containing all `aip.web` handlers.
-///
-/// This is the recommended way to obtain a registry for this module.
-/// Use [`register`](register) if you need to add the handlers into an
-/// existing registry.
-#[allow(dead_code)]
-pub fn init_registry() -> crate::Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WebModule;
+
+impl AipModule for WebModule {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		register(builder)
+	}
+}
+
+impl WebModule {
+	#[allow(dead_code)]
+	pub fn native_functions(&self) -> NativeFunctionSet {
+		NativeFunctionSet::default().append_installer(native_function_installer())
+	}
 }
 
 pub fn register(registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {

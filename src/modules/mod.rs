@@ -1,4 +1,4 @@
-use crate::{AipModule, AipRegistry, AipRegistryBuilder, NativeFunctionSet, modules};
+use crate::{AipRegistry, AipRegistryBuilder, NativeFunctionSet};
 
 // region:    --- Modules
 
@@ -9,67 +9,16 @@ pub mod aip_md;
 pub mod aip_time;
 mod aip_web;
 
+pub use aip_file::FileModule;
 pub use aip_file::file_types::{AbsolutePathPolicy, DirContext, DirPolicyError, PathPolicy, ResolvedDirPath};
 
+pub use aip_html::HtmlModule;
 pub use aip_json::JsonModule;
+pub use aip_md::MdModule;
+pub use aip_time::TimeModule;
+pub use aip_web::WebModule;
 
 // endregion: --- Modules
-
-// region:    --- Module Types
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct WebModule;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct FileModule;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HtmlModule;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MdModule;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TimeModule;
-
-impl AipModule for WebModule {
-	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_web::register(builder)
-	}
-}
-
-impl WebModule {
-	#[allow(dead_code)]
-	pub fn native_functions(&self) -> NativeFunctionSet {
-		NativeFunctionSet::default().append_installer(aip_web::native_function_installer())
-	}
-}
-
-impl AipModule for FileModule {
-	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_file::register::register(builder)
-	}
-}
-
-impl AipModule for HtmlModule {
-	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_html::register(builder)
-	}
-}
-
-impl AipModule for MdModule {
-	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_md::register(builder)
-	}
-}
-
-impl AipModule for TimeModule {
-	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_time::register(builder)
-	}
-}
-
-// endregion: --- Module Types
 
 // region:    --- Combined Registry
 
@@ -79,7 +28,7 @@ impl AipModule for TimeModule {
 /// The `aip.file` module uses a default `FileContext` (current directory).
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	Ok(AipRegistryBuilder::default()
-		.add_module(modules::JsonModule)?
+		.add_module(JsonModule)?
 		.add_module(WebModule)?
 		.add_module(FileModule)?
 		.add_module(HtmlModule)?
@@ -98,116 +47,7 @@ pub fn native_functions() -> NativeFunctionSet {
 // region:    --- Tests
 
 #[cfg(test)]
-mod tests {
-	type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
-
-	use super::*;
-	use crate::{RegistrySelectionOptions, RunningContext, ScriptEngine, UnmatchedPatternPolicy};
-
-	#[test]
-	fn test_modules_add_module_independent_composition() -> Result<()> {
-		// -- Setup & Fixtures
-		let json_registry = AipRegistryBuilder::default().add_module(JsonModule)?.build();
-		let web_registry = AipRegistryBuilder::default().add_module(WebModule)?.build();
-
-		// -- Exec
-		let combined = json_registry.to_builder().merge(web_registry)?.build();
-		let paths = combined
-			.list_registered_fns()
-			.into_iter()
-			.map(|registered| registered.path)
-			.collect::<Vec<_>>();
-
-		// -- Check
-		assert!(paths.iter().any(|path| path == "aip.json.parse"));
-		assert!(paths.iter().any(|path| path == "aip.web.get"));
-		assert_eq!(json_registry.list_registered_fns().len(), 3);
-
-		Ok(())
-	}
-
-	#[test]
-	fn test_modules_select_changes_exposed_surface() -> Result<()> {
-		// -- Setup & Fixtures
-		let registry = init_registry()?;
-
-		// -- Exec
-		let selected = registry.select(
-			["aip.json.*"],
-			RegistrySelectionOptions {
-				unmatched_patterns: UnmatchedPatternPolicy::Error,
-			},
-		)?;
-		let paths = selected
-			.list_registered_fns()
-			.into_iter()
-			.map(|registered| registered.path)
-			.collect::<Vec<_>>();
-
-		// -- Check
-		assert!(!paths.is_empty());
-		assert!(paths.iter().all(|path| path.starts_with("aip.json.")));
-
-		Ok(())
-	}
-
-	#[test]
-	fn test_modules_init_registry_contains_md_module() -> Result<()> {
-		// -- Exec
-		let registry = init_registry()?;
-		let paths = registry
-			.list_registered_fns()
-			.into_iter()
-			.map(|registered| registered.path)
-			.collect::<Vec<_>>();
-
-		// -- Check
-		assert!(paths.iter().any(|path| path == "aip.md.make_table"));
-
-		Ok(())
-	}
-
-	#[test]
-	fn test_modules_init_registry_contains_time_module() -> Result<()> {
-		// -- Exec
-		let registry = init_registry()?;
-		let paths = registry
-			.list_registered_fns()
-			.into_iter()
-			.map(|registered| registered.path)
-			.collect::<Vec<_>>();
-
-		// -- Check
-		assert!(paths.iter().any(|path| path == "aip.time.now_utc_micro"));
-		assert!(paths.iter().any(|path| path == "aip.time.parse"));
-
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn test_modules_web_native_functions_install_constants() -> Result<()> {
-		// -- Setup & Fixtures
-		let registry = AipRegistryBuilder::default().add_module(WebModule)?.build();
-		let template = ScriptEngine::builder()
-			.with_registry(registry)
-			.with_native_functions(WebModule.native_functions())
-			.build()?;
-
-		// -- Exec
-		let outcome = template
-			.exec(
-				"return { aip.web.UA_AIPROG, aip.web.UA_BROWSER }",
-				RunningContext::default(),
-			)
-			.await?;
-		let value = outcome.result?;
-
-		// -- Check
-		assert_eq!(value[0], "aiprog");
-		assert!(value[1].as_str().is_some_and(|value| value.contains("Mozilla/5.0")));
-
-		Ok(())
-	}
-}
+#[path = "mod_tests.rs"]
+mod tests;
 
 // endregion: --- Tests

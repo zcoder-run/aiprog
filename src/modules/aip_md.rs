@@ -16,20 +16,25 @@
 use crate::LuaExt;
 use crate::base::md::{CellValue, make_table};
 use crate::registry::HandlerResult;
-use crate::{AipFromLua, AipIntoLua, AipOutput, AipParams, HandlerCallContext};
+use crate::{AipFromLua, AipIntoLua, AipModule, AipOutput, AipParams, HandlerCallContext};
 use crate::{AipRegistry, AipRegistryBuilder};
 use aiprog_macros::{aip_handler, register_handler};
 use mlua::Lua;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MdModule;
+
+impl AipModule for MdModule {
+	fn register(mut builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		register_handler!(builder, "aip.md.make_table", aip_md_make_table_handler)?;
+		Ok(builder)
+	}
+}
+
 /// Build and return an [`AipRegistry`] containing all `aip.md` handlers.
 #[allow(dead_code)]
 pub fn init_registry() -> crate::Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
-}
-
-pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-	register_handler!(registry, "aip.md.make_table", aip_md_make_table_handler)?;
-	Ok(registry)
+	Ok(AipRegistryBuilder::default().add_module(MdModule)?.build())
 }
 
 // region:    --- aip.md.make_table
