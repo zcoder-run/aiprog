@@ -23,32 +23,27 @@
 
 #![allow(non_camel_case_types)]
 
-use crate::LuaExt;
 use crate::base::jsons;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::{AipFromLua, AipIntoLua, AipParams, HandlerCallContext};
-use crate::{AipOutput, AipRegistry, AipRegistryBuilder};
+use crate::{AipModule, LuaExt};
+use crate::{AipOutput, AipRegistryBuilder};
 use aiprog_macros::aip_handler;
 use aiprog_macros::register_handler;
 use mlua::Lua;
 use simple_fs::parse_ndjson_from_reader as parse_jsonl_from_reader;
 use std::io::BufReader;
 
-/// Build and return an [`AipRegistry`] containing all `aip.json` handlers.
-///
-/// This is the recommended way to obtain a registry for this module.
-/// Use [`register`](register) if you need to add the handlers into an
-/// existing registry.
-#[allow(dead_code)]
-pub fn init_registry() -> crate::Result<AipRegistry> {
-	Ok(register(AipRegistryBuilder::default())?.build())
-}
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JsonModule;
 
-pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-	register_handler!(registry, "aip.json.parse", aip_json_parse_handler)?;
-	register_handler!(registry, "aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
-	register_handler!(registry, "aip.json.stringify", aip_json_stringify_handler)?;
-	Ok(registry)
+impl AipModule for JsonModule {
+	fn register(mut builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+		register_handler!(builder, "aip.json.parse", aip_json_parse_handler)?;
+		register_handler!(builder, "aip.json.parse_jsonl", aip_json_parse_jsonl_handler)?;
+		register_handler!(builder, "aip.json.stringify", aip_json_stringify_handler)?;
+		Ok(builder)
+	}
 }
 
 // region:    --- aip.json.parse

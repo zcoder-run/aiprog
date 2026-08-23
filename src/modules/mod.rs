@@ -1,4 +1,4 @@
-use crate::{AipModule, AipRegistry, AipRegistryBuilder, NativeFunctionSet};
+use crate::{AipModule, AipRegistry, AipRegistryBuilder, NativeFunctionSet, modules};
 
 // region:    --- Modules
 
@@ -11,12 +11,11 @@ mod aip_web;
 
 pub use aip_file::file_types::{AbsolutePathPolicy, DirContext, DirPolicyError, PathPolicy, ResolvedDirPath};
 
+pub use aip_json::JsonModule;
+
 // endregion: --- Modules
 
 // region:    --- Module Types
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct JsonModule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WebModule;
@@ -33,14 +32,8 @@ pub struct MdModule;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TimeModule;
 
-impl AipModule for JsonModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-		aip_json::register(builder)
-	}
-}
-
 impl AipModule for WebModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		aip_web::register(builder)
 	}
 }
@@ -53,25 +46,25 @@ impl WebModule {
 }
 
 impl AipModule for FileModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		aip_file::register::register(builder)
 	}
 }
 
 impl AipModule for HtmlModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		aip_html::register(builder)
 	}
 }
 
 impl AipModule for MdModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		aip_md::register(builder)
 	}
 }
 
 impl AipModule for TimeModule {
-	fn register(&self, builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
+	fn register(builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		aip_time::register(builder)
 	}
 }
@@ -86,7 +79,7 @@ impl AipModule for TimeModule {
 /// The `aip.file` module uses a default `FileContext` (current directory).
 pub fn init_registry() -> crate::Result<AipRegistry> {
 	Ok(AipRegistryBuilder::default()
-		.add_module(JsonModule)?
+		.add_module(modules::JsonModule)?
 		.add_module(WebModule)?
 		.add_module(FileModule)?
 		.add_module(HtmlModule)?

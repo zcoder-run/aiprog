@@ -111,7 +111,7 @@ impl AipRegistryBuilder {
 	where
 		M: crate::AipModule,
 	{
-		module.register(self)
+		M::register(self)
 	}
 
 	pub fn register_sync<P, R, H>(mut self, path: &str, handler: H) -> AipRegistryResult<Self>
