@@ -2,14 +2,8 @@ use crate::{Error, Result};
 use simple_fs::SPath;
 use std::collections::HashSet;
 
-pub const SPECIAL_DEFAULT_FOLDER_EXCLUDES: &[&str] = &[
-	".aipack/",
-	".git/",
-	"target/",
-	"node_modules/",
-	".build/",
-	"__pycache__/",
-];
+pub const SPECIAL_DEFAULT_FOLDER_EXCLUDES: &[&str] =
+	&[".aipack/", ".git/", "target/", "node_modules/", ".build/", "__pycache__/"];
 
 pub const SPECIAL_DEFAULT_FOLDER_EXCLUDE_GLOBS: &[&str] = &[
 	"**/.aipack/**",
@@ -20,23 +14,14 @@ pub const SPECIAL_DEFAULT_FOLDER_EXCLUDE_GLOBS: &[&str] = &[
 	"**/__pycache__/**",
 ];
 
-pub const GLOBS_TO_ALWAYS_EXCLUDES: &[&str] = &[
-	"**/.DS_Store",
-	".DS_Store",
-	"**/Thumbs.db",
-	"**/*.swp",
-];
+pub const GLOBS_TO_ALWAYS_EXCLUDES: &[&str] = &["**/.DS_Store", ".DS_Store", "**/Thumbs.db", "**/*.swp"];
 
 /// Resolves the effective exclude globs given include globs and custom exclude globs.
 ///
 /// Explicitly matching a special folder in an include glob removes that folder
 /// from the default exclusion set.
-pub fn resolve_exclude_globs(
-	include_globs: &[&str],
-	custom_exclude_globs: &[&str],
-) -> Result<Vec<String>> {
-	let mut special_folder_excludes: HashSet<&'static str> =
-		SPECIAL_DEFAULT_FOLDER_EXCLUDES.iter().copied().collect();
+pub fn resolve_exclude_globs(include_globs: &[&str], custom_exclude_globs: &[&str]) -> Result<Vec<String>> {
+	let mut special_folder_excludes: HashSet<&'static str> = SPECIAL_DEFAULT_FOLDER_EXCLUDES.iter().copied().collect();
 
 	for glob in include_globs {
 		let glob = SPath::new(glob);

@@ -135,7 +135,10 @@ pub(crate) fn render_module<'a>(group: &ModuleGroup<'a>) -> (String, Vec<ModuleT
 			}
 		};
 
-		signatures.push(format!("{}{}(params: {}): {}\n", comment, reg_fn.path, params_type, output_type));
+		signatures.push(format!(
+			"{}{}(params: {}): {}\n",
+			comment, reg_fn.path, params_type, output_type
+		));
 	}
 
 	let mut sig_block = String::new();

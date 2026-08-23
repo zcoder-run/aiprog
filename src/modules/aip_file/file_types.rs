@@ -470,9 +470,8 @@ impl TryFrom<&ContainsCond> for crate::base::file::ContentMatcher {
 				ignore_case.unwrap_or(false),
 			)),
 			ContainsCond::Regex { regex, ignore_case } => {
-				crate::base::file::ContentMatcher::new_regex(regex, ignore_case.unwrap_or(false)).map_err(|e| {
-					crate::Error::custom(format!("[INVALID_REGEX] Invalid regex pattern: '{regex}': {e}"))
-				})
+				crate::base::file::ContentMatcher::new_regex(regex, ignore_case.unwrap_or(false))
+					.map_err(|e| crate::Error::custom(format!("[INVALID_REGEX] Invalid regex pattern: '{regex}': {e}")))
 			}
 		}
 	}

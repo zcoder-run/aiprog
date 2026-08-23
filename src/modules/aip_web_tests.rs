@@ -144,7 +144,6 @@ async fn test_api_web_post_error() -> Result<()> {
 	Ok(())
 }
 
-
 #[tokio::test]
 async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
 	// -- Setup & Fixtures
@@ -194,10 +193,7 @@ async fn test_api_web_post_explicit_content_type_override_string() -> Result<()>
 		.body("csv accepted")
 		.validate(|snap| {
 			assert_eq!(snap.method, "POST");
-			assert_eq!(
-				snap.headers.get("content-type").map(|s| s.as_str()),
-				Some("text/csv")
-			);
+			assert_eq!(snap.headers.get("content-type").map(|s| s.as_str()), Some("text/csv"));
 			assert_eq!(snap.body, "a,b,c\n1,2,3");
 		})
 		.start()
@@ -205,9 +201,8 @@ async fn test_api_web_post_explicit_content_type_override_string() -> Result<()>
 	let url = server.path_url("/csv");
 
 	// -- Exec
-	let script = format!(
-		r#"return aip.web.post{{ url = "{url}", body = "a,b,c\n1,2,3", content_type = "text/csv" }}"#,
-	);
+	let script =
+		format!(r#"return aip.web.post{{ url = "{url}", body = "a,b,c\n1,2,3", content_type = "text/csv" }}"#,);
 	let res = _test_support::eval_script(&engine, &script).await?;
 
 	// -- Check

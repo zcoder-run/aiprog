@@ -149,7 +149,11 @@ impl ScriptEngineBuilder {
 }
 
 impl RunningEngine {
-	pub async fn exec(&mut self, script: &str, mut context: RunningContext) -> EngineResult<RunOutcome<serde_json::Value>> {
+	pub async fn exec(
+		&mut self,
+		script: &str,
+		mut context: RunningContext,
+	) -> EngineResult<RunOutcome<serde_json::Value>> {
 		if context.get::<DirContext>().is_none() {
 			context.insert(DirContext::default());
 		}

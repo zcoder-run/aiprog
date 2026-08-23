@@ -1,6 +1,6 @@
 [package]
 name = "aiprog"
-version = "0.0.3-WIP"
+version = "0.0.3"
 description = "AI program runtime and API set (from Function Calling to Program Running)"
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -36,7 +36,7 @@ resolver = "3"
 
 [dependencies]
 # -- Macros
-aiprog-macros = { version = "0.0.2", path = "crates/aiprog-macros" }
+aiprog-macros = { version = "0.0.3", path = "crates/aiprog-macros" }
 # -- Async
 tokio = { version = "1", features = ["full"] }
 # -- AI
@@ -79,7 +79,8 @@ simple-fs = { version = "0.12.1", features = ["with-json"]}
 size = "0.5.0"
 glob = "0.3"
 # -- HTML & XML
-htmlr = { git = "https://github.com/jeremychone/rust-htmlr" }
+# git = "https://github.com/jeremychone/rust-htmlr"
+htmlr = { version = "0.1.7" }
 url = "2.5.7"
 quick-xml = "0.41"
 # -- Others

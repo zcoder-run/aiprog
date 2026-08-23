@@ -269,10 +269,13 @@ fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetPara
 		let utc_offset = time::UtcOffset::from_whole_seconds(secs)
 			.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{secs}': {e}")))?;
 		let is_local = params.is_local.unwrap_or_else(|| {
-			time::UtcOffset::current_local_offset().map(|loc| loc == utc_offset).unwrap_or(false)
+			time::UtcOffset::current_local_offset()
+				.map(|loc| loc == utc_offset)
+				.unwrap_or(false)
 		});
 		(
-			base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset).map_err(HandlerError::custom_from_err)?,
+			base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset)
+				.map_err(HandlerError::custom_from_err)?,
 			is_local,
 		)
 	} else if params.is_local.unwrap_or(false) {

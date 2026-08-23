@@ -40,7 +40,6 @@ async fn test_aip_web_get_parse_json_simple() -> TestResult {
 	Ok(())
 }
 
-
 #[tokio::test]
 async fn test_aip_web_post_string_inferred_content_type() -> TestResult {
 	// -- Setup & Fixtures

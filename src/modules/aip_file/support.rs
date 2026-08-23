@@ -3,8 +3,8 @@
 //! Contains path resolution, file listing using simple-fs, and shared
 //! Lua conversion helpers.
 
-use crate::registry::{HandlerError, HandlerResult};
 use crate::base::file::ContentMatcher;
+use crate::registry::{HandlerError, HandlerResult};
 use mlua::{Lua, Value};
 use simple_fs::{SPath, read_to_string};
 

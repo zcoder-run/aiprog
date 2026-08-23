@@ -67,7 +67,10 @@ fn test_path_to_type_name() {
 	assert_eq!(path_to_type_name("aip.file.list", "Params"), "AipFileListParams");
 	assert_eq!(path_to_type_name("aip.time.offset", "Output"), "AipTimeOffsetOutput");
 	assert_eq!(path_to_type_name("my_func", "Params"), "MyFuncParams");
-	assert_eq!(path_to_type_name("custom-tool_name.do_work", "Params"), "CustomToolNameDoWorkParams");
+	assert_eq!(
+		path_to_type_name("custom-tool_name.do_work", "Params"),
+		"CustomToolNameDoWorkParams"
+	);
 }
 
 #[test]

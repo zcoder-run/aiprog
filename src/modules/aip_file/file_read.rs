@@ -348,11 +348,7 @@ fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) ->
 fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
-	let matcher: Option<ContentMatcher> = params
-		.contains
-		.as_ref()
-		.map(TryInto::try_into)
-		.transpose()?;
+	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
@@ -379,11 +375,7 @@ fn aip_file_list_read_handler(
 ) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
-	let matcher: Option<ContentMatcher> = params
-		.contains
-		.as_ref()
-		.map(TryInto::try_into)
-		.transpose()?;
+	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
 	let paths = call.with::<DirContext, _>(|dir| {
@@ -441,11 +433,7 @@ fn aip_file_exists_handler(
 fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
-	let matcher: Option<ContentMatcher> = params
-		.contains
-		.as_ref()
-		.map(TryInto::try_into)
-		.transpose()?;
+	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
 	let paths = call.with::<DirContext, _>(|dir| {
@@ -478,11 +466,7 @@ fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) 
 		None => return Ok(AipFileStatsOutput(None)),
 	};
 	validate_glob_patterns(&globs)?;
-	let matcher: Option<ContentMatcher> = params
-		.contains
-		.as_ref()
-		.map(TryInto::try_into)
-		.transpose()?;
+	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 
 	let paths = call.with::<DirContext, _>(|dir| {
 		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)

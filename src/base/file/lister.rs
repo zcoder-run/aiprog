@@ -43,19 +43,11 @@ impl FileListStats {
 	}
 }
 
-pub fn list_matched_files(
-	dir: &SPath,
-	params: ListParams<'_>,
-) -> crate::Result<Vec<MatchedFileEntry>> {
+pub fn list_matched_files(dir: &SPath, params: ListParams<'_>) -> crate::Result<Vec<MatchedFileEntry>> {
 	let resolved_excludes = resolve_exclude_globs(params.globs, params.exclude_globs);
-	let exclude_refs: Vec<&str> = resolved_excludes
-		.iter()
-		.flat_map(|v| v.iter().map(|s| s.as_str()))
-		.collect();
+	let exclude_refs: Vec<&str> = resolved_excludes.iter().flat_map(|v| v.iter().map(|s| s.as_str())).collect();
 
-	let opts = ListOptions::default()
-		.with_relative_glob()
-		.with_exclude_globs(&exclude_refs);
+	let opts = ListOptions::default().with_relative_glob().with_exclude_globs(&exclude_refs);
 
 	let raw_files = list_files(dir, Some(params.globs), Some(opts))
 		.map_err(|e| crate::Error::cc("File listing failed", e.to_string()))?;
@@ -66,33 +58,21 @@ pub fn list_matched_files(
 		let full_path = dir.join(rel_path);
 
 		if let Some(ref matcher) = params.content_matcher {
-			let is_match = matcher
-				.matches_file(full_path.as_str())
-				.unwrap_or(false);
+			let is_match = matcher.matches_file(full_path.as_str()).unwrap_or(false);
 			if !is_match {
 				continue;
 			}
 		}
 
-		let meta = if params.with_meta {
-			full_path.meta().ok()
-		} else {
-			None
-		};
+		let meta = if params.with_meta { full_path.meta().ok() } else { None };
 
-		matched_entries.push(MatchedFileEntry {
-			path: full_path,
-			meta,
-		});
+		matched_entries.push(MatchedFileEntry { path: full_path, meta });
 	}
 
 	Ok(matched_entries)
 }
 
-pub fn compute_file_stats(
-	dir: &SPath,
-	params: ListParams<'_>,
-) -> crate::Result<FileListStats> {
+pub fn compute_file_stats(dir: &SPath, params: ListParams<'_>) -> crate::Result<FileListStats> {
 	let mut params = params;
 	params.with_meta = true;
 

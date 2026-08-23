@@ -16,7 +16,8 @@ impl CellValue {
 		match self {
 			CellValue::String(s) => s.clone(),
 			CellValue::Number(n) => {
-				if n.fract() == 0.0 && !n.is_infinite() && !n.is_nan() && *n <= i64::MAX as f64 && *n >= i64::MIN as f64 {
+				if n.fract() == 0.0 && !n.is_infinite() && !n.is_nan() && *n <= i64::MAX as f64 && *n >= i64::MIN as f64
+				{
 					format!("{}", *n as i64)
 				} else {
 					format!("{}", n)
@@ -119,9 +120,7 @@ pub fn make_table<S: AsRef<str>>(headers: Option<&[S]>, rows: &[Vec<CellValue>])
 			.collect();
 		lines.push(format!("|{}|", header_cells.join("|")));
 
-		let delimiter_cells: Vec<String> = (0..num_cols)
-			.map(|i| format!(" {} ", "-".repeat(col_widths[i])))
-			.collect();
+		let delimiter_cells: Vec<String> = (0..num_cols).map(|i| format!(" {} ", "-".repeat(col_widths[i]))).collect();
 		lines.push(format!("|{}|", delimiter_cells.join("|")));
 	}
 

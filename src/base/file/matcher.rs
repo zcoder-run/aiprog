@@ -29,9 +29,7 @@ impl ContentMatcher {
 	}
 
 	pub fn new_regex(pattern: &str, ignore_case: bool) -> Result<Self, regex::Error> {
-		let regex = RegexBuilder::new(pattern)
-			.case_insensitive(ignore_case)
-			.build()?;
+		let regex = RegexBuilder::new(pattern).case_insensitive(ignore_case).build()?;
 
 		Ok(Self::Regex {
 			regex,
