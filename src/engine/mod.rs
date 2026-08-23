@@ -11,7 +11,7 @@
 
 // region:    --- Modules
 
-mod engine_doc;
+mod gen_doc;
 mod script_engine;
 mod support;
 

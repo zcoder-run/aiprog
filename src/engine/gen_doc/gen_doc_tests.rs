@@ -1,15 +1,16 @@
 #![allow(non_snake_case)]
 
-use super::*;
+use super::fn_renderer::*;
+use super::type_renderer::*;
 use crate::aip_handler;
+use crate::engine::support::LuaEngine;
 use crate::impl_lua_serde_traits;
 use crate::register_handler;
 use crate::registry::HandlerResult;
-use crate::{AipFnKind, AipRegistry, AipRegistryBuilder};
-use crate::{AipOutput, AipParams};
-use schemars::{JsonSchema, schema_for};
+use crate::{AipFnKind, AipOutput, AipParams, AipRegisteredFn, AipRegistry, AipRegistryBuilder};
+use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 
 type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -262,6 +263,7 @@ fn test_render_fn_basic() {
 	assert!(result.contains("type Error = any;\n"));
 	assert!(result.contains("```\n"));
 }
+
 // -- Multi-line descriptions
 
 #[test]
