@@ -94,6 +94,27 @@ fn test_render_fn_signature() {
 	assert!(sig.contains("aip.file.read(params: AipFileReadParams): string\n"));
 }
 
+#[test]
+fn test_render_fn_signature_multiline() {
+	let params_schema = schema_for!(SimpleParams);
+	let output_schema = schema_for!(String);
+	let error_schema: Schema = serde_json::from_value(serde_json::json!(true)).unwrap();
+
+	let reg_fn = AipRegisteredFn {
+		path: "aip.file.read".to_string(),
+		params_schema,
+		output_schema,
+		error_schema,
+		kind: AipFnKind::Sync,
+		description: Some("First line of description.\n\nSecond line of description.".to_string()),
+		title: None,
+	};
+
+	let sig = render_fn_signature(&reg_fn);
+	assert!(sig.contains("// First line of description.\n//\n// Second line of description.\n"));
+	assert!(sig.contains("aip.file.read(params: AipFileReadParams): string\n"));
+}
+
 type TestResult = core::result::Result<(), Box<dyn std::error::Error>>;
 
 // -- Test schemas
@@ -642,6 +663,19 @@ async fn DocAsyncHandler(_call: crate::HandlerCallContext, params: DocAsyncParam
 	})
 }
 
+/// # Multi-line handler title
+///
+/// First line of multi-line handler description.
+///
+/// Second paragraph with more details.
+#[aip_handler]
+#[allow(non_snake_case)]
+fn DocMultiLineHandler(_call: crate::HandlerCallContext, params: DocSyncParams) -> HandlerResult<DocSyncOutput> {
+	Ok(DocSyncOutput {
+		greeting: format!("Hello, {}!", params.name),
+	})
+}
+
 // -- Integration tests
 
 #[test]
@@ -687,6 +721,24 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	assert!(doc.contains("value: number;"));
 	assert!(doc.contains("type AipDocAsyncOutput = {"));
 	assert!(doc.contains("doubled: number;"));
+	Ok(())
+}
+
+#[test]
+fn test_generate_doc_with_macro_multiline_handler() -> TestResult {
+	// -- Setup & Fixtures
+	let mut registry = AipRegistryBuilder::default();
+	register_handler!(registry, "aip.doc.multiline", DocMultiLineHandler)?;
+	let engine = LuaEngine::from_registry(registry.build())?;
+
+	// -- Exec
+	let doc = engine.generate_doc()?;
+
+	// -- Check
+	assert!(doc.contains("## aip.doc.*"));
+	assert!(!doc.contains("Multi-line handler title"));
+	assert!(doc.contains("// First line of multi-line handler description.\n//\n// Second paragraph with more details.\n"));
+	assert!(doc.contains("aip.doc.multiline(params: AipDocMultilineParams): AipDocMultilineOutput"));
 	Ok(())
 }
 

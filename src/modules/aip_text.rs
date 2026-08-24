@@ -40,13 +40,14 @@ impl AipModule for TextModule {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde_with::skip_serializing_none]
 pub struct AipTextFormatSizeParams {
-	/// The size in bytes (integer or number). If nil/absent, returns nil.
+	/// in bytes. If nil/absent, returns nil
 	pub size: Option<u64>,
 
-	/// The lowest unit to display (e.g. "B", "KB", "MB", "GB", "TB").
+	/// "B" | "KB" | "MB" | "GB" | "TB"
 	pub lowest_unit: Option<String>,
 
 	/// Whether to trim whitespace from the result (default: false).
+	/// Do not trim when in table for nicer display
 	pub trim: Option<bool>,
 }
 

@@ -12,6 +12,24 @@ use std::collections::HashMap;
 
 // region:    --- Fn Renderer
 
+/// Format a multi-line docstring into TypeScript comments.
+pub(crate) fn format_doc_comment(desc: &str) -> String {
+	let trimmed_desc = desc.trim();
+	if trimmed_desc.is_empty() {
+		return String::new();
+	}
+	let mut s = String::new();
+	for line in trimmed_desc.lines() {
+		let trimmed = line.trim();
+		if trimmed.is_empty() {
+			s.push_str("//\n");
+		} else {
+			s.push_str(&format!("// {}\n", trimmed));
+		}
+	}
+	s
+}
+
 /// Derive a PascalCase type name from a function path and a suffix (e.g., ("aip.file.list", "Params") -> "AipFileListParams").
 #[allow(dead_code)]
 pub(crate) fn path_to_type_name(path: &str, suffix: &str) -> String {
@@ -41,10 +59,7 @@ pub(crate) fn render_fn_signature(reg_fn: &AipRegisteredFn) -> String {
 		.or_else(|| SchemaRef::new(&reg_fn.params_schema).desc().map(String::from));
 
 	if let Some(d) = desc {
-		let first_line = d.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
-		if !first_line.is_empty() {
-			s.push_str(&format!("// {}\n", first_line));
-		}
+		s.push_str(&format_doc_comment(&d));
 	}
 
 	let params_type = if is_inlineable_type(&reg_fn.params_schema) {
@@ -88,13 +103,11 @@ pub(crate) fn render_module<'a>(group: &ModuleGroup<'a>) -> (String, Vec<ModuleT
 			.clone()
 			.or_else(|| SchemaRef::new(&reg_fn.params_schema).desc().map(String::from));
 
-		let mut comment = String::new();
-		if let Some(d) = desc {
-			let first_line = d.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
-			if !first_line.is_empty() {
-				comment = format!("// {}\n", first_line);
-			}
-		}
+		let comment = if let Some(d) = desc {
+			format_doc_comment(&d)
+		} else {
+			String::new()
+		};
 
 		let params_type = if is_inlineable_type(&reg_fn.params_schema) {
 			let t = render_type(&reg_fn.params_schema);
