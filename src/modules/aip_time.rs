@@ -2,14 +2,11 @@
 //!
 //! ## Lua functions
 //!
-//! - `aip.time.now_utc_micro(params?: TimeOffsetParams) -> integer`
-//! - `aip.time.now_local(params?: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.now_utc(params?: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.today_local(params?: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.today_utc(params?: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.offset_micro(params: TimeOffsetParams) -> integer`
-//! - `aip.time.from_micro(params: TimeOffsetParams) -> AipTimeData`
-//! - `aip.time.parse(params: AipTimeParseParams) -> AipTimeData`
+//! - `aip.time.now() -> integer`
+//! - `aip.time.local_utc_offset_seconds() -> integer`
+//! - `aip.time.to_time_data(params: integer | ToTimeDataParams) -> AipTimeData`
+//! - `aip.time.offset_by(params: OffsetByParams) -> AipTimeData`
+//! - `aip.time.parse(params: string | AipTimeParseParams) -> AipTimeData`
 
 #![allow(non_camel_case_types)]
 
@@ -23,33 +20,52 @@ use time::OffsetDateTime;
 
 // region:    --- Types
 
-/// Parameters for time offset calculations and date conversions.
+/// Empty parameters for `aip.time.now`.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema, AipParams)]
+pub struct AipTimeNowParams {}
+
+/// Empty parameters for `aip.time.local_utc_offset_seconds`.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema, AipParams)]
+pub struct AipTimeLocalOffsetParams {}
+
+/// Parameters for converting epoch microseconds to decomposed date-time fields.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema, AipParams)]
 #[serde_with::skip_serializing_none]
-pub struct TimeOffsetParams {
-	/// Base epoch timestamp in microseconds. Defaults to current timestamp or midnight.
+pub struct ToTimeDataParams {
+	/// Unix epoch timestamp in microseconds.
+	pub epoch_micro: i64,
+
+	/// Explicit UTC offset in seconds (default 0 for UTC, e.g. -18000 for EST, 19800 for IST).
+	pub utc_offset_seconds: Option<i32>,
+}
+
+/// Parameters for relative time offset adjustments and decomposed date formatting.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema, AipParams)]
+#[serde_with::skip_serializing_none]
+pub struct OffsetByParams {
+	/// Base epoch timestamp in microseconds. Defaults to current timestamp.
 	pub epoch_micro: Option<i64>,
 
-	/// Whether to evaluate/format in local timezone. Defaults to false (UTC).
-	pub is_local: Option<bool>,
-
-	/// Explicit UTC offset in seconds (e.g. -18000 for EST, 19800 for IST).
+	/// UTC offset in seconds for presentation formatting (default 0 for UTC).
 	pub utc_offset_seconds: Option<i32>,
 
 	/// Offset in days (supports fractional and negative numbers).
-	pub day: Option<f64>,
+	pub by_days: Option<f64>,
 
 	/// Offset in hours.
-	pub hour: Option<f64>,
+	pub by_hours: Option<f64>,
+
+	/// Offset in minutes.
+	pub by_minutes: Option<f64>,
 
 	/// Offset in seconds.
-	pub sec: Option<f64>,
+	pub by_seconds: Option<f64>,
 
 	/// Offset in milliseconds.
-	pub ms: Option<f64>,
+	pub by_ms: Option<f64>,
 
 	/// Offset in microseconds.
-	pub micro: Option<i64>,
+	pub by_micro: Option<i64>,
 }
 
 /// Parameters for parsing date-time text.
@@ -97,20 +113,49 @@ pub struct AipTimeData {
 
 	/// UTC offset in seconds (e.g. 0 for UTC, -25200 for PDT).
 	pub utc_offset_seconds: i32,
-
-	/// True if formatted in local timezone, false if UTC.
-	pub is_local: bool,
 }
 
 /// Scalar output for epoch microsecond timestamps.
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipOutput)]
 pub struct AipTimeMicroOutput(pub i64);
 
+/// Scalar output for UTC offset in seconds.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema, AipOutput)]
+pub struct AipTimeOffsetSecondsOutput(pub i32);
+
 // endregion: --- Types
 
 // region:    --- Lua Traits
 
-impl AipFromLua for TimeOffsetParams {
+impl AipFromLua for AipTimeNowParams {
+	fn from_lua(_lua: &mlua::Lua, _val: mlua::Value) -> crate::Result<Self> {
+		Ok(Self {})
+	}
+}
+
+impl AipFromLua for AipTimeLocalOffsetParams {
+	fn from_lua(_lua: &mlua::Lua, _val: mlua::Value) -> crate::Result<Self> {
+		Ok(Self {})
+	}
+}
+
+impl AipFromLua for ToTimeDataParams {
+	fn from_lua(lua: &mlua::Lua, val: mlua::Value) -> crate::Result<Self> {
+		match val {
+			mlua::Value::Integer(i) => Ok(Self {
+				epoch_micro: i,
+				utc_offset_seconds: None,
+			}),
+			mlua::Value::Number(n) => Ok(Self {
+				epoch_micro: n as i64,
+				utc_offset_seconds: None,
+			}),
+			_ => lua.from_value(val).map_err(|e| format!("{e}").into()),
+		}
+	}
+}
+
+impl AipFromLua for OffsetByParams {
 	fn from_lua(lua: &mlua::Lua, val: mlua::Value) -> crate::Result<Self> {
 		match val {
 			mlua::Value::Nil => Ok(Self::default()),
@@ -122,20 +167,6 @@ impl AipFromLua for TimeOffsetParams {
 				epoch_micro: Some(n as i64),
 				..Default::default()
 			}),
-			mlua::Value::Table(ref table) => {
-				// If this table is an AipTimeData record (contains rfc3339 or day_num),
-				// calendar fields (day, hour, micro) must not be treated as relative offsets.
-				if table.contains_key("rfc3339")? || table.contains_key("day_num")? {
-					Ok(Self {
-						epoch_micro: table.get("epoch_micro")?,
-						is_local: table.get("is_local")?,
-						utc_offset_seconds: table.get("utc_offset_seconds")?,
-						..Default::default()
-					})
-				} else {
-					lua.from_value(val).map_err(|e| format!("{e}").into())
-				}
-			}
 			_ => lua.from_value(val).map_err(|e| format!("{e}").into()),
 		}
 	}
@@ -170,6 +201,12 @@ impl AipIntoLua for AipTimeMicroOutput {
 	}
 }
 
+impl AipIntoLua for AipTimeOffsetSecondsOutput {
+	fn into_lua(self, _lua: &mlua::Lua) -> crate::Result<mlua::Value> {
+		Ok(mlua::Value::Integer(self.0 as i64))
+	}
+}
+
 // endregion: --- Lua Traits
 
 // region:    --- Module Registration
@@ -190,13 +227,10 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 }
 
 pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
-	register_handler!(registry, "aip.time.now_utc_micro", aip_time_now_utc_micro_handler)?;
-	register_handler!(registry, "aip.time.now_local", aip_time_now_local_handler)?;
-	register_handler!(registry, "aip.time.now_utc", aip_time_now_utc_handler)?;
-	register_handler!(registry, "aip.time.today_local", aip_time_today_local_handler)?;
-	register_handler!(registry, "aip.time.today_utc", aip_time_today_utc_handler)?;
-	register_handler!(registry, "aip.time.offset_micro", aip_time_offset_micro_handler)?;
-	register_handler!(registry, "aip.time.from_micro", aip_time_from_micro_handler)?;
+	register_handler!(registry, "aip.time.now", aip_time_now_handler)?;
+	register_handler!(registry, "aip.time.local_utc_offset_seconds", aip_time_local_utc_offset_seconds_handler)?;
+	register_handler!(registry, "aip.time.to_time_data", aip_time_to_time_data_handler)?;
+	register_handler!(registry, "aip.time.offset_by", aip_time_offset_by_handler)?;
 	register_handler!(registry, "aip.time.parse", aip_time_parse_handler)?;
 	Ok(registry)
 }
@@ -205,100 +239,52 @@ pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBu
 
 // region:    --- Handlers
 
-/// Returns current Unix epoch time in microseconds as a scalar integer, with optional offset.
-/// Note: Returns an integer number directly, not an AipTimeData table.
+/// Returns current Unix epoch time in microseconds as a scalar integer.
 #[aip_handler]
-fn aip_time_now_utc_micro_handler(
+fn aip_time_now_handler(_call: HandlerCallContext, _params: AipTimeNowParams) -> HandlerResult<AipTimeMicroOutput> {
+	Ok(AipTimeMicroOutput(base::time::now_micro()))
+}
+
+/// Returns current system local timezone UTC offset in seconds as a scalar integer.
+#[aip_handler]
+fn aip_time_local_utc_offset_seconds_handler(
 	_call: HandlerCallContext,
-	params: TimeOffsetParams,
-) -> HandlerResult<AipTimeMicroOutput> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	Ok(AipTimeMicroOutput(base.saturating_add(offset)))
+	_params: AipTimeLocalOffsetParams,
+) -> HandlerResult<AipTimeOffsetSecondsOutput> {
+	let offset_secs = base::time::current_local_offset_seconds().map_err(HandlerError::custom_from_err)?;
+	Ok(AipTimeOffsetSecondsOutput(offset_secs))
 }
 
-/// Returns current local date-time as an AipTimeData table, with optional offset.
+/// Decomposes an epoch microsecond timestamp into structured calendar fields.
 #[aip_handler]
-fn aip_time_now_local_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
+fn aip_time_to_time_data_handler(_call: HandlerCallContext, params: ToTimeDataParams) -> HandlerResult<AipTimeData> {
+	let offset_secs = params.utc_offset_seconds.unwrap_or(0);
+	let utc_offset = time::UtcOffset::from_whole_seconds(offset_secs)
+		.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{offset_secs}': {e}")))?;
+	let dt = base::time::epoch_micro_to_offset_datetime(params.epoch_micro, utc_offset)
+		.map_err(HandlerError::custom_from_err)?;
+	build_aip_time_data(&dt).map_err(HandlerError::custom_from_err)
 }
 
-/// Returns current UTC date-time as an AipTimeData table, with optional offset.
+/// Applies relative duration offsets to an epoch microsecond timestamp and returns decomposed date fields.
 #[aip_handler]
-fn aip_time_now_utc_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
-}
-
-/// Returns local date-time data anchored at today's midnight (00:00:00.000000) as an AipTimeData table, with optional offset.
-#[aip_handler]
-fn aip_time_today_local_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = base::time::today_local_midnight_micro().map_err(HandlerError::custom_from_err)?;
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, true).map_err(HandlerError::custom_from_err)
-}
-
-/// Returns UTC date-time data anchored at today's midnight (00:00:00.000000) as an AipTimeData table, with optional offset.
-#[aip_handler]
-fn aip_time_today_utc_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = base::time::today_utc_midnight_micro().map_err(HandlerError::custom_from_err)?;
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let dt = base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?;
-	build_aip_time_data(&dt, false).map_err(HandlerError::custom_from_err)
-}
-
-/// Applies offsets to a given epoch microsecond timestamp and returns the resulting scalar integer timestamp.
-#[aip_handler]
-fn aip_time_offset_micro_handler(
-	_call: HandlerCallContext,
-	params: TimeOffsetParams,
-) -> HandlerResult<AipTimeMicroOutput> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	Ok(AipTimeMicroOutput(base.saturating_add(offset)))
-}
-
-/// Converts an epoch microsecond timestamp to an AipTimeData table, respecting is_local, utc_offset_seconds, and optional offsets.
-#[aip_handler]
-fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetParams) -> HandlerResult<AipTimeData> {
-	let base = params.epoch_micro.unwrap_or_else(base::time::now_micro);
-	let offset = base::time::compute_micro_offset(params.day, params.hour, params.sec, params.ms, params.micro);
-	let target_micro = base.saturating_add(offset);
-	let (dt, is_local) = if let Some(secs) = params.utc_offset_seconds {
-		let utc_offset = time::UtcOffset::from_whole_seconds(secs)
-			.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{secs}': {e}")))?;
-		let is_local = params.is_local.unwrap_or_else(|| {
-			time::UtcOffset::current_local_offset()
-				.map(|loc| loc == utc_offset)
-				.unwrap_or(false)
-		});
-		(
-			base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset)
-				.map_err(HandlerError::custom_from_err)?,
-			is_local,
-		)
-	} else if params.is_local.unwrap_or(false) {
-		(
-			base::time::epoch_micro_to_local_datetime(target_micro).map_err(HandlerError::custom_from_err)?,
-			true,
-		)
-	} else {
-		(
-			base::time::epoch_micro_to_utc_datetime(target_micro).map_err(HandlerError::custom_from_err)?,
-			false,
-		)
-	};
-	build_aip_time_data(&dt, is_local).map_err(HandlerError::custom_from_err)
+fn aip_time_offset_by_handler(_call: HandlerCallContext, params: OffsetByParams) -> HandlerResult<AipTimeData> {
+	let base_micro = params.epoch_micro.unwrap_or_else(base::time::now_micro);
+	let offset = base::time::compute_relative_micro_offset(
+		params.by_days,
+		params.by_hours,
+		params.by_minutes,
+		params.by_seconds,
+		params.by_ms,
+		params.by_micro,
+	);
+	let target_micro = base_micro.saturating_add(offset);
+	let offset_secs = params.utc_offset_seconds.unwrap_or(0);
+	let utc_offset = time::UtcOffset::from_whole_seconds(offset_secs)
+		.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{offset_secs}': {e}")))?;
+	let dt = base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset)
+		.map_err(HandlerError::custom_from_err)?;
+	build_aip_time_data(&dt).map_err(HandlerError::custom_from_err)
 }
 
 /// Parses an RFC 3339 or ISO 8601 string into an AipTimeData table.
@@ -306,19 +292,14 @@ fn aip_time_from_micro_handler(_call: HandlerCallContext, params: TimeOffsetPara
 fn aip_time_parse_handler(_call: HandlerCallContext, params: AipTimeParseParams) -> HandlerResult<AipTimeData> {
 	let dt = base::time::parse_rfc3339_or_iso8601(&params.text)
 		.map_err(|e| HandlerError::custom(format!("aip.time.parse failed: {e}")))?;
-	let is_local = if let Ok(local_offset) = time::UtcOffset::current_local_offset() {
-		dt.offset() == local_offset
-	} else {
-		false
-	};
-	build_aip_time_data(&dt, is_local).map_err(HandlerError::custom_from_err)
+	build_aip_time_data(&dt).map_err(HandlerError::custom_from_err)
 }
 
 // endregion: --- Handlers
 
 // region:    --- Support
 
-fn build_aip_time_data(dt: &OffsetDateTime, is_local: bool) -> crate::Result<AipTimeData> {
+fn build_aip_time_data(dt: &OffsetDateTime) -> crate::Result<AipTimeData> {
 	let epoch_micro = base::time::datetime_to_epoch_micro(dt);
 	let rfc3339 = base::time::format_rfc3339(dt)?;
 	let day_name = base::time::weekday_name(dt.weekday()).to_string();
@@ -337,7 +318,6 @@ fn build_aip_time_data(dt: &OffsetDateTime, is_local: bool) -> crate::Result<Aip
 		second: dt.second(),
 		micro: dt.microsecond(),
 		utc_offset_seconds: dt.offset().whole_seconds(),
-		is_local,
 	})
 }
 
@@ -353,10 +333,10 @@ mod tests {
 	use crate::_test_support;
 
 	#[tokio::test]
-	async fn test_aip_time_now_utc_micro_simple() -> Result<()> {
+	async fn test_aip_time_now_simple() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
-			return aip.time.now_utc_micro()
+			return aip.time.now()
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
 		let micro = res.as_i64().ok_or("Expected integer")?;
@@ -365,151 +345,61 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_aip_time_now_utc_micro_with_offsets() -> Result<()> {
+	async fn test_aip_time_local_utc_offset_seconds() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
-			local base = 1000000000
-			local shifted = aip.time.now_utc_micro({
-				epoch_micro = base,
-				day = 1,
-				hour = 2,
-				sec = 30,
-				ms = 500,
-				micro = 100
-			})
-			return shifted
+			return aip.time.local_utc_offset_seconds()
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
-		let shifted = res.as_i64().ok_or("Expected integer")?;
-		let expected_offset = (86_400_000_000i64) + (2 * 3_600_000_000i64) + (30 * 1_000_000i64) + (500 * 1_000) + 100;
-		assert_eq!(shifted, 1_000_000_000 + expected_offset);
+		let offset = res.as_i64().ok_or("Expected integer")?;
+		assert!((-43200..=50400).contains(&offset));
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_aip_time_now_utc_and_local() -> Result<()> {
+	async fn test_aip_time_to_time_data() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
-			local utc = aip.time.now_utc()
-			local local_t = aip.time.now_local()
-			return { utc = utc, local_t = local_t }
+			local base = 1787421612000000
+			local utc_data = aip.time.to_time_data(base)
+			local offset_data = aip.time.to_time_data({ epoch_micro = base, utc_offset_seconds = -18000 })
+			return { utc = utc_data, offset = offset_data }
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
 
 		let utc = &res["utc"];
-		assert_eq!(utc["is_local"], false);
+		assert_eq!(utc["epoch_micro"], 1787421612000000i64);
 		assert_eq!(utc["utc_offset_seconds"], 0);
-		assert!(utc["year"].as_i64().unwrap() >= 2026);
-		assert!(utc["month"].as_u64().unwrap() >= 1 && utc["month"].as_u64().unwrap() <= 12);
-		assert!(utc["day_num"].as_u64().unwrap() >= 1 && utc["day_num"].as_u64().unwrap() <= 7);
-		assert!(!utc["day_name"].as_str().unwrap().is_empty());
-		assert!(!utc["rfc3339"].as_str().unwrap().is_empty());
+		assert_eq!(utc["year"], 2026);
+		assert_eq!(utc["month"], 8);
+		assert_eq!(utc["day"], 22);
 
-		let local_t = &res["local_t"];
-		assert_eq!(local_t["is_local"], true);
-		assert!(local_t["year"].as_i64().unwrap() >= 2026);
+		let offset = &res["offset"];
+		assert_eq!(offset["epoch_micro"], 1787421612000000i64);
+		assert_eq!(offset["utc_offset_seconds"], -18000);
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_aip_time_today_utc_and_local() -> Result<()> {
+	async fn test_aip_time_offset_by() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
-			local today_utc = aip.time.today_utc()
-			local next_week_utc = aip.time.today_utc({ day = 7 })
-			return { today = today_utc, next_week = next_week_utc }
-		"#;
-		let res = _test_support::eval_script(&engine, script).await?;
-
-		let today = &res["today"];
-		assert_eq!(today["hour"], 0);
-		assert_eq!(today["minute"], 0);
-		assert_eq!(today["second"], 0);
-		assert_eq!(today["micro"], 0);
-		assert_eq!(today["is_local"], false);
-
-		let next_week = &res["next_week"];
-		let today_micro = today["epoch_micro"].as_i64().unwrap();
-		let next_week_micro = next_week["epoch_micro"].as_i64().unwrap();
-		assert_eq!(next_week_micro - today_micro, 7 * 86_400_000_000);
-		assert_eq!(next_week["day_name"], today["day_name"]);
-		assert_eq!(next_week["day_num"], today["day_num"]);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn test_aip_time_offset_micro() -> Result<()> {
-		let engine = _test_support::setup_lua_engine(init_registry)?;
-		let script = r#"
-			local base = 5000000000
-			local shifted = aip.time.offset_micro({
+			local base = 1000000000
+			local shifted = aip.time.offset_by({
 				epoch_micro = base,
-				day = -1.5,
-				hour = 12
+				by_days = 1,
+				by_hours = 2,
+				by_minutes = 15,
+				by_seconds = 30,
+				by_ms = 500,
+				by_micro = 100
 			})
 			return shifted
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
-		let shifted = res.as_i64().ok_or("Expected integer")?;
-		let expected_delta = (-1.5 * 86_400_000_000.0) as i64 + (12 * 3_600_000_000i64);
-		assert_eq!(shifted, 5_000_000_000 + expected_delta);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn test_aip_time_from_micro_roundtrip() -> Result<()> {
-		let engine = _test_support::setup_lua_engine(init_registry)?;
-		let script = r#"
-			local original = aip.time.now_utc()
-			local roundtripped = aip.time.from_micro(original)
-			local tomorrow = aip.time.from_micro({
-				epoch_micro = original.epoch_micro,
-				is_local = original.is_local,
-				day = 1
-			})
-			return { orig = original, round = roundtripped, tom = tomorrow }
-		"#;
-		let res = _test_support::eval_script(&engine, script).await?;
-		assert_eq!(res["orig"]["epoch_micro"], res["round"]["epoch_micro"]);
-		assert_eq!(res["orig"]["rfc3339"], res["round"]["rfc3339"]);
-
-		let orig_micro = res["orig"]["epoch_micro"].as_i64().unwrap();
-		let tom_micro = res["tom"]["epoch_micro"].as_i64().unwrap();
-		assert_eq!(tom_micro - orig_micro, 86_400_000_000);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn test_aip_time_from_micro_variants() -> Result<()> {
-		let engine = _test_support::setup_lua_engine(init_registry)?;
-		let script = r#"
-			local base = 1787421612000000
-			local as_utc = aip.time.from_micro({ epoch_micro = base })
-			local as_local = aip.time.from_micro({ epoch_micro = base, is_local = true })
-			local as_offset = aip.time.from_micro({ epoch_micro = base, utc_offset_seconds = -18000 })
-			local as_ist = aip.time.from_micro({ epoch_micro = base, utc_offset_seconds = 19800 })
-			return { utc = as_utc, local_t = as_local, offset_t = as_offset, ist_t = as_ist }
-		"#;
-		let res = _test_support::eval_script(&engine, script).await?;
-		assert_eq!(res["utc"]["is_local"], false);
-		assert_eq!(res["utc"]["epoch_micro"], 1787421612000000i64);
-		assert_eq!(res["utc"]["utc_offset_seconds"], 0);
-		assert_eq!(res["local_t"]["is_local"], true);
-		assert_eq!(res["local_t"]["epoch_micro"], 1787421612000000i64);
-		assert_eq!(res["offset_t"]["utc_offset_seconds"], -18000);
-		assert_eq!(res["offset_t"]["epoch_micro"], 1787421612000000i64);
-		assert_eq!(res["ist_t"]["utc_offset_seconds"], 19800);
-		assert_eq!(res["ist_t"]["epoch_micro"], 1787421612000000i64);
-
-		// Test scalar integer input directly
-		let script_scalar = r#"
-			local as_utc = aip.time.from_micro(1787421612000000)
-			return as_utc
-		"#;
-		let res_scalar = _test_support::eval_script(&engine, script_scalar).await?;
-		assert_eq!(res_scalar["epoch_micro"], 1787421612000000i64);
-		assert_eq!(res_scalar["is_local"], false);
-
+		let shifted_micro = res["epoch_micro"].as_i64().ok_or("Expected integer")?;
+		let expected_offset = (86_400_000_000i64) + (2 * 3_600_000_000i64) + (15 * 60_000_000i64) + (30 * 1_000_000i64) + (500 * 1_000) + 100;
+		assert_eq!(shifted_micro, 1_000_000_000 + expected_offset);
 		Ok(())
 	}
 
@@ -517,7 +407,7 @@ mod tests {
 	async fn test_aip_time_parse() -> Result<()> {
 		let engine = _test_support::setup_lua_engine(init_registry)?;
 		let script = r#"
-			local parsed1 = aip.time.parse({ text = "2026-08-22T15:30:45Z" })
+			local parsed1 = aip.time.parse("2026-08-22T15:30:45Z")
 			local parsed2 = aip.time.parse({ text = "2026-08-22T10:30:45-05:00" })
 			local parsed3 = aip.time.parse({ text = "2026-08-22" })
 			return { p1 = parsed1, p2 = parsed2, p3 = parsed3 }

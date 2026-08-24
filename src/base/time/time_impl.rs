@@ -28,7 +28,45 @@ pub fn now_micro() -> i64 {
 
 // region:    --- Conversions & Calculations
 
+/// Computes total microsecond offset from relative duration fields: days, hours, minutes, seconds, milliseconds, and microseconds.
+#[allow(unused)]
+pub fn compute_relative_micro_offset(
+	by_days: Option<f64>,
+	by_hours: Option<f64>,
+	by_minutes: Option<f64>,
+	by_seconds: Option<f64>,
+	by_ms: Option<f64>,
+	by_micro: Option<i64>,
+) -> i64 {
+	let mut total: i64 = by_micro.unwrap_or(0);
+	if let Some(d) = by_days {
+		total = total.saturating_add((d * 86_400_000_000.0).round() as i64);
+	}
+	if let Some(h) = by_hours {
+		total = total.saturating_add((h * 3_600_000_000.0).round() as i64);
+	}
+	if let Some(m) = by_minutes {
+		total = total.saturating_add((m * 60_000_000.0).round() as i64);
+	}
+	if let Some(s) = by_seconds {
+		total = total.saturating_add((s * 1_000_000.0).round() as i64);
+	}
+	if let Some(ms) = by_ms {
+		total = total.saturating_add((ms * 1_000.0).round() as i64);
+	}
+	total
+}
+
+/// Returns the current system local UTC offset in seconds.
+#[allow(unused)]
+pub fn current_local_offset_seconds() -> Result<i32> {
+	let local_offset = UtcOffset::current_local_offset()
+		.map_err(|err| format!("Cannot get local offset, cause: {err}"))?;
+	Ok(local_offset.whole_seconds())
+}
+
 /// Computes total microsecond offset from optional day, hour, sec, ms, and micro parameters.
+#[allow(unused)]
 pub fn compute_micro_offset(
 	day: Option<f64>,
 	hour: Option<f64>,
@@ -60,6 +98,7 @@ pub fn epoch_micro_to_utc_datetime(epoch_micro: i64) -> Result<OffsetDateTime> {
 }
 
 /// Converts an epoch microsecond timestamp to a local `OffsetDateTime`.
+#[allow(unused)]
 pub fn epoch_micro_to_local_datetime(epoch_micro: i64) -> Result<OffsetDateTime> {
 	let utc_dt = epoch_micro_to_utc_datetime(epoch_micro)?;
 	let local_offset = UtcOffset::current_local_offset()
@@ -85,6 +124,7 @@ pub fn format_rfc3339(dt: &OffsetDateTime) -> Result<String> {
 }
 
 /// Returns the Unix epoch timestamp in microseconds for UTC midnight (00:00:00.000000) of today.
+#[allow(unused)]
 pub fn today_utc_midnight_micro() -> Result<i64> {
 	let now_utc = OffsetDateTime::now_utc();
 	let midnight = now_utc.replace_time(time::Time::MIDNIGHT);
@@ -92,6 +132,7 @@ pub fn today_utc_midnight_micro() -> Result<i64> {
 }
 
 /// Returns the Unix epoch timestamp in microseconds for local midnight (00:00:00.000000) of today.
+#[allow(unused)]
 pub fn today_local_midnight_micro() -> Result<i64> {
 	let now_utc = OffsetDateTime::now_utc();
 	let local_offset = UtcOffset::current_local_offset()
@@ -152,6 +193,31 @@ pub fn weekday_number(weekday: time::Weekday) -> u8 {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_compute_relative_micro_offset() {
+		let offset = compute_relative_micro_offset(
+			Some(1.5),
+			Some(2.0),
+			Some(15.0),
+			Some(30.0),
+			Some(500.0),
+			Some(123),
+		);
+		let expected = (1.5 * 86_400_000_000.0) as i64
+			+ (2.0 * 3_600_000_000.0) as i64
+			+ (15.0 * 60_000_000.0) as i64
+			+ (30.0 * 1_000_000.0) as i64
+			+ (500.0 * 1_000.0) as i64
+			+ 123;
+		assert_eq!(offset, expected);
+	}
+
+	#[test]
+	fn test_current_local_offset_seconds() {
+		let res = current_local_offset_seconds();
+		assert!(res.is_ok());
+	}
 
 	#[test]
 	fn test_compute_micro_offset() {

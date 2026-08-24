@@ -77,7 +77,7 @@ fn test_modules_init_registry_contains_time_module() -> Result<()> {
 		.collect::<Vec<_>>();
 
 	// -- Check
-	assert!(paths.iter().any(|path| path == "aip.time.now_utc_micro"));
+	assert!(paths.iter().any(|path| path == "aip.time.now"));
 	assert!(paths.iter().any(|path| path == "aip.time.parse"));
 
 	Ok(())
