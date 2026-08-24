@@ -61,3 +61,7 @@ merge_deep(
 ```
 
 `merge*` uses the first non-nil/non-null table as the target when needed and errors on invalid source types.
+
+## Important API Usage
+
+When Params properties have default value and are optional, do not set them except if needed for the desired output. 

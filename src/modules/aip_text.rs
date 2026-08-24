@@ -43,11 +43,11 @@ pub struct AipTextFormatSizeParams {
 	/// in bytes. If nil/absent, returns nil
 	pub size: Option<u64>,
 
-	/// "B" | "KB" | "MB" | "GB" | "TB"
+	/// Default: "B".  "B" | "KB" | "MB" | "GB" | "TB"
 	pub lowest_unit: Option<String>,
 
-	/// Default: false. Do not use for tables or aligned output.
-	pub trim: Option<bool>,
+	/// Default: false. (Do NOT set to 'true' when show in list or table, only when in a sentence)
+	pub unpad: Option<bool>,
 }
 
 impl AipFromLua for AipTextFormatSizeParams {
@@ -72,12 +72,12 @@ impl AipFromLua for AipTextFormatSizeParams {
 		};
 
 		let lowest_unit = table.x_try_get_string("lowest_unit")?;
-		let trim = table.x_try_get_bool("trim")?;
+		let unpad = table.x_try_get_bool("unpad")?;
 
 		Ok(AipTextFormatSizeParams {
 			size,
 			lowest_unit,
-			trim,
+			unpad,
 		})
 	}
 }
@@ -112,7 +112,7 @@ fn aip_text_format_size_handler(
 
 	let pretty_options = params.lowest_unit.as_deref().map(PrettySizeOptions::from);
 	let pretty = format_pretty_size(size, pretty_options);
-	let result = if params.trim.unwrap_or_default() {
+	let result = if params.unpad.unwrap_or_default() {
 		pretty.trim().to_string()
 	} else {
 		pretty

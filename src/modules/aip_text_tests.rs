@@ -66,7 +66,7 @@ async fn test_aip_text_format_size_trim() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(aip_registry)?;
 	let script = r#"
-        return aip.text.format_size({ size = 1500, lowest_unit = "KB", trim = true })
+        return aip.text.format_size({ size = 1500, lowest_unit = "KB", unpad = true })
     "#;
 
 	// -- Exec
