@@ -46,8 +46,7 @@ pub struct AipTextFormatSizeParams {
 	/// "B" | "KB" | "MB" | "GB" | "TB"
 	pub lowest_unit: Option<String>,
 
-	/// Whether to trim whitespace from the result (default: false).
-	/// Do not trim when in table for nicer display
+	/// Default: false. Do not use for tables or aligned output.
 	pub trim: Option<bool>,
 }
 
@@ -101,7 +100,7 @@ impl AipIntoLua for AipTextFormatSizeOutput {
 impl AipOutput for AipTextFormatSizeOutput {}
 
 /// Formats a byte size into a human-readable 9-character aligned string.
-/// Tip: Do not use the {trim: true} when displaying in a table or similar, as 9-character will align all value in a column
+/// Keep the padding for tables, lists, and aligned output.
 #[aip_handler]
 fn aip_text_format_size_handler(
 	_call: HandlerCallContext,
