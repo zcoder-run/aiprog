@@ -9,9 +9,9 @@
 //! ### Functions
 //!
 //! - `aip.file.read(params: { path: string, base_dir?: string }) -> { info: FileInfo, content: string }`
-//! - `aip.file.list(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileInfo[]`
-//! - `aip.file.list_read(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileRecord[]`
-//! - `aip.file.first(params: { globs: string | string[], base_dir?: string, absolute?: boolean, with_meta?: boolean, contains?: ContainsCond }) -> FileInfo | nil`
+//! - `aip.file.list(params: { globs: string | string[], base_dir?: string, absolute?: boolean, contains?: ContainsCond }) -> FileInfo[]`
+//! - `aip.file.list_read(params: { globs: string | string[], base_dir?: string, absolute?: boolean, contains?: ContainsCond }) -> FileRecord[]`
+//! - `aip.file.first(params: { globs: string | string[], base_dir?: string, absolute?: boolean, contains?: ContainsCond }) -> FileInfo | nil`
 //! - `aip.file.info(params: { path: string, base_dir?: string }) -> FileInfo | nil`
 //! - `aip.file.exists(params: { path: string, base_dir?: string }) -> boolean`
 //! - `aip.file.stats(params: { globs?: string | string[], base_dir?: string, contains?: ContainsCond }) -> FileStats | nil`
@@ -89,7 +89,6 @@ pub struct AipFileListParams {
 
 	pub base_dir: Option<String>,
 	pub absolute: Option<bool>,
-	pub with_meta: Option<bool>,
 	pub contains: Option<ContainsCond>,
 }
 
@@ -116,14 +115,12 @@ impl AipFromLua for AipFileListParams {
 		let globs = lua_value_to_file_globs(table, "globs")?;
 		let base_dir = table.x_try_get_string("base_dir")?;
 		let absolute = table.x_try_get_bool("absolute")?;
-		let with_meta = table.x_try_get_bool("with_meta")?;
 		let contains = lua_value_to_optional_contains_cond(table, "contains")?;
 
 		Ok(AipFileListParams {
 			globs,
 			base_dir,
 			absolute,
-			with_meta,
 			contains,
 		})
 	}
@@ -349,7 +346,6 @@ fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) ->
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
-	let with_meta = params.with_meta.unwrap_or(true);
 	let absolute = params.absolute.unwrap_or(false);
 
 	let paths = call.with::<DirContext, _>(|dir| {
@@ -358,7 +354,7 @@ fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) ->
 
 	let mut infos: Vec<FileInfo> = Vec::new();
 	for p in paths {
-		let info = file_info_from_meta(p.path(), with_meta, p.root(), absolute)
+		let info = file_info_from_meta(p.path(), true, p.root(), absolute)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 		infos.push(info);
 	}
@@ -384,7 +380,7 @@ fn aip_file_list_read_handler(
 
 	let mut records: Vec<FileRecord> = Vec::new();
 	for p in paths {
-		let info = file_info_from_meta(p.path(), params.with_meta.unwrap_or(true), p.root(), absolute)
+		let info = file_info_from_meta(p.path(), true, p.root(), absolute)
 			.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))?;
 
 		let content = support::read_file_content(p.path())
@@ -444,7 +440,7 @@ fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -
 		.into_iter()
 		.next()
 		.map(|first| {
-			file_info_from_meta(first.path(), params.with_meta.unwrap_or(true), first.root(), absolute)
+			file_info_from_meta(first.path(), true, first.root(), absolute)
 				.map_err(|e| aip_file_error("READ_FAILED", &e.to_string()))
 		})
 		.transpose()?;
