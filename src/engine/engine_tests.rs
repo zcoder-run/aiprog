@@ -1,7 +1,7 @@
-use super::support::LuaEngine;
+use crate::engine::LuaEngine;
 use crate::impl_lua_serde_traits;
 use crate::registry::{HandlerError, HandlerResult};
-use crate::{AipIntoLua, AipRegistry, AipRegistryBuilder};
+use crate::{AipIntoLua, AipRegistry, AipRegistryBuilder, RunningContext, ScriptEngine};
 use mlua::Value;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -59,21 +59,22 @@ fn test_error_handler(_call: crate::HandlerCallContext, _params: TestParams) -> 
 
 // region:    --- Nested table creation
 
-#[test]
-fn test_lua_engine_nested_table_creation() -> Result<()> {
+#[tokio::test]
+async fn test_lua_engine_nested_table_creation() -> Result<()> {
 	// -- Setup & Fixtures
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.test.my_func", test_sync_handler)?
 		.build();
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let engine = LuaEngine::from_registry(registry)?;
+	let outcome = engine
+		.exec("return aip.test.my_func({data='hello'})", RunningContext::default())
+		.await?;
 
 	// -- Check
-	let lua = engine.lua();
-	let value: Value = lua.load("return aip.test.my_func({data='hello'})").eval()?;
-	let table = value.as_table().ok_or("Expected table")?;
-	assert_eq!(table.get::<String>("data")?, "hello");
+	let value = outcome.result?;
+	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("hello"));
 
 	Ok(())
 }
@@ -85,15 +86,16 @@ fn test_lua_engine_nested_table_creation() -> Result<()> {
 #[test]
 fn test_lua_engine_existing_compatible_table() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut engine = LuaEngine::new()?;
-	{
-		let lua = engine.lua();
+	let lua = mlua::Lua::new();
+	let aip = lua.create_table()?;
+	let existing = lua.create_table()?;
+	aip.set("existing", existing)?;
+	lua.globals().set("aip", aip)?;
 
-		let aip = lua.create_table()?;
-		let existing = lua.create_table()?;
-		aip.set("existing", existing.clone())?;
-		lua.globals().set("aip", aip)?;
-	}
+	let mut engine = LuaEngine {
+		lua,
+		registered_fns: Vec::new(),
+	};
 
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.existing.my_func", test_sync_handler)?
@@ -118,15 +120,15 @@ fn test_lua_engine_existing_compatible_table() -> Result<()> {
 #[test]
 fn test_lua_engine_intermediate_non_table_conflict() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut engine = LuaEngine::new()?;
-	{
-		let lua = engine.lua();
+	let lua = mlua::Lua::new();
+	lua.globals().set("aip", lua.create_table()?)?;
+	let aip_table: mlua::Table = lua.globals().get("aip")?;
+	aip_table.set("existing", 42)?;
 
-		// Set aip.existing to a number instead of table
-		lua.globals().set("aip", lua.create_table()?)?;
-		let aip_table: mlua::Table = lua.globals().get("aip")?;
-		aip_table.set("existing", 42)?;
-	}
+	let mut engine = LuaEngine {
+		lua,
+		registered_fns: Vec::new(),
+	};
 
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.existing.my_func", test_sync_handler)?
@@ -150,20 +152,20 @@ fn test_lua_engine_intermediate_non_table_conflict() -> Result<()> {
 #[test]
 fn test_lua_engine_leaf_conflict() -> Result<()> {
 	// -- Setup & Fixtures
-	let mut engine = LuaEngine::new()?;
-	{
-		let lua = engine.lua();
+	let lua = mlua::Lua::new();
+	let aip = lua.create_table()?;
+	let conflict = lua.create_table()?;
+	conflict.set(
+		"my_func",
+		lua.create_function(|_, _: mlua::Value| Ok(mlua::Value::Nil))?,
+	)?;
+	aip.set("conflict", conflict)?;
+	lua.globals().set("aip", aip)?;
 
-		// Create aip.conflict table and a function at my_func
-		let aip = lua.create_table()?;
-		let conflict = lua.create_table()?;
-		conflict.set(
-			"my_func",
-			lua.create_function(|_, _: mlua::Value| Ok(mlua::Value::Nil))?,
-		)?;
-		aip.set("conflict", conflict)?;
-		lua.globals().set("aip", aip)?;
-	}
+	let mut engine = LuaEngine {
+		lua,
+		registered_fns: Vec::new(),
+	};
 
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.conflict.my_func", test_sync_handler)?
@@ -184,20 +186,22 @@ fn test_lua_engine_leaf_conflict() -> Result<()> {
 
 // region:    --- Sync invocation
 
-#[test]
-fn test_lua_engine_sync_invocation() -> Result<()> {
+#[tokio::test]
+async fn test_lua_engine_sync_invocation() -> Result<()> {
 	// -- Setup & Fixtures
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.test.echo", test_sync_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let value: Value = engine.lua().load("return aip.test.echo({data='sync test'})").eval()?;
+	let outcome = engine
+		.exec("return aip.test.echo({data='sync test'})", RunningContext::default())
+		.await?;
 
 	// -- Check
-	let table = value.as_table().ok_or("Expected table")?;
-	assert_eq!(table.get::<String>("data")?, "sync test");
+	let value = outcome.result?;
+	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("sync test"));
 
 	Ok(())
 }
@@ -206,21 +210,22 @@ fn test_lua_engine_sync_invocation() -> Result<()> {
 
 // region:    --- Sync handler error conversion
 
-#[test]
-fn test_lua_engine_sync_error_conversion() -> Result<()> {
+#[tokio::test]
+async fn test_lua_engine_sync_error_conversion() -> Result<()> {
 	// -- Setup & Fixtures
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.test.fail", test_error_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let lua = engine.lua();
-	let result = lua.load("return aip.test.fail({data='boom'})").eval::<mlua::Value>();
+	let outcome = engine
+		.exec("return aip.test.fail({data='boom'})", RunningContext::default())
+		.await?;
 
 	// -- Check
-	assert!(result.is_err());
-	let err_msg = result.unwrap_err().to_string();
+	assert!(outcome.result.is_err());
+	let err_msg = outcome.result.unwrap_err().to_string();
 	assert!(err_msg.contains("TEST_ERROR"));
 	assert!(err_msg.contains("forced test error"));
 
@@ -237,18 +242,16 @@ async fn test_lua_engine_async_invocation() -> Result<()> {
 	let registry = AipRegistryBuilder::default()
 		.register_async("aip.test.echo_async", test_async_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let value: Value = engine
-		.lua()
-		.load("return aip.test.echo_async({data='async test'})")
-		.call_async(())
+	let outcome = engine
+		.exec("return aip.test.echo_async({data='async test'})", RunningContext::default())
 		.await?;
 
 	// -- Check
-	let table = value.as_table().ok_or("Expected table")?;
-	assert_eq!(table.get::<String>("data")?, "async test");
+	let value = outcome.result?;
+	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("async test"));
 
 	Ok(())
 }
@@ -267,18 +270,16 @@ async fn test_lua_engine_async_error_conversion() -> Result<()> {
 	let registry = AipRegistryBuilder::default()
 		.register_async("aip.test.fail_async", async_error_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let lua = engine.lua();
-	let result = lua
-		.load("return aip.test.fail_async({data='boom'})")
-		.call_async::<mlua::Value>(())
-		.await;
+	let outcome = engine
+		.exec("return aip.test.fail_async({data='boom'})", RunningContext::default())
+		.await?;
 
 	// -- Check
-	assert!(result.is_err());
-	let err_msg = result.unwrap_err().to_string();
+	assert!(outcome.result.is_err());
+	let err_msg = outcome.result.unwrap_err().to_string();
 	assert!(err_msg.contains("ASYNC_ERROR"));
 	assert!(err_msg.contains("forced async error"));
 
@@ -295,7 +296,7 @@ fn test_generate_doc_content() -> Result<()> {
 		.register_sync("aip.test.echo", test_sync_handler)?
 		.register_async("aip.test.echo_async", test_async_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	let doc = engine.generate_doc()?;
 
@@ -318,18 +319,19 @@ fn test_generate_doc_content() -> Result<()> {
 #[tokio::test]
 async fn test_lua_engine_exec_invalid_params_rich_message() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = LuaEngine::new()?;
+	let registry = crate::modules::init_registry()?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 	let script = r#"
 local res = aip.web.get({ url = 42 })
 return res
 "#;
 
 	// -- Exec
-	let result = engine.exec(script).await;
+	let outcome = engine.exec(script, RunningContext::default()).await?;
 
 	// -- Check
-	assert!(result.is_err());
-	let err = result.unwrap_err();
+	assert!(outcome.result.is_err());
+	let err = outcome.result.unwrap_err();
 	let crate::Error::LuaScript(details) = err else {
 		return Err("Expected Error::LuaScript".into());
 	};
@@ -349,7 +351,13 @@ return res
 #[tokio::test]
 async fn test_luan_engine_context_free_file_handler_reports_missing_context() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = LuaEngine::new_context_free()?;
+	let lua = mlua::Lua::new();
+	let mut engine = LuaEngine {
+		lua,
+		registered_fns: Vec::new(),
+	};
+	let registry = crate::modules::init_registry()?;
+	engine.register(registry)?;
 
 	// -- Exec
 	let result = engine.exec("return aip.file.exists({ path = 'missing.txt' })").await;
@@ -368,15 +376,15 @@ async fn test_luan_engine_context_free_file_handler_reports_missing_context() ->
 #[tokio::test]
 async fn test_lua_engine_exec_lua_script_error_details() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = LuaEngine::from_registry(AipRegistry::from_empty())?;
+	let engine = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
 	let script = "local a = 1\nlocal b = 2\nerror('boom')\nreturn a + b";
 
 	// -- Exec
-	let result = engine.exec(script).await;
+	let outcome = engine.exec(script, RunningContext::default()).await?;
 
 	// -- Check
-	assert!(result.is_err());
-	let err = result.unwrap_err();
+	assert!(outcome.result.is_err());
+	let err = outcome.result.unwrap_err();
 	let crate::Error::LuaScript(details) = err else {
 		return Err("Expected Error::LuaScript".into());
 	};
@@ -400,18 +408,16 @@ async fn test_lua_engine_async_lua_only_output() -> Result<()> {
 	let registry = AipRegistryBuilder::default()
 		.register_async("aip.test.lua_only", test_async_lua_only_handler)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
-	let value: Value = engine
-		.lua()
-		.load("return aip.test.lua_only({data='lua native'})")
-		.call_async(())
+	let outcome = engine
+		.exec("return aip.test.lua_only({data='lua native'})", RunningContext::default())
 		.await?;
 
 	// -- Check
-	let table = value.as_table().ok_or("Expected table")?;
-	assert_eq!(table.get::<String>("data")?, "lua native");
+	let value = outcome.result?;
+	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("lua native"));
 
 	Ok(())
 }
@@ -420,11 +426,12 @@ async fn test_lua_engine_async_lua_only_output() -> Result<()> {
 
 // region:    --- Standard libraries
 
-#[test]
-fn test_lua_engine_stdlib_configuration() -> Result<()> {
+#[tokio::test]
+async fn test_lua_engine_stdlib_configuration() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = LuaEngine::new()?;
-	let lua = engine.lua();
+	let engine = ScriptEngine::builder().with_registry(AipRegistry::from_empty()).build()?;
+	let running = engine.start()?;
+	let lua = running.engine.lua();
 
 	// -- Check enabled libraries
 	assert!(lua.globals().get::<mlua::Table>("string").is_ok());

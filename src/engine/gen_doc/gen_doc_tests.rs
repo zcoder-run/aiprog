@@ -7,7 +7,7 @@ use crate::engine::support::LuaEngine;
 use crate::impl_lua_serde_traits;
 use crate::register_handler;
 use crate::registry::HandlerResult;
-use crate::{AipFnKind, AipOutput, AipParams, AipRegisteredFn, AipRegistry, AipRegistryBuilder};
+use crate::{AipFnKind, AipOutput, AipParams, AipRegisteredFn, AipRegistryBuilder};
 use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -528,16 +528,19 @@ fn test_generate_doc_shared_types() -> TestResult {
 	let output_schema: Schema = Schema::try_from(json!(true)).expect("Invalid schema");
 	let error_schema: Schema = Schema::try_from(json!({"type": "string"})).expect("Invalid schema");
 
-	let mut engine = LuaEngine::from_registry(AipRegistry::from_empty())?;
-	engine.registered_fns.push(AipRegisteredFn {
-		path: "test.fn".to_string(),
-		params_schema,
-		output_schema,
-		error_schema,
-		kind: AipFnKind::Sync,
-		description: None,
-		title: None,
-	});
+	let lua = mlua::Lua::new();
+	let engine = LuaEngine {
+		lua,
+		registered_fns: vec![AipRegisteredFn {
+			path: "test.fn".to_string(),
+			params_schema,
+			output_schema,
+			error_schema,
+			kind: AipFnKind::Sync,
+			description: None,
+			title: None,
+		}],
+	};
 
 	let doc = engine.generate_doc()?;
 	assert!(doc.contains("## test.*"));
@@ -571,16 +574,19 @@ fn test_generate_doc_skips_common_error_block() -> TestResult {
 	}))
 	.expect("Invalid schema");
 
-	let mut engine = LuaEngine::from_registry(AipRegistry::from_empty())?;
-	engine.registered_fns.push(AipRegisteredFn {
-		path: "test.inline_error".to_string(),
-		params_schema,
-		output_schema,
-		error_schema,
-		kind: AipFnKind::Sync,
-		description: None,
-		title: None,
-	});
+	let lua = mlua::Lua::new();
+	let engine = LuaEngine {
+		lua,
+		registered_fns: vec![AipRegisteredFn {
+			path: "test.inline_error".to_string(),
+			params_schema,
+			output_schema,
+			error_schema,
+			kind: AipFnKind::Sync,
+			description: None,
+			title: None,
+		}],
+	};
 
 	let doc = engine.generate_doc()?;
 
@@ -683,7 +689,7 @@ fn test_generate_doc_with_macro_sync_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = LuaEngine::from_registry(registry.build())?;
+	let engine = crate::ScriptEngine::builder().with_registry(registry.build()).build()?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -706,7 +712,7 @@ fn test_generate_doc_with_macro_async_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.async", DocAsyncHandler)?;
-	let engine = LuaEngine::from_registry(registry.build())?;
+	let engine = crate::ScriptEngine::builder().with_registry(registry.build()).build()?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -729,7 +735,7 @@ fn test_generate_doc_with_macro_multiline_handler() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.multiline", DocMultiLineHandler)?;
-	let engine = LuaEngine::from_registry(registry.build())?;
+	let engine = crate::ScriptEngine::builder().with_registry(registry.build()).build()?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -754,7 +760,7 @@ fn test_generate_doc_fallback_to_params_desc() -> TestResult {
 	let registry = AipRegistryBuilder::default()
 		.register_sync("aip.doc.fallback", fallback_impl)?
 		.build();
-	let engine = LuaEngine::from_registry(registry)?;
+	let engine = crate::ScriptEngine::builder().with_registry(registry).build()?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;
@@ -772,7 +778,7 @@ fn test_generate_doc_includes_preamble() -> TestResult {
 	// -- Setup & Fixtures
 	let mut registry = AipRegistryBuilder::default();
 	register_handler!(registry, "aip.doc.sync", DocSyncHandler)?;
-	let engine = LuaEngine::from_registry(registry.build())?;
+	let engine = crate::ScriptEngine::builder().with_registry(registry.build()).build()?;
 
 	// -- Exec
 	let doc = engine.generate_doc()?;

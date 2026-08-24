@@ -12,8 +12,6 @@ use crate::modules::WebModule;
 async fn test_api_web_constants() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	// Install the constants (must be done after the functions are installed)
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	// -- Exec
 	let script = r#"
@@ -37,7 +35,6 @@ async fn test_api_web_constants() -> Result<()> {
 async fn test_api_web_get_simple() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -66,7 +63,6 @@ async fn test_api_web_get_simple() -> Result<()> {
 async fn test_api_web_post_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -98,7 +94,6 @@ async fn test_api_web_post_json() -> Result<()> {
 async fn test_api_web_post_body() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -129,7 +124,6 @@ async fn test_api_web_post_body() -> Result<()> {
 async fn test_api_web_post_error() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new().start().await?;
 	let url = server.path_url("/test");
@@ -149,7 +143,6 @@ async fn test_api_web_post_error() -> Result<()> {
 async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -186,7 +179,6 @@ async fn test_api_web_post_explicit_content_type_override_json() -> Result<()> {
 async fn test_api_web_post_explicit_content_type_override_string() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)
@@ -219,7 +211,6 @@ async fn test_api_web_post_explicit_content_type_override_string() -> Result<()>
 async fn test_api_web_post_omitted_body() -> Result<()> {
 	// -- Setup & Fixtures
 	let engine = _test_support::setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(WebModule)?.build()))?;
-	crate::modules::aip_web::install_constants(&engine)?;
 
 	let server = _test_support::TestServerBuilder::new()
 		.status(200)

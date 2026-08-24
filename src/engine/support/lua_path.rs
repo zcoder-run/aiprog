@@ -9,14 +9,6 @@
 
 use mlua::{Function, Lua, Table, Value};
 
-/// Install a Lua value at a dotted path, creating intermediate tables as needed.
-pub fn install_value_at_path(lua: &Lua, path: &str, value: Value) -> mlua::Result<()> {
-	let (parent, leaf) = resolve_parent_table(lua, path, "Invalid empty path for value installation")?;
-	parent.set(leaf, value)?;
-
-	Ok(())
-}
-
 /// Install a Lua function at a dotted path, creating intermediate tables as needed.
 pub fn install_function_at_path(lua: &Lua, path: &str, func: Function) -> mlua::Result<()> {
 	let (parent, leaf) = resolve_parent_table(lua, path, "Invalid empty path for function installation")?;

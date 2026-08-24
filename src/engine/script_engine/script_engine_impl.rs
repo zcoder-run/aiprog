@@ -35,7 +35,7 @@ pub struct ScriptEngineBuilder {
 }
 
 pub struct RunningEngine {
-	engine: LuaEngine,
+	pub(crate) engine: LuaEngine,
 	context: RunningContextHandle,
 }
 
@@ -53,7 +53,7 @@ impl NativeFunctionSet {
 		self
 	}
 
-	fn install(&self, lua: &Lua) -> mlua::Result<()> {
+	pub fn install(&self, lua: &Lua) -> mlua::Result<()> {
 		for installer in self.installers.iter() {
 			installer(lua)?;
 		}
@@ -75,7 +75,14 @@ impl ScriptEngine {
 	}
 
 	pub fn generate_doc(&self) -> EngineResult<String> {
-		let engine = LuaEngine::from_context_free_registry(self.inner.registry.clone())
+		let lua = create_restricted_lua(&self.inner.lua_policy)?;
+		let mut engine = LuaEngine {
+			lua,
+			registered_fns: Vec::new(),
+		};
+		engine.init_native_fns().map_err(|e| EngineError::Custom(e.to_string()))?;
+		engine
+			.register(self.inner.registry.clone())
 			.map_err(|e| EngineError::Custom(e.to_string()))?;
 		engine.generate_doc().map_err(|e| EngineError::Custom(e.to_string()))
 	}
@@ -161,21 +168,19 @@ impl RunningEngine {
 		self.context.set_context(context).map_err(RunningEngineContextError::from)?;
 
 		let result = self.engine.exec(script).await;
-		let engine_result = result.map_err(|e| EngineError::Custom(e.to_string()));
 
 		let context = match self.context.take_context().map_err(RunningEngineContextError::from) {
 			Ok(context) => context,
 			Err(source) => {
 				return Err(RunningEngineFinishError {
-					result: engine_result,
+					result: result.map_err(|e| EngineError::Custom(e.to_string())),
 					source,
 				}
 				.into());
 			}
 		};
 
-		let crate_result = engine_result.map_err(crate::Error::Engine);
-		Ok(RunOutcome::new(crate_result, context))
+		Ok(RunOutcome::new(result, context))
 	}
 }
 

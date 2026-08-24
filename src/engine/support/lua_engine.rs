@@ -9,10 +9,8 @@
 //! top-level `src/engine/` files.
 
 use crate::AipRegisteredFn;
-use crate::{AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
-use mlua::{IntoLua, Lua, LuaOptions, StdLib};
-
-use super::install_value_at_path;
+use crate::{LuaErrorDetails, LuaJsonExt as _, Result};
+use mlua::Lua;
 
 pub struct LuaEngine {
 	pub(in crate::engine) lua: Lua,
@@ -22,52 +20,6 @@ pub struct LuaEngine {
 impl core::fmt::Debug for LuaEngine {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_struct("ScriptEngine").finish()
-	}
-}
-
-/// Constructors
-impl LuaEngine {
-	/// Create a new script engine with default settings
-	pub fn new() -> Result<Self> {
-		Self::new_context_free()
-	}
-
-	/// Create a script engine for APIs that do not require execution context.
-	///
-	/// Context-dependent handlers must run through [`EngineTemplate`](crate::EngineTemplate)
-	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
-	pub fn new_context_free() -> Result<Self> {
-		let std_libs = StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH;
-		let lua = Lua::new_with(std_libs, LuaOptions::default())?;
-		let mut engine = Self {
-			lua,
-			registered_fns: Vec::new(),
-		};
-		engine.init_native_fns()?;
-		let registry = crate::modules::init_registry()?;
-		engine.register(registry)?;
-		Ok(engine)
-	}
-
-	#[allow(dead_code)]
-	pub fn from_registry(registry: AipRegistry) -> Result<Self> {
-		Self::from_context_free_registry(registry)
-	}
-
-	/// Create a script engine for a registry whose handlers do not require execution context.
-	///
-	/// Context-dependent handlers must run through [`EngineTemplate`](crate::EngineTemplate)
-	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
-	pub fn from_context_free_registry(registry: AipRegistry) -> Result<Self> {
-		let std_libs = StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH;
-		let lua = Lua::new_with(std_libs, LuaOptions::default())?;
-		let mut engine = Self {
-			lua,
-			registered_fns: Vec::new(),
-		};
-		engine.init_native_fns()?;
-		engine.register(registry)?;
-		Ok(engine)
 	}
 }
 
@@ -95,15 +47,6 @@ impl LuaEngine {
 			.await
 			.map_err(|err| LuaErrorDetails::from_lua_error(&err, script))?;
 		Ok(value)
-	}
-}
-
-/// Others public
-impl LuaEngine {
-	/// Install any value at a dotted Lua path, creating intermediate tables as needed.
-	pub fn set_value_at_path(&self, path: &str, value: impl IntoLua) -> mlua::Result<()> {
-		let value = IntoLua::into_lua(value, self.lua())?;
-		install_value_at_path(self.lua(), path, value)
 	}
 }
 
