@@ -51,7 +51,7 @@ impl Default for LuaStdLibPolicy {
 	fn default() -> Self {
 		Self {
 			base: true,
-			coroutine: true,
+			coroutine: false,
 			math: true,
 			string: true,
 			table: true,

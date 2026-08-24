@@ -10,7 +10,7 @@
 
 use crate::AipRegisteredFn;
 use crate::{AipRegistry, LuaErrorDetails, LuaJsonExt as _, Result};
-use mlua::{IntoLua, Lua};
+use mlua::{IntoLua, Lua, LuaOptions, StdLib};
 
 use super::install_value_at_path;
 
@@ -28,7 +28,6 @@ impl core::fmt::Debug for LuaEngine {
 /// Constructors
 impl LuaEngine {
 	/// Create a new script engine with default settings
-	#[allow(dead_code)]
 	pub fn new() -> Result<Self> {
 		Self::new_context_free()
 	}
@@ -37,10 +36,11 @@ impl LuaEngine {
 	///
 	/// Context-dependent handlers must run through [`EngineTemplate`](crate::EngineTemplate)
 	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
-	#[allow(dead_code)]
 	pub fn new_context_free() -> Result<Self> {
+		let std_libs = StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH;
+		let lua = Lua::new_with(std_libs, LuaOptions::default())?;
 		let mut engine = Self {
-			lua: Lua::new(),
+			lua,
 			registered_fns: Vec::new(),
 		};
 		engine.init_native_fns()?;
@@ -59,8 +59,10 @@ impl LuaEngine {
 	/// Context-dependent handlers must run through [`EngineTemplate`](crate::EngineTemplate)
 	/// with a caller-supplied [`RunningContext`](crate::RunningContext).
 	pub fn from_context_free_registry(registry: AipRegistry) -> Result<Self> {
+		let std_libs = StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH;
+		let lua = Lua::new_with(std_libs, LuaOptions::default())?;
 		let mut engine = Self {
-			lua: Lua::new(),
+			lua,
 			registered_fns: Vec::new(),
 		};
 		engine.init_native_fns()?;

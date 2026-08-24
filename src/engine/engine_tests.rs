@@ -417,3 +417,42 @@ async fn test_lua_engine_async_lua_only_output() -> Result<()> {
 }
 
 // endregion: --- Async Lua-only output
+
+// region:    --- Standard libraries
+
+#[test]
+fn test_lua_engine_stdlib_configuration() -> Result<()> {
+	// -- Setup & Fixtures
+	let engine = LuaEngine::new()?;
+	let lua = engine.lua();
+
+	// -- Check enabled libraries
+	assert!(lua.globals().get::<mlua::Table>("string").is_ok());
+	assert!(lua.globals().get::<mlua::Table>("math").is_ok());
+	assert!(lua.globals().get::<mlua::Table>("table").is_ok());
+	assert!(lua.globals().get::<mlua::Table>("utf8").is_ok());
+
+	// -- Check disabled libraries
+	assert_eq!(lua.globals().get::<mlua::Value>("os")?, Value::Nil);
+	assert_eq!(lua.globals().get::<mlua::Value>("package")?, Value::Nil);
+	assert_eq!(lua.globals().get::<mlua::Value>("debug")?, Value::Nil);
+	assert_eq!(lua.globals().get::<mlua::Value>("coroutine")?, Value::Nil);
+	assert_eq!(lua.globals().get::<mlua::Value>("io")?, Value::Nil);
+
+	// -- Check standard library functions work
+	let str_val: String = lua.load("return string.sub('hello world', 1, 5)").eval()?;
+	assert_eq!(str_val, "hello");
+
+	let math_val: i64 = lua.load("return math.floor(42.7)").eval()?;
+	assert_eq!(math_val, 42);
+
+	let tbl_val: String = lua.load("return table.concat({'a', 'b', 'c'}, '-')").eval()?;
+	assert_eq!(tbl_val, "a-b-c");
+
+	let utf8_val: usize = lua.load("return utf8.len('hello')").eval()?;
+	assert_eq!(utf8_val, 5);
+
+	Ok(())
+}
+
+// endregion: --- Standard libraries
