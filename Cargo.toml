@@ -82,7 +82,7 @@ glob = "0.3"
 # git = "https://github.com/jeremychone/rust-htmlr"
 htmlr = { version = "0.1.7" }
 url = "2.5.7"
-quick-xml = "0.41"
+quick-xml = "0.42"
 # -- Others
 derive_more = { version = "2", features = ["display", "from"] }
 time = { version = "0.3.44", features = ["formatting", "local-offset"]}
