@@ -229,7 +229,7 @@ impl AipOutput for AipMdMakeTableOutput {}
 ///  to ensure the output includes a proper header row and separator line.
 #[aip_handler]
 fn aip_md_make_table_handler(
-	_call: HandlerCallContext,
+	_call_ctx: HandlerCallContext,
 	params: AipMdMakeTableParams,
 ) -> HandlerResult<AipMdMakeTableOutput> {
 	let headers_slice = params.headers.as_deref();

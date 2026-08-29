@@ -743,7 +743,9 @@ fn test_generate_doc_with_macro_multiline_handler() -> TestResult {
 	// -- Check
 	assert!(doc.contains("## aip.doc.*"));
 	assert!(!doc.contains("Multi-line handler title"));
-	assert!(doc.contains("// First line of multi-line handler description.\n//\n// Second paragraph with more details.\n"));
+	assert!(
+		doc.contains("// First line of multi-line handler description.\n//\n// Second paragraph with more details.\n")
+	);
 	assert!(doc.contains("aip.doc.multiline(params: AipDocMultilineParams): AipDocMultilineOutput"));
 	Ok(())
 }

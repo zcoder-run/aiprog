@@ -41,7 +41,7 @@ impl AipOutput for GreetingOutput {}
 
 /// Custom greeting handler.
 #[aip_handler]
-fn custom_greetings(_call: HandlerCallContext, params: GreetingParams) -> HandlerResult<GreetingOutput> {
+fn custom_greetings(_call_ctx: HandlerCallContext, params: GreetingParams) -> HandlerResult<GreetingOutput> {
 	Ok(GreetingOutput(format!("Hello {}", params.name)))
 }
 

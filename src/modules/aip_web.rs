@@ -19,11 +19,11 @@
 //! ---
 //!
 
-use crate::{AipModule, LuaJsonExt, NativeFunctionSet};
+use crate::AipRegistryBuilder;
 use crate::base::webc;
 use crate::registry::{HandlerError, HandlerResult};
 use crate::{AipFromLua, AipIntoLua, HandlerCallContext, LuaExt};
-use crate::AipRegistryBuilder;
+use crate::{AipModule, LuaJsonExt, NativeFunctionSet};
 use mlua::Lua;
 use std::collections::HashMap;
 
@@ -156,7 +156,7 @@ pub struct AipWebOutput {
 }
 
 /// Performs an HTTP GET request and returns the response.
-async fn aip_web_get_handler(_call: HandlerCallContext, params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_get_handler(_call_ctx: HandlerCallContext, params: AipWebGetParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),
@@ -279,7 +279,7 @@ impl AipFromLua for AipWebPostParams {
 impl crate::AipParams for AipWebPostParams {}
 
 /// Performs an HTTP POST request and returns the response.
-async fn aip_web_post_handler(_call: HandlerCallContext, params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
+async fn aip_web_post_handler(_call_ctx: HandlerCallContext, params: AipWebPostParams) -> HandlerResult<AipWebOutput> {
 	let client = build_webc_client(
 		params.user_agent.as_ref(),
 		params.headers.as_ref(),

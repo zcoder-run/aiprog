@@ -316,9 +316,7 @@ fn test_write_init_registry() -> Result<()> {
 	assert!(handlers.iter().any(|f| f.path == "aip.file.ensure_exists"));
 	assert!(handlers.iter().any(|f| f.path == "aip.file.ensure_dir"));
 
-	let merged = AipRegistryBuilder::default()
-		.add_module(super::super::FileModule)?
-		.build();
+	let merged = AipRegistryBuilder::default().add_module(super::super::FileModule)?.build();
 	let merged_handlers = merged.list_registered_fns();
 	assert!(merged_handlers.iter().any(|f| f.path == "aip.file.read"));
 	assert!(merged_handlers.iter().any(|f| f.path == "aip.file.write"));

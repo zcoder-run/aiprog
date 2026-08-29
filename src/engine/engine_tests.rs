@@ -246,12 +246,18 @@ async fn test_lua_engine_async_invocation() -> Result<()> {
 
 	// -- Exec
 	let outcome = engine
-		.exec("return aip.test.echo_async({data='async test'})", RunningContext::default())
+		.exec(
+			"return aip.test.echo_async({data='async test'})",
+			RunningContext::default(),
+		)
 		.await?;
 
 	// -- Check
 	let value = outcome.result?;
-	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("async test"));
+	assert_eq!(
+		value.get("data").and_then(serde_json::Value::as_str),
+		Some("async test")
+	);
 
 	Ok(())
 }
@@ -412,12 +418,18 @@ async fn test_lua_engine_async_lua_only_output() -> Result<()> {
 
 	// -- Exec
 	let outcome = engine
-		.exec("return aip.test.lua_only({data='lua native'})", RunningContext::default())
+		.exec(
+			"return aip.test.lua_only({data='lua native'})",
+			RunningContext::default(),
+		)
 		.await?;
 
 	// -- Check
 	let value = outcome.result?;
-	assert_eq!(value.get("data").and_then(serde_json::Value::as_str), Some("lua native"));
+	assert_eq!(
+		value.get("data").and_then(serde_json::Value::as_str),
+		Some("lua native")
+	);
 
 	Ok(())
 }

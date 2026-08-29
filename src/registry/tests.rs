@@ -24,11 +24,11 @@ impl_lua_serde_traits!(TestResponse);
 impl crate::AipParams for TestParams {}
 impl crate::AipOutput for TestResponse {}
 
-fn test_sync_handler(_call: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
+fn test_sync_handler(_call_ctx: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
-async fn test_async_handler(_call: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
+async fn test_async_handler(_call_ctx: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
 	Ok(TestResponse { data: params.data })
 }
 
@@ -189,8 +189,10 @@ fn test_registry_merge_duplicate() -> Result<()> {
 #[tokio::test]
 async fn test_registry_handler_context_access() -> Result<()> {
 	// -- Setup & Fixtures
-	fn context_handler(call: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
-		let prefix = call.with::<String, _>(Clone::clone).map_err(HandlerError::custom_from_err)?;
+	fn context_handler(call_ctx: HandlerCallContext, params: TestParams) -> HandlerResult<TestResponse> {
+		let prefix = call_ctx
+			.with::<String, _>(Clone::clone)
+			.map_err(HandlerError::custom_from_err)?;
 		Ok(TestResponse {
 			data: format!("{prefix}{}", params.data),
 		})

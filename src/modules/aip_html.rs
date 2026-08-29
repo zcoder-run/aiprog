@@ -87,7 +87,7 @@ impl AipOutput for AipHtmlSlimOutput {}
 
 /// Slims an HTML string by removing extra whitespace and indentation, returning the slimmed result.
 #[aip_handler]
-fn aip_html_slim_handler(_call: HandlerCallContext, params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
+fn aip_html_slim_handler(_call_ctx: HandlerCallContext, params: AipHtmlSlimParams) -> HandlerResult<AipHtmlSlimOutput> {
 	let indent = params.indent.unwrap_or(2);
 	let opts = htmlr::SlimOptions::from_indent(indent as u8);
 	let slimmed = htmlr::slim(&params.html, opts).map_err(|e| format!("aip.html.slim failed. {e}"))?;
@@ -139,7 +139,10 @@ impl AipOutput for AipHtmlToMdOutput {}
 
 /// Converts an HTML string to Markdown.
 #[aip_handler]
-fn aip_html_to_md_handler(_call: HandlerCallContext, params: AipHtmlToMdParams) -> HandlerResult<AipHtmlToMdOutput> {
+fn aip_html_to_md_handler(
+	_call_ctx: HandlerCallContext,
+	params: AipHtmlToMdParams,
+) -> HandlerResult<AipHtmlToMdOutput> {
 	let md = htmlr::to_md(&params.html, None).map_err(|e| e.to_string())?;
 	Ok(AipHtmlToMdOutput(md))
 }

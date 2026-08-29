@@ -103,7 +103,7 @@ impl AipOutput for AipTextFormatSizeOutput {}
 /// Keep the padding for tables, lists, and aligned output.
 #[aip_handler]
 fn aip_text_format_size_handler(
-	_call: HandlerCallContext,
+	_call_ctx: HandlerCallContext,
 	params: AipTextFormatSizeParams,
 ) -> HandlerResult<AipTextFormatSizeOutput> {
 	let Some(size) = params.size else {

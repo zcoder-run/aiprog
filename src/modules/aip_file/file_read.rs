@@ -315,8 +315,8 @@ impl AipOutput for AipFileStatsOutput {}
 
 /// Reads a file from disk and returns its content and metadata.
 #[aip_handler]
-fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
-	let resolved = call
+fn aip_file_read_handler(call_ctx: HandlerCallContext, params: AipFileReadParams) -> HandlerResult<AipFileReadOutput> {
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_read(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -342,13 +342,13 @@ fn aip_file_read_handler(call: HandlerCallContext, params: AipFileReadParams) ->
 ///
 /// Negative globs prefixed with `!` (e.g., `!**/*.tmp`) are supported to exclude matching files, special to this API.
 #[aip_handler]
-fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
+fn aip_file_list_handler(call_ctx: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileListOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| {
+	let paths = call_ctx.with::<DirContext, _>(|dir| {
 		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
 	})??;
 
@@ -366,7 +366,7 @@ fn aip_file_list_handler(call: HandlerCallContext, params: AipFileListParams) ->
 /// Lists files matching the given globs, returning both metadata and content.
 #[aip_handler]
 fn aip_file_list_read_handler(
-	call: HandlerCallContext,
+	call_ctx: HandlerCallContext,
 	params: AipFileListParams,
 ) -> HandlerResult<AipFileListReadOutput> {
 	let globs = params.globs.into_vec();
@@ -374,7 +374,7 @@ fn aip_file_list_read_handler(
 	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| {
+	let paths = call_ctx.with::<DirContext, _>(|dir| {
 		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
 	})??;
 
@@ -394,8 +394,8 @@ fn aip_file_list_read_handler(
 
 /// Returns metadata for a single file, or nil if the file does not exist.
 #[aip_handler]
-fn aip_file_info_handler(call: HandlerCallContext, params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
-	let resolved = call
+fn aip_file_info_handler(call_ctx: HandlerCallContext, params: AipFileInfoParams) -> HandlerResult<AipFileInfoOutput> {
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_read_target(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -414,10 +414,10 @@ fn aip_file_info_handler(call: HandlerCallContext, params: AipFileInfoParams) ->
 /// Checks whether a file exists at the given path.
 #[aip_handler]
 fn aip_file_exists_handler(
-	call: HandlerCallContext,
+	call_ctx: HandlerCallContext,
 	params: AipFileExistsParams,
 ) -> HandlerResult<AipFileExistsOutput> {
-	let resolved = call
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_read_target(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 	let exists = resolved.path().exists();
@@ -426,13 +426,16 @@ fn aip_file_exists_handler(
 
 /// Returns the first file matching the given glob patterns, or nil if none found.
 #[aip_handler]
-fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -> HandlerResult<AipFileFirstOutput> {
+fn aip_file_first_handler(
+	call_ctx: HandlerCallContext,
+	params: AipFileListParams,
+) -> HandlerResult<AipFileFirstOutput> {
 	let globs = params.globs.into_vec();
 	validate_glob_patterns(&globs)?;
 	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 	let absolute = params.absolute.unwrap_or(false);
 
-	let paths = call.with::<DirContext, _>(|dir| {
+	let paths = call_ctx.with::<DirContext, _>(|dir| {
 		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
 	})??;
 
@@ -450,7 +453,10 @@ fn aip_file_first_handler(call: HandlerCallContext, params: AipFileListParams) -
 
 /// Returns aggregate statistics (count, total size, first/last created/modified timestamps) for files matching the given globs.
 #[aip_handler]
-fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) -> HandlerResult<AipFileStatsOutput> {
+fn aip_file_stats_handler(
+	call_ctx: HandlerCallContext,
+	params: AipFileStatsParams,
+) -> HandlerResult<AipFileStatsOutput> {
 	let globs = match params.globs {
 		Some(g) => {
 			let v = g.into_vec();
@@ -464,7 +470,7 @@ fn aip_file_stats_handler(call: HandlerCallContext, params: AipFileStatsParams) 
 	validate_glob_patterns(&globs)?;
 	let matcher: Option<ContentMatcher> = params.contains.as_ref().map(TryInto::try_into).transpose()?;
 
-	let paths = call.with::<DirContext, _>(|dir| {
+	let paths = call_ctx.with::<DirContext, _>(|dir| {
 		list_files_matching(&globs, params.base_dir.as_deref(), matcher.as_ref(), dir)
 	})??;
 

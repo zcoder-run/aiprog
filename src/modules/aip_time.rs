@@ -228,7 +228,11 @@ pub fn init_registry() -> crate::Result<AipRegistry> {
 
 pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 	register_handler!(registry, "aip.time.now", aip_time_now_handler)?;
-	register_handler!(registry, "aip.time.local_utc_offset_seconds", aip_time_local_utc_offset_seconds_handler)?;
+	register_handler!(
+		registry,
+		"aip.time.local_utc_offset_seconds",
+		aip_time_local_utc_offset_seconds_handler
+	)?;
 	register_handler!(registry, "aip.time.to_time_data", aip_time_to_time_data_handler)?;
 	register_handler!(registry, "aip.time.offset_by", aip_time_offset_by_handler)?;
 	register_handler!(registry, "aip.time.parse", aip_time_parse_handler)?;
@@ -241,14 +245,14 @@ pub fn register(mut registry: AipRegistryBuilder) -> crate::Result<AipRegistryBu
 
 /// Returns current Unix epoch time in microseconds as a scalar integer.
 #[aip_handler]
-fn aip_time_now_handler(_call: HandlerCallContext, _params: AipTimeNowParams) -> HandlerResult<AipTimeMicroOutput> {
+fn aip_time_now_handler(_call_ctx: HandlerCallContext, _params: AipTimeNowParams) -> HandlerResult<AipTimeMicroOutput> {
 	Ok(AipTimeMicroOutput(base::time::now_micro()))
 }
 
 /// Returns current system local timezone UTC offset in seconds as a scalar integer.
 #[aip_handler]
 fn aip_time_local_utc_offset_seconds_handler(
-	_call: HandlerCallContext,
+	_call_ctx: HandlerCallContext,
 	_params: AipTimeLocalOffsetParams,
 ) -> HandlerResult<AipTimeOffsetSecondsOutput> {
 	let offset_secs = base::time::current_local_offset_seconds().map_err(HandlerError::custom_from_err)?;
@@ -257,7 +261,10 @@ fn aip_time_local_utc_offset_seconds_handler(
 
 /// Decomposes an epoch microsecond timestamp into structured calendar fields.
 #[aip_handler]
-fn aip_time_to_time_data_handler(_call: HandlerCallContext, params: ToTimeDataParams) -> HandlerResult<AipTimeData> {
+fn aip_time_to_time_data_handler(
+	_call_ctx: HandlerCallContext,
+	params: ToTimeDataParams,
+) -> HandlerResult<AipTimeData> {
 	let offset_secs = params.utc_offset_seconds.unwrap_or(0);
 	let utc_offset = time::UtcOffset::from_whole_seconds(offset_secs)
 		.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{offset_secs}': {e}")))?;
@@ -268,7 +275,7 @@ fn aip_time_to_time_data_handler(_call: HandlerCallContext, params: ToTimeDataPa
 
 /// Applies relative duration offsets to an epoch microsecond timestamp and returns decomposed date fields.
 #[aip_handler]
-fn aip_time_offset_by_handler(_call: HandlerCallContext, params: OffsetByParams) -> HandlerResult<AipTimeData> {
+fn aip_time_offset_by_handler(_call_ctx: HandlerCallContext, params: OffsetByParams) -> HandlerResult<AipTimeData> {
 	let base_micro = params.epoch_micro.unwrap_or_else(base::time::now_micro);
 	let offset = base::time::compute_relative_micro_offset(
 		params.by_days,
@@ -282,14 +289,14 @@ fn aip_time_offset_by_handler(_call: HandlerCallContext, params: OffsetByParams)
 	let offset_secs = params.utc_offset_seconds.unwrap_or(0);
 	let utc_offset = time::UtcOffset::from_whole_seconds(offset_secs)
 		.map_err(|e| HandlerError::custom(format!("Invalid utc_offset_seconds '{offset_secs}': {e}")))?;
-	let dt = base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset)
-		.map_err(HandlerError::custom_from_err)?;
+	let dt =
+		base::time::epoch_micro_to_offset_datetime(target_micro, utc_offset).map_err(HandlerError::custom_from_err)?;
 	build_aip_time_data(&dt).map_err(HandlerError::custom_from_err)
 }
 
 /// Parses an RFC 3339 or ISO 8601 string into an AipTimeData table.
 #[aip_handler]
-fn aip_time_parse_handler(_call: HandlerCallContext, params: AipTimeParseParams) -> HandlerResult<AipTimeData> {
+fn aip_time_parse_handler(_call_ctx: HandlerCallContext, params: AipTimeParseParams) -> HandlerResult<AipTimeData> {
 	let dt = base::time::parse_rfc3339_or_iso8601(&params.text)
 		.map_err(|e| HandlerError::custom(format!("aip.time.parse failed: {e}")))?;
 	build_aip_time_data(&dt).map_err(HandlerError::custom_from_err)
@@ -398,7 +405,12 @@ mod tests {
 		"#;
 		let res = _test_support::eval_script(&engine, script).await?;
 		let shifted_micro = res["epoch_micro"].as_i64().ok_or("Expected integer")?;
-		let expected_offset = (86_400_000_000i64) + (2 * 3_600_000_000i64) + (15 * 60_000_000i64) + (30 * 1_000_000i64) + (500 * 1_000) + 100;
+		let expected_offset = (86_400_000_000i64)
+			+ (2 * 3_600_000_000i64)
+			+ (15 * 60_000_000i64)
+			+ (30 * 1_000_000i64)
+			+ (500 * 1_000)
+			+ 100;
 		assert_eq!(shifted_micro, 1_000_000_000 + expected_offset);
 		Ok(())
 	}

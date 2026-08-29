@@ -60,8 +60,8 @@ pub fn compute_relative_micro_offset(
 /// Returns the current system local UTC offset in seconds.
 #[allow(unused)]
 pub fn current_local_offset_seconds() -> Result<i32> {
-	let local_offset = UtcOffset::current_local_offset()
-		.map_err(|err| format!("Cannot get local offset, cause: {err}"))?;
+	let local_offset =
+		UtcOffset::current_local_offset().map_err(|err| format!("Cannot get local offset, cause: {err}"))?;
 	Ok(local_offset.whole_seconds())
 }
 
@@ -196,14 +196,8 @@ mod tests {
 
 	#[test]
 	fn test_compute_relative_micro_offset() {
-		let offset = compute_relative_micro_offset(
-			Some(1.5),
-			Some(2.0),
-			Some(15.0),
-			Some(30.0),
-			Some(500.0),
-			Some(123),
-		);
+		let offset =
+			compute_relative_micro_offset(Some(1.5), Some(2.0), Some(15.0), Some(30.0), Some(500.0), Some(123));
 		let expected = (1.5 * 86_400_000_000.0) as i64
 			+ (2.0 * 3_600_000_000.0) as i64
 			+ (15.0 * 60_000_000.0) as i64

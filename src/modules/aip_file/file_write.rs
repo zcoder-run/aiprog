@@ -296,8 +296,11 @@ impl AipOutput for AipFileBoolOutput {}
 
 /// Writes text content to a target file, creating parent directories as needed.
 #[aip_handler]
-fn aip_file_write_handler(call: HandlerCallContext, params: AipFileWriteParams) -> HandlerResult<AipFileWriteOutput> {
-	let resolved = call
+fn aip_file_write_handler(
+	call_ctx: HandlerCallContext,
+	params: AipFileWriteParams,
+) -> HandlerResult<AipFileWriteOutput> {
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -322,8 +325,11 @@ fn aip_file_write_handler(call: HandlerCallContext, params: AipFileWriteParams) 
 
 /// Appends text content to a target file, creating the file and parent directories if they do not exist.
 #[aip_handler]
-fn aip_file_append_handler(call: HandlerCallContext, params: AipFileAppendParams) -> HandlerResult<AipFileWriteOutput> {
-	let resolved = call
+fn aip_file_append_handler(
+	call_ctx: HandlerCallContext,
+	params: AipFileAppendParams,
+) -> HandlerResult<AipFileWriteOutput> {
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -349,8 +355,8 @@ fn aip_file_append_handler(call: HandlerCallContext, params: AipFileAppendParams
 
 /// Copies a file from source to destination.
 #[aip_handler]
-fn aip_file_copy_handler(call: HandlerCallContext, params: AipFileCopyParams) -> HandlerResult<AipFileWriteOutput> {
-	let src_resolved = call
+fn aip_file_copy_handler(call_ctx: HandlerCallContext, params: AipFileCopyParams) -> HandlerResult<AipFileWriteOutput> {
+	let src_resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_read(&params.src, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -361,7 +367,7 @@ fn aip_file_copy_handler(call: HandlerCallContext, params: AipFileCopyParams) ->
 		));
 	}
 
-	let dest_resolved = call
+	let dest_resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.dest, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -388,8 +394,8 @@ fn aip_file_copy_handler(call: HandlerCallContext, params: AipFileCopyParams) ->
 
 /// Moves or renames a file from source to destination.
 #[aip_handler]
-fn aip_file_move_handler(call: HandlerCallContext, params: AipFileMoveParams) -> HandlerResult<AipFileWriteOutput> {
-	let src_resolved = call
+fn aip_file_move_handler(call_ctx: HandlerCallContext, params: AipFileMoveParams) -> HandlerResult<AipFileWriteOutput> {
+	let src_resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.src, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -400,7 +406,7 @@ fn aip_file_move_handler(call: HandlerCallContext, params: AipFileMoveParams) ->
 		));
 	}
 
-	let dest_resolved = call
+	let dest_resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.dest, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -431,8 +437,11 @@ fn aip_file_move_handler(call: HandlerCallContext, params: AipFileMoveParams) ->
 
 /// Deletes a file from disk if it exists.
 #[aip_handler]
-fn aip_file_delete_handler(call: HandlerCallContext, params: AipFileDeleteParams) -> HandlerResult<AipFileBoolOutput> {
-	let resolved = call
+fn aip_file_delete_handler(
+	call_ctx: HandlerCallContext,
+	params: AipFileDeleteParams,
+) -> HandlerResult<AipFileBoolOutput> {
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -453,10 +462,10 @@ fn aip_file_delete_handler(call: HandlerCallContext, params: AipFileDeleteParams
 /// Ensures a target file exists, optionally writing initial content when missing or empty.
 #[aip_handler]
 fn aip_file_ensure_exists_handler(
-	call: HandlerCallContext,
+	call_ctx: HandlerCallContext,
 	params: AipFileEnsureExistsParams,
 ) -> HandlerResult<AipFileWriteOutput> {
-	let resolved = call
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 
@@ -498,10 +507,10 @@ fn aip_file_ensure_exists_handler(
 /// Ensures a directory exists, creating missing parent folders if necessary.
 #[aip_handler]
 fn aip_file_ensure_dir_handler(
-	call: HandlerCallContext,
+	call_ctx: HandlerCallContext,
 	params: AipFileEnsureDirParams,
 ) -> HandlerResult<AipFileBoolOutput> {
-	let resolved = call
+	let resolved = call_ctx
 		.with::<DirContext, _>(|dir| dir.resolve_write(&params.path, params.base_dir.as_deref()))?
 		.map_err(|e| aip_file_error("PATH_POLICY_DENIED", &e.to_string()))?;
 

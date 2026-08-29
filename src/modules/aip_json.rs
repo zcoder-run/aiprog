@@ -110,7 +110,10 @@ impl AipOutput for AipJsonParseOutput {}
 
 /// Parses a JSON string into a Lua value.
 #[aip_handler]
-fn aip_json_parse_handler(_call: HandlerCallContext, params: AipJsonParseParams) -> HandlerResult<AipJsonParseOutput> {
+fn aip_json_parse_handler(
+	_call_ctx: HandlerCallContext,
+	params: AipJsonParseParams,
+) -> HandlerResult<AipJsonParseOutput> {
 	let Some(content) = params.text else {
 		return Ok(AipJsonParseOutput(None));
 	};
@@ -154,7 +157,7 @@ impl AipParams for AipJsonParseJsonlParams {}
 ///
 #[aip_handler]
 fn aip_json_parse_jsonl_handler(
-	_call: HandlerCallContext,
+	_call_ctx: HandlerCallContext,
 	params: AipJsonParseJsonlParams,
 ) -> HandlerResult<AipJsonParseJsonlOutput> {
 	let Some(content) = params.text else {
@@ -227,7 +230,7 @@ impl AipOutput for AipJsonStringifyOutput {}
 /// Returns Lua `nil` when the data is nil/null/absent.
 #[aip_handler]
 fn aip_json_stringify_handler(
-	_call: HandlerCallContext,
+	_call_ctx: HandlerCallContext,
 	params: AipJsonStringifyParams,
 ) -> HandlerResult<AipJsonStringifyOutput> {
 	if params.data.is_null() {

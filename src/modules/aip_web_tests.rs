@@ -4,8 +4,8 @@ type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tes
 
 use value_ext::JsonValueExt as _;
 
-use crate::AipRegistryBuilder;
 use crate::_test_support;
+use crate::AipRegistryBuilder;
 use crate::modules::WebModule;
 
 #[tokio::test]
