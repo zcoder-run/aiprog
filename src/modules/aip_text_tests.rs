@@ -1,96 +1,97 @@
-type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>; // For tests.
+type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-use crate::_test_support;
-use crate::AipModule as _;
-use crate::AipRegistry;
+use crate::_test_support::{eval_script, setup_lua_engine};
+use crate::modules::TextModule;
 use crate::AipRegistryBuilder;
+use serde_json::json;
 
-fn aip_registry() -> crate::Result<AipRegistry> {
-	let builder = AipRegistryBuilder::default();
-	let reg = crate::modules::TextModule::register(builder)?.build();
-	Ok(reg)
+fn setup_text_engine() -> crate::Result<crate::ScriptEngine> {
+	setup_lua_engine(|| Ok(AipRegistryBuilder::default().add_module(TextModule)?.build()))
 }
 
 #[tokio::test]
-async fn test_aip_text_format_size_simple() -> Result<()> {
+async fn test_lua_text_trim_default() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(aip_registry)?;
-	let script = r#"
-        return aip.text.format_size({ size = 777 })
-    "#;
+	let engine = setup_text_engine()?;
 
-	// -- Exec
-	let res = _test_support::eval_script(&engine, script).await?;
+	// -- Exec & Check
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  " })"#).await?;
+	assert_eq!(res, json!("hello world"));
 
-	// -- Check
-	let s = res.as_str().ok_or("Expected string result")?;
-	assert_eq!(s, "   777 B ");
+	let res = eval_script(&engine, "return aip.text.trim({ text = \"\\t\\n  hello \\n\\t \" })").await?;
+	assert_eq!(res, json!("hello"));
+
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "hello" })"#).await?;
+	assert_eq!(res, json!("hello"));
+
 	Ok(())
 }
 
 #[tokio::test]
-async fn test_aip_text_format_size_nil() -> Result<()> {
+async fn test_lua_text_trim_modes() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(aip_registry)?;
-	let script = r#"
-        return aip.text.format_size({})
-    "#;
+	let engine = setup_text_engine()?;
 
-	// -- Exec
-	let res = _test_support::eval_script(&engine, script).await?;
+	// -- Exec & Check: Start / Left
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "start" })"#).await?;
+	assert_eq!(res, json!("hello world  "));
 
-	// -- Check
-	assert!(res.is_null(), "Expected nil return for nil size");
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "left" })"#).await?;
+	assert_eq!(res, json!("hello world  "));
+
+	// -- Exec & Check: End / Right
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "end" })"#).await?;
+	assert_eq!(res, json!("  hello world"));
+
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "right" })"#).await?;
+	assert_eq!(res, json!("  hello world"));
+
+	// -- Exec & Check: All / Both
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "all" })"#).await?;
+	assert_eq!(res, json!("hello world"));
+
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "  hello world  ", mode = "both" })"#).await?;
+	assert_eq!(res, json!("hello world"));
+
 	Ok(())
 }
 
 #[tokio::test]
-async fn test_aip_text_format_size_lowest_unit() -> Result<()> {
+async fn test_lua_text_trim_nil_and_empty() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(aip_registry)?;
-	let script = r#"
-        return aip.text.format_size({ size = 1500, lowest_unit = "KB" })
-    "#;
+	let engine = setup_text_engine()?;
 
-	// -- Exec
-	let res = _test_support::eval_script(&engine, script).await?;
+	// -- Exec & Check: Nil text
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = nil })"#).await?;
+	assert_eq!(res, serde_json::Value::Null);
 
-	// -- Check
-	let s = res.as_str().ok_or("Expected string result")?;
-	assert_eq!(s, "  1.50 KB");
+	// -- Exec & Check: Empty table
+	let res = eval_script(&engine, r#"return aip.text.trim({})"#).await?;
+	assert_eq!(res, serde_json::Value::Null);
+
 	Ok(())
 }
 
 #[tokio::test]
-async fn test_aip_text_format_size_trim() -> Result<()> {
+async fn test_lua_text_trim_invalid_mode() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(aip_registry)?;
-	let script = r#"
-        return aip.text.format_size({ size = 1500, lowest_unit = "KB", unpad = true })
-    "#;
+	let engine = setup_text_engine()?;
 
-	// -- Exec
-	let res = _test_support::eval_script(&engine, script).await?;
+	// -- Exec & Check
+	let res = eval_script(&engine, r#"return aip.text.trim({ text = "hello", mode = "invalid_mode" })"#).await;
+	assert!(res.is_err(), "Expected error on invalid trim mode");
 
-	// -- Check
-	let s = res.as_str().ok_or("Expected string result")?;
-	assert_eq!(s, "1.50 KB");
 	Ok(())
 }
 
 #[tokio::test]
-async fn test_aip_text_format_size_gb() -> Result<()> {
+async fn test_lua_text_trim_invalid_params() -> Result<()> {
 	// -- Setup & Fixtures
-	let engine = _test_support::setup_lua_engine(aip_registry)?;
-	let script = r#"
-        return aip.text.format_size({ size = 2345678900 })
-    "#;
+	let engine = setup_text_engine()?;
 
-	// -- Exec
-	let res = _test_support::eval_script(&engine, script).await?;
+	// -- Exec & Check: String passed instead of table
+	let res = eval_script(&engine, r#"return aip.text.trim("hello")"#).await;
+	assert!(res.is_err(), "Expected error when params is not a table");
 
-	// -- Check
-	let s = res.as_str().ok_or("Expected string result")?;
-	assert_eq!(s, "  2.35 GB");
 	Ok(())
 }

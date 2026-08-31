@@ -9,6 +9,7 @@
 //! ### Functions
 //!
 //! - `aip.text.format_size(params: { size?: integer, lowest_unit?: string, trim?: boolean }) -> string | nil`
+//! - `aip.text.trim(params: { text?: string, mode?: "all" | "start" | "end" }) -> string | nil`
 //!
 //! ---
 
@@ -30,6 +31,7 @@ pub struct TextModule;
 impl AipModule for TextModule {
 	fn register(mut builder: AipRegistryBuilder) -> crate::Result<AipRegistryBuilder> {
 		register_handler!(builder, "aip.text.format_size", aip_text_format_size_handler)?;
+		register_handler!(builder, "aip.text.trim", aip_text_trim_handler)?;
 		Ok(builder)
 	}
 }
@@ -122,6 +124,94 @@ fn aip_text_format_size_handler(
 }
 
 // endregion: --- aip.text.format_size
+
+// region:    --- aip.text.trim
+
+/// Trim mode for `aip.text.trim`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TrimMode {
+	#[default]
+	All,
+	Start,
+	End,
+}
+
+/// Parameters for `aip.text.trim`.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde_with::skip_serializing_none]
+pub struct AipTextTrimParams {
+	/// Text to trim. If nil or absent, returns nil.
+	pub text: Option<String>,
+
+	/// Trim mode: "all" (default), "start", or "end".
+	pub mode: Option<TrimMode>,
+}
+
+impl AipFromLua for AipTextTrimParams {
+	fn from_lua(_lua: &Lua, value: mlua::Value) -> crate::Result<Self> {
+		let table = value.as_table().ok_or_else(|| {
+			crate::Error::custom(format!(
+				"Params expected to be a table, but was of type '{}'",
+				value.type_name()
+			))
+		})?;
+
+		let text = table.x_try_get_string("text")?;
+		let mode = match table.x_try_get_string("mode")?.as_deref() {
+			Some("start" | "left") => Some(TrimMode::Start),
+			Some("end" | "right") => Some(TrimMode::End),
+			Some("all" | "both") => Some(TrimMode::All),
+			Some(other) => {
+				return Err(crate::Error::custom(format!(
+					"Invalid mode '{other}', expected 'all', 'start', or 'end'"
+				)));
+			}
+			None => None,
+		};
+
+		Ok(AipTextTrimParams { text, mode })
+	}
+}
+
+impl AipParams for AipTextTrimParams {}
+
+/// Output type for `aip.text.trim`.
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+pub struct AipTextTrimOutput(pub Option<String>);
+
+impl AipIntoLua for AipTextTrimOutput {
+	fn into_lua(self, lua: &Lua) -> crate::Result<mlua::Value> {
+		match self.0 {
+			Some(s) => s.into_lua(lua),
+			None => Ok(mlua::Value::Nil),
+		}
+	}
+}
+
+impl AipOutput for AipTextTrimOutput {}
+
+/// Trims whitespace from text according to the specified mode ("all", "start", or "end").
+#[aip_handler]
+fn aip_text_trim_handler(
+	_call_ctx: HandlerCallContext,
+	params: AipTextTrimParams,
+) -> HandlerResult<AipTextTrimOutput> {
+	let Some(text) = params.text else {
+		return Ok(AipTextTrimOutput(None));
+	};
+
+	let mode = params.mode.unwrap_or_default();
+	let trimmed = match mode {
+		TrimMode::Start => text.trim_start().to_string(),
+		TrimMode::End => text.trim_end().to_string(),
+		TrimMode::All => text.trim().to_string(),
+	};
+
+	Ok(AipTextTrimOutput(Some(trimmed)))
+}
+
+// endregion: --- aip.text.trim
 
 // region:    --- Tests
 
