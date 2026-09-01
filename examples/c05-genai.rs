@@ -34,7 +34,7 @@ Do not include any other text."
 	);
 
 	// 4. Call genai.
-	let client = Client::builder().build();
+	let client = Client::builder().build()?;
 	let chat_req = ChatRequest::new(vec![ChatMessage::user(&prompt)]);
 	let chat_res = client.exec_chat(MODEL, chat_req, None).await?;
 	let ai_text = chat_res.first_text().unwrap_or_default();
